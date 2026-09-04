@@ -8,7 +8,7 @@ interface TerminalViewProps {
 }
 
 export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionName }) => {
-  const { containerRef } = useTerminalSession(sessionId);
+  const { containerRef, terminal } = useTerminalSession(sessionId);
 
   if (!sessionId) {
     return (
@@ -74,7 +74,11 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
           </div>
 
           {/* Terminal Viewport */}
-          <div className="relative flex-1 w-full p-2 overflow-hidden bg-[#03060e]" ref={containerRef} />
+          <div
+            className="relative flex-1 w-full p-2 overflow-hidden bg-[#03060e]"
+            ref={containerRef}
+            onClick={() => terminal?.focus()}
+          />
         </div>
       </div>
     </div>

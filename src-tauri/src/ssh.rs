@@ -95,6 +95,12 @@ pub fn connect_ssh(
         .shell()
         .map_err(|e| format!("Failed to start shell: {}", e))?;
 
+    // IMPORTANT for concurrency: Switch session to non-blocking mode.
+    // libssh2 holds an internal Mutex<SessionInner> across Channel/Stream operations.
+    // In blocking mode, channel.read(&mut buf) holds the session mutex indefinitely
+    // waiting for remote packets, completely starving channel.write() and sftp calls!
+    sess.set_blocking(false);
+
     let is_alive = Arc::new(AtomicBool::new(true));
     let is_alive_reader = is_alive.clone();
     let is_alive_writer = is_alive.clone();
@@ -123,24 +129,28 @@ pub fn connect_ssh(
 
             match read_result {
                 Ok(0) => {
-                    // EOF reached
-                    break;
-                }
-                Ok(n) => {
-                    // Emit raw text or lossy UTF-8
-                    let chunk = String::from_utf8_lossy(&buf[..n]).to_string();
-                    if let Err(e) = app_reader.emit(&event_name, chunk) {
-                        eprintln!("Failed to emit SSH data event: {}", e);
+                    // In non-blocking mode, Ok(0) can mean either EOF or no data yet if not eof().
+                    // Check channel eof status:
+                    let is_eof = {
+                        let ch = channel_reader.lock();
+                        ch.eof()
+                    };
+                    if is_eof {
                         break;
                     }
+                    thread::sleep(Duration::from_millis(15));
+                }
+                Ok(n) => {
+                    let chunk = String::from_utf8_lossy(&buf[..n]).to_string();
+                    let _ = app_reader.emit(&event_name, chunk);
                 }
                 Err(e) => {
-                    // WouldBlock might happen if nonblocking, but in blocking mode it's an error/disconnect
-                    if e.kind() != std::io::ErrorKind::WouldBlock {
+                    if e.kind() == std::io::ErrorKind::WouldBlock {
+                        thread::sleep(Duration::from_millis(15));
+                    } else {
                         eprintln!("SSH read error: {}", e);
                         break;
                     }
-                    thread::sleep(Duration::from_millis(10));
                 }
             }
         }
@@ -153,11 +163,29 @@ pub fn connect_ssh(
     thread::spawn(move || {
         while is_alive_writer.load(Ordering::SeqCst) {
             if let Some(bytes) = write_rx.blocking_recv() {
-                let mut ch = channel_writer.lock();
-                if let Err(e) = ch.write_all(&bytes) {
-                    eprintln!("SSH write error: {}", e);
-                    break;
+                let mut written = 0;
+                while written < bytes.len() && is_alive_writer.load(Ordering::SeqCst) {
+                    let write_res = {
+                        let mut ch = channel_writer.lock();
+                        ch.write(&bytes[written..])
+                    };
+                    match write_res {
+                        Ok(n) if n > 0 => {
+                            written += n;
+                        }
+                        Ok(_) => {
+                            thread::sleep(Duration::from_millis(10));
+                        }
+                        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                            thread::sleep(Duration::from_millis(10));
+                        }
+                        Err(e) => {
+                            eprintln!("SSH write error: {}", e);
+                            break;
+                        }
+                    }
                 }
+                let mut ch = channel_writer.lock();
                 let _ = ch.flush();
             } else {
                 break;

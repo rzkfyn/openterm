@@ -50,6 +50,7 @@ export function useTerminalSession(sessionId: string | null) {
 
     term.open(containerRef.current);
     fitAddon.fit();
+    term.focus();
 
     terminalRef.current = term;
     fitAddonRef.current = fitAddon;

@@ -31,7 +31,7 @@ export default function App() {
   };
 
   return (
-    <div className="relative flex h-screen w-screen flex-col bg-[#030712] text-slate-100 overflow-hidden select-none bg-noise">
+    <div className="relative flex h-screen w-screen flex-col bg-[#030712] text-slate-100 overflow-hidden bg-noise">
       {/* Background Ambient Radial Glow */}
       <div className="absolute top-0 left-1/4 -translate-x-1/2 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute top-0 right-1/4 translate-x-1/2 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
