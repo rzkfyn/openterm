@@ -1,4 +1,5 @@
 use std::fs;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::time::UNIX_EPOCH;
@@ -38,7 +39,10 @@ pub fn read_local_dir(
                     .ok()
                     .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
                     .map(|d| d.as_secs());
+                #[cfg(unix)]
                 let permissions = Some(m.permissions().mode());
+                #[cfg(not(unix))]
+                let permissions = None;
                 (m.is_dir(), is_symlink, m.len(), modified, permissions)
             } else {
                 (false, false, 0, None, None)
