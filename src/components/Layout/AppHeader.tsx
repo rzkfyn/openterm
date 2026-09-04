@@ -8,6 +8,9 @@ import {
   Plus,
   X,
   Radio,
+  ArrowUpRight,
+  ShieldCheck,
+  Cpu,
 } from 'lucide-react';
 
 interface AppHeaderProps {
@@ -25,94 +28,105 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenNewConnection }) => 
   } = useSessionStore();
 
   return (
-    <header className="flex h-10 items-center justify-between border-b border-slate-800 bg-slate-900/90 px-3 text-xs select-none shrink-0">
-      {/* Brand & Active Session Tabs */}
-      <div className="flex items-center space-x-2 overflow-x-auto no-scrollbar">
-        <div className="flex items-center space-x-1.5 pr-2 border-r border-slate-800">
-          <div className="flex h-5 w-5 items-center justify-center rounded bg-sky-600 font-bold text-[11px] text-white">
-            OT
+    <header className="relative z-30 flex h-14 items-center justify-between px-4 bg-[#030712]/80 backdrop-blur-xl border-b border-white/[0.07] select-none shrink-0 transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)]">
+      {/* Brand & Active Sessions */}
+      <div className="flex items-center space-x-3 overflow-x-auto no-scrollbar py-1">
+        {/* Double-Bezel Logo Pill */}
+        <div className="flex items-center p-1 rounded-2xl bg-white/[0.03] border border-white/[0.08] shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]">
+          <div className="flex items-center space-x-2 px-2.5 py-1 rounded-[calc(1rem-0.25rem)] bg-gradient-to-br from-slate-900 to-black border border-white/[0.05]">
+            <div className="relative flex h-4 w-4 items-center justify-center">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-20"></span>
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400"></span>
+            </div>
+            <span className="text-xs font-semibold tracking-tight text-white">OpenTerm</span>
+            <span className="text-[10px] font-mono tracking-widest text-emerald-400/90 uppercase px-1.5 py-0.2 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+              v0.1
+            </span>
           </div>
-          <span className="font-semibold text-slate-100 hidden sm:inline">OpenTerm</span>
         </div>
 
+        {/* Vertical Hairline Divider */}
+        <div className="h-4 w-[1px] bg-white/[0.08]" />
+
         {/* Sessions Tab Bar */}
-        <div className="flex items-center space-x-1">
+        <div className="flex items-center space-x-1.5">
           {activeSessions.map((session) => {
             const isActive = session.id === currentSessionId;
             return (
               <div
                 key={session.id}
                 onClick={() => setCurrentSessionId(session.id || null)}
-                className={`flex items-center space-x-1.5 px-2.5 py-1 rounded cursor-pointer transition-colors ${
+                className={`group flex items-center space-x-2 px-3 py-1.5 rounded-full cursor-pointer transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.98] ${
                   isActive
-                    ? 'bg-slate-800 text-sky-300 font-medium'
-                    : 'text-slate-400 hover:bg-slate-850 hover:text-slate-200'
+                    ? 'bg-white/[0.08] border border-white/[0.15] text-white shadow-[0_2px_12px_-2px_rgba(0,0,0,0.5)]'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03] border border-transparent'
                 }`}
               >
-                <Radio className={`h-2.5 w-2.5 ${isActive ? 'text-emerald-400 fill-emerald-400' : 'text-slate-500'}`} />
-                <span className="truncate max-w-[100px]">{session.name}</span>
+                <div className={`h-1.5 w-1.5 rounded-full ${isActive ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'bg-slate-600'}`} />
+                <span className="truncate max-w-[120px] text-xs font-medium">{session.name}</span>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     if (session.id) disconnectSession(session.id);
                   }}
-                  className="rounded p-0.5 text-slate-500 hover:text-rose-400 hover:bg-slate-700"
+                  className="rounded-full p-0.5 text-slate-500 hover:text-rose-400 hover:bg-white/[0.08] transition-colors"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-3 w-3 stroke-[1.5]" />
                 </button>
               </div>
             );
           })}
 
+          {/* Island Button-in-Button Connect Trigger */}
           <button
             onClick={onOpenNewConnection}
-            className="flex items-center space-x-1 px-2 py-1 rounded bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white"
-            title="Open new connection"
+            className="group flex items-center space-x-2 pl-3.5 pr-1.5 py-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-slate-300 hover:text-white transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.97]"
           >
-            <Plus className="h-3 w-3" />
-            <span className="hidden md:inline">Connect</span>
+            <span className="text-xs font-medium tracking-tight">Connect Host</span>
+            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-white/10 group-hover:bg-emerald-500 group-hover:text-black transition-all duration-300 group-hover:scale-105">
+              <Plus className="h-3 w-3 stroke-[2] transition-transform group-hover:rotate-90" />
+            </div>
           </button>
         </div>
       </div>
 
-      {/* View Mode Toggle Controls */}
-      <div className="flex items-center space-x-1 bg-slate-950 p-0.5 rounded border border-slate-800">
-        <button
-          onClick={() => setViewMode('terminal')}
-          className={`px-2 py-1 rounded flex items-center space-x-1 text-[11px] ${
-            viewMode === 'terminal'
-              ? 'bg-sky-600 text-white font-medium'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-          title="Terminal Full View"
-        >
-          <Terminal className="h-3 w-3" />
-          <span className="hidden lg:inline">Terminal</span>
-        </button>
-        <button
-          onClick={() => setViewMode('split')}
-          className={`px-2 py-1 rounded flex items-center space-x-1 text-[11px] ${
-            viewMode === 'split'
-              ? 'bg-sky-600 text-white font-medium'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-          title="Dual Split View (Terminal + SFTP)"
-        >
-          <Columns className="h-3 w-3" />
-          <span className="hidden lg:inline">Split</span>
-        </button>
-        <button
-          onClick={() => setViewMode('sftp')}
-          className={`px-2 py-1 rounded flex items-center space-x-1 text-[11px] ${
-            viewMode === 'sftp'
-              ? 'bg-sky-600 text-white font-medium'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-          title="SFTP File Manager Full View"
-        >
-          <FolderTree className="h-3 w-3" />
-          <span className="hidden lg:inline">SFTP</span>
-        </button>
+      {/* View Mode Toggle Island */}
+      <div className="flex items-center space-x-2">
+        <div className="flex items-center p-1 rounded-full bg-white/[0.03] border border-white/[0.07]">
+          <button
+            onClick={() => setViewMode('terminal')}
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+              viewMode === 'terminal'
+                ? 'bg-white text-slate-950 shadow-[0_2px_10px_rgba(255,255,255,0.2)]'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Terminal className="h-3.5 w-3.5 stroke-[1.5]" />
+            <span className="hidden md:inline">Terminal</span>
+          </button>
+          <button
+            onClick={() => setViewMode('split')}
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+              viewMode === 'split'
+                ? 'bg-white text-slate-950 shadow-[0_2px_10px_rgba(255,255,255,0.2)]'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Columns className="h-3.5 w-3.5 stroke-[1.5]" />
+            <span className="hidden md:inline">Split</span>
+          </button>
+          <button
+            onClick={() => setViewMode('sftp')}
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-medium transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+              viewMode === 'sftp'
+                ? 'bg-white text-slate-950 shadow-[0_2px_10px_rgba(255,255,255,0.2)]'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <FolderTree className="h-3.5 w-3.5 stroke-[1.5]" />
+            <span className="hidden md:inline">SFTP</span>
+          </button>
+        </div>
       </div>
     </header>
   );

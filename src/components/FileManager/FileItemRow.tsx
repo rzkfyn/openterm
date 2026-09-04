@@ -1,6 +1,6 @@
 import React from 'react';
 import { FileEntry } from '../../types';
-import { Folder, File, FileText, FileCode, Archive, HardDrive } from 'lucide-react';
+import { Folder, File, FileText, FileCode, Archive } from 'lucide-react';
 
 interface FileItemRowProps {
   entry: FileEntry;
@@ -17,19 +17,32 @@ export const FileItemRow: React.FC<FileItemRowProps> = ({
 }) => {
   const getIcon = () => {
     if (entry.isDir) {
-      return <Folder className="h-4 w-4 text-sky-400 fill-sky-400/20 shrink-0" />;
+      return (
+        <div className="flex h-5 w-5 items-center justify-center rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+          <Folder className="h-3.5 w-3.5 stroke-[1.5] fill-emerald-400/20" />
+        </div>
+      );
     }
     const ext = entry.name.split('.').pop()?.toLowerCase();
     if (['zip', 'tar', 'gz', 'bz2', '7z', 'rar'].includes(ext || '')) {
-      return <Archive className="h-4 w-4 text-amber-400 shrink-0" />;
+      return (
+        <div className="flex h-5 w-5 items-center justify-center rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
+          <Archive className="h-3.5 w-3.5 stroke-[1.5]" />
+        </div>
+      );
     }
     if (['js', 'ts', 'tsx', 'jsx', 'rs', 'py', 'json', 'html', 'css', 'go', 'c', 'cpp'].includes(ext || '')) {
-      return <FileCode className="h-4 w-4 text-emerald-400 shrink-0" />;
+      return (
+        <div className="flex h-5 w-5 items-center justify-center rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 shrink-0">
+          <FileCode className="h-3.5 w-3.5 stroke-[1.5]" />
+        </div>
+      );
     }
-    if (['txt', 'md', 'log'].includes(ext || '')) {
-      return <FileText className="h-4 w-4 text-slate-300 shrink-0" />;
-    }
-    return <File className="h-4 w-4 text-slate-400 shrink-0" />;
+    return (
+      <div className="flex h-5 w-5 items-center justify-center rounded bg-white/[0.04] text-slate-400 border border-white/[0.06] shrink-0">
+        <File className="h-3.5 w-3.5 stroke-[1.5]" />
+      </div>
+    );
   };
 
   const formatSize = (bytes: number) => {
@@ -56,20 +69,20 @@ export const FileItemRow: React.FC<FileItemRowProps> = ({
     <div
       onClick={(e) => onSelect(entry, e)}
       onDoubleClick={() => onDoubleClick(entry)}
-      className={`flex h-8 items-center px-2 text-xs select-none cursor-pointer border-b border-slate-900/60 ${
+      className={`group flex h-8 items-center px-3 text-xs select-none cursor-pointer transition-colors duration-150 border-b border-white/[0.02] ${
         isSelected
-          ? 'bg-sky-950/80 text-sky-200 border-sky-800/50'
-          : 'text-slate-300 hover:bg-slate-900/60 hover:text-slate-100'
+          ? 'bg-emerald-500/15 text-white border-b-emerald-500/30'
+          : 'text-slate-300 hover:bg-white/[0.03] hover:text-white'
       }`}
     >
-      <div className="flex flex-1 items-center space-x-2 truncate pr-2">
+      <div className="flex flex-1 items-center space-x-2.5 truncate pr-3">
         {getIcon()}
-        <span className="truncate">{entry.name}</span>
+        <span className="truncate font-mono text-[11px] tracking-tight">{entry.name}</span>
       </div>
-      <div className="w-20 text-right text-slate-400 font-mono text-[11px] shrink-0">
+      <div className="w-20 text-right text-slate-500 font-mono text-[10px] shrink-0">
         {formatSize(entry.size)}
       </div>
-      <div className="w-28 text-right text-slate-500 text-[10px] shrink-0 pl-2">
+      <div className="w-28 text-right text-slate-600 font-mono text-[10px] shrink-0 pl-2">
         {formatDate(entry.modified)}
       </div>
     </div>

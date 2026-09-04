@@ -23,14 +23,14 @@ export const PathBreadcrumb: React.FC<PathBreadcrumbProps> = ({
   };
 
   return (
-    <div className="flex h-8 items-center justify-between border-b border-slate-800 bg-slate-900/40 px-2 text-xs text-slate-300">
-      <div className="flex items-center space-x-1 overflow-x-auto no-scrollbar py-0.5">
+    <div className="flex h-9 items-center justify-between border-b border-white/[0.06] bg-white/[0.015] px-3 text-xs text-slate-300">
+      <div className="flex items-center space-x-1.5 overflow-x-auto no-scrollbar py-0.5">
         <button
           onClick={() => onNavigate(isRemote ? '.' : '/')}
-          className="p-1 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded"
-          title="Root"
+          className="p-1 text-slate-400 hover:text-white hover:bg-white/[0.06] rounded-md transition-colors"
+          title="Root directory"
         >
-          <Home className="h-3.5 w-3.5" />
+          <Home className="h-3.5 w-3.5 stroke-[1.5]" />
         </button>
 
         {parts.map((part, index) => {
@@ -39,13 +39,13 @@ export const PathBreadcrumb: React.FC<PathBreadcrumbProps> = ({
 
           return (
             <React.Fragment key={currentSubPath}>
-              <ChevronRight className="h-3 w-3 text-slate-600 shrink-0" />
+              <ChevronRight className="h-3 w-3 text-slate-700 shrink-0" />
               <button
                 onClick={() => onNavigate(currentSubPath)}
-                className={`truncate max-w-[120px] px-1 py-0.5 rounded text-left ${
+                className={`truncate max-w-[130px] px-2 py-0.5 rounded-md text-xs font-mono transition-all ${
                   isLast
-                    ? 'font-medium text-sky-400 bg-slate-800/60'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                    ? 'font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
                 }`}
                 title={part}
               >
@@ -56,20 +56,20 @@ export const PathBreadcrumb: React.FC<PathBreadcrumbProps> = ({
         })}
       </div>
 
-      <div className="flex items-center space-x-1 shrink-0 ml-1">
+      <div className="flex items-center space-x-1 shrink-0 ml-2">
         <button
           onClick={handleParent}
-          className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded"
-          title="Up one folder"
+          className="p-1.5 text-slate-400 hover:text-white hover:bg-white/[0.06] rounded-md transition-colors"
+          title="Parent folder"
         >
-          <FolderUp className="h-3.5 w-3.5" />
+          <FolderUp className="h-3.5 w-3.5 stroke-[1.5]" />
         </button>
         <button
           onClick={onRefresh}
-          className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded"
-          title="Refresh"
+          className="p-1.5 text-slate-400 hover:text-white hover:bg-white/[0.06] rounded-md transition-colors"
+          title="Refresh directory"
         >
-          <RefreshCw className="h-3.5 w-3.5" />
+          <RefreshCw className="h-3.5 w-3.5 stroke-[1.5]" />
         </button>
       </div>
     </div>

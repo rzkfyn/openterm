@@ -26,19 +26,23 @@ export default function App() {
       await connectSession(config);
       setIsModalOpen(false);
     } catch (e) {
-      // Error is set in store
+      // Error handled in store
     }
   };
 
   return (
-    <div className="flex h-screen w-screen flex-col bg-slate-950 text-slate-100 overflow-hidden font-sans">
-      {/* Top Application Header */}
+    <div className="relative flex h-screen w-screen flex-col bg-[#030712] text-slate-100 overflow-hidden select-none bg-noise">
+      {/* Background Ambient Radial Glow */}
+      <div className="absolute top-0 left-1/4 -translate-x-1/2 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-0 right-1/4 translate-x-1/2 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+
+      {/* High-End Floating Navbar Header */}
       <AppHeader onOpenNewConnection={() => setIsModalOpen(true)} />
 
-      {/* Main Multi-Pane Viewport */}
-      <main className="flex flex-1 overflow-hidden relative">
+      {/* Main Responsive Asymmetrical & Split Workspace */}
+      <main className="relative z-10 flex flex-1 overflow-hidden">
         {viewMode === 'terminal' && (
-          <div className="flex-1 h-full w-full p-1">
+          <div className="flex-1 h-full w-full">
             <TerminalView
               sessionId={currentSessionId}
               sessionName={currentSession?.name}
@@ -53,15 +57,15 @@ export default function App() {
         )}
 
         {viewMode === 'split' && (
-          <div className="flex flex-1 h-full w-full overflow-hidden divide-x divide-slate-800">
-            {/* Terminal Left Half */}
-            <div className="flex-1 h-full min-w-0 p-1">
+          <div className="flex flex-1 h-full w-full overflow-hidden divide-x divide-white/[0.04]">
+            {/* Terminal Viewport */}
+            <div className="flex-1 h-full min-w-0">
               <TerminalView
                 sessionId={currentSessionId}
                 sessionName={currentSession?.name}
               />
             </div>
-            {/* Dual SFTP Explorer Right Half */}
+            {/* Dual SFTP Explorer */}
             <div className="flex-1 h-full min-w-0">
               <DualPaneExplorer sessionId={currentSessionId} />
             </div>
@@ -69,10 +73,10 @@ export default function App() {
         )}
       </main>
 
-      {/* Background File Transfer Drawer */}
+      {/* Background Direct File Transfer Drawer */}
       <TransferDrawer />
 
-      {/* New Connection Modal */}
+      {/* Double-Bezel New Connection Dialog */}
       <NewConnectionModal
         isOpen={isModalOpen}
         onClose={() => {
