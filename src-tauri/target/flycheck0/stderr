@@ -1,0 +1,103 @@
+   0.879148000s  INFO prepare_target{force=false package_id=openterm v0.1.0 (/Volumes/External/projects/personal/openterm/src-tauri) target="openterm_lib"}: cargo::core::compiler::fingerprint: stale: missing "/Volumes/External/projects/personal/openterm/src-tauri/capabilities"
+   0.979752500s  INFO prepare_target{force=false package_id=openterm v0.1.0 (/Volumes/External/projects/personal/openterm/src-tauri) target="openterm_lib"}: cargo::core::compiler::fingerprint: fingerprint error for openterm v0.1.0 (/Volumes/External/projects/personal/openterm/src-tauri)/Check { test: false }/TargetInner { ..: lib_target("openterm_lib", ["staticlib", "cdylib", "rlib"], "/Volumes/External/projects/personal/openterm/src-tauri/src/lib.rs", Edition2021) }
+   0.979812333s  INFO prepare_target{force=false package_id=openterm v0.1.0 (/Volumes/External/projects/personal/openterm/src-tauri) target="openterm_lib"}: cargo::core::compiler::fingerprint:     err: failed to read `/Volumes/External/projects/personal/openterm/src-tauri/target/debug/.fingerprint/openterm-006861eaeff11346/lib-openterm_lib`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: <std::backtrace::Backtrace>::create
+   1: <std::backtrace::Backtrace>::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_with_exec
+   9: cargo::ops::cargo_compile::compile
+  10: cargo::commands::check::exec
+  11: <cargo::cli::Exec>::exec
+  12: cargo::main
+  13: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  14: std::rt::lang_start::<()>::{closure#0}
+  15: std::rt::lang_start_internal
+  16: _main
+   1.027960416s  INFO prepare_target{force=false package_id=openterm v0.1.0 (/Volumes/External/projects/personal/openterm/src-tauri) target="build-script-build"}: cargo::core::compiler::fingerprint: fingerprint dirty for openterm v0.1.0 (/Volumes/External/projects/personal/openterm/src-tauri)/RunCustomBuild/TargetInner { ..: custom_build_target("build-script-build", "/Volumes/External/projects/personal/openterm/src-tauri/build.rs", Edition2021) }
+   1.027988333s  INFO prepare_target{force=false package_id=openterm v0.1.0 (/Volumes/External/projects/personal/openterm/src-tauri) target="build-script-build"}: cargo::core::compiler::fingerprint:     dirty: FsStatusOutdated(StaleItem(MissingFile { path: "/Volumes/External/projects/personal/openterm/src-tauri/capabilities" }))
+   1.256285125s  INFO prepare_target{force=false package_id=openterm v0.1.0 (/Volumes/External/projects/personal/openterm/src-tauri) target="openterm_lib"}: cargo::core::compiler::fingerprint: fingerprint error for openterm v0.1.0 (/Volumes/External/projects/personal/openterm/src-tauri)/Check { test: true }/TargetInner { ..: lib_target("openterm_lib", ["staticlib", "cdylib", "rlib"], "/Volumes/External/projects/personal/openterm/src-tauri/src/lib.rs", Edition2021) }
+   1.256333333s  INFO prepare_target{force=false package_id=openterm v0.1.0 (/Volumes/External/projects/personal/openterm/src-tauri) target="openterm_lib"}: cargo::core::compiler::fingerprint:     err: failed to read `/Volumes/External/projects/personal/openterm/src-tauri/target/debug/.fingerprint/openterm-bae12f439e52cdf0/test-lib-openterm_lib`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: <std::backtrace::Backtrace>::create
+   1: <std::backtrace::Backtrace>::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_with_exec
+   9: cargo::ops::cargo_compile::compile
+  10: cargo::commands::check::exec
+  11: <cargo::cli::Exec>::exec
+  12: cargo::main
+  13: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  14: std::rt::lang_start::<()>::{closure#0}
+  15: std::rt::lang_start_internal
+  16: _main
+   1.258030708s  INFO prepare_target{force=false package_id=openterm v0.1.0 (/Volumes/External/projects/personal/openterm/src-tauri) target="openterm"}: cargo::core::compiler::fingerprint: fingerprint error for openterm v0.1.0 (/Volumes/External/projects/personal/openterm/src-tauri)/Check { test: false }/TargetInner { name: "openterm", doc: true, ..: with_path("/Volumes/External/projects/personal/openterm/src-tauri/src/main.rs", Edition2021) }
+   1.258046125s  INFO prepare_target{force=false package_id=openterm v0.1.0 (/Volumes/External/projects/personal/openterm/src-tauri) target="openterm"}: cargo::core::compiler::fingerprint:     err: failed to read `/Volumes/External/projects/personal/openterm/src-tauri/target/debug/.fingerprint/openterm-e791df679c2b9b81/bin-openterm`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: <std::backtrace::Backtrace>::create
+   1: <std::backtrace::Backtrace>::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_with_exec
+   9: cargo::ops::cargo_compile::compile
+  10: cargo::commands::check::exec
+  11: <cargo::cli::Exec>::exec
+  12: cargo::main
+  13: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  14: std::rt::lang_start::<()>::{closure#0}
+  15: std::rt::lang_start_internal
+  16: _main
+   1.259677166s  INFO prepare_target{force=false package_id=openterm v0.1.0 (/Volumes/External/projects/personal/openterm/src-tauri) target="openterm"}: cargo::core::compiler::fingerprint: fingerprint error for openterm v0.1.0 (/Volumes/External/projects/personal/openterm/src-tauri)/Check { test: true }/TargetInner { name: "openterm", doc: true, ..: with_path("/Volumes/External/projects/personal/openterm/src-tauri/src/main.rs", Edition2021) }
+   1.259689541s  INFO prepare_target{force=false package_id=openterm v0.1.0 (/Volumes/External/projects/personal/openterm/src-tauri) target="openterm"}: cargo::core::compiler::fingerprint:     err: failed to read `/Volumes/External/projects/personal/openterm/src-tauri/target/debug/.fingerprint/openterm-f5a4aa60ab37055a/test-bin-openterm`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: <std::backtrace::Backtrace>::create
+   1: <std::backtrace::Backtrace>::capture
+   2: cargo_util::paths::read_bytes
+   3: cargo_util::paths::read
+   4: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   5: cargo::core::compiler::fingerprint::prepare_target
+   6: cargo::core::compiler::compile
+   7: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   8: cargo::ops::cargo_compile::compile_with_exec
+   9: cargo::ops::cargo_compile::compile
+  10: cargo::commands::check::exec
+  11: <cargo::cli::Exec>::exec
+  12: cargo::main
+  13: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  14: std::rt::lang_start::<()>::{closure#0}
+  15: std::rt::lang_start_internal
+  16: _main
+   Compiling openterm v0.1.0 (/Volumes/External/projects/personal/openterm/src-tauri)
+error: could not compile `openterm` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `openterm` (lib test) due to 1 previous error

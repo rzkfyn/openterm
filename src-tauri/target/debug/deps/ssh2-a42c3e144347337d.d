@@ -1,0 +1,13 @@
+/Volumes/External/projects/personal/openterm/src-tauri/target/debug/deps/ssh2-a42c3e144347337d.d: /Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/lib.rs /Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/agent.rs /Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/channel.rs /Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/error.rs /Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/knownhosts.rs /Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/listener.rs /Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/session.rs /Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/sftp.rs /Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/util.rs
+
+/Volumes/External/projects/personal/openterm/src-tauri/target/debug/deps/libssh2-a42c3e144347337d.rmeta: /Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/lib.rs /Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/agent.rs /Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/channel.rs /Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/error.rs /Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/knownhosts.rs /Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/listener.rs /Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/session.rs /Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/sftp.rs /Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/util.rs
+
+/Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/lib.rs:
+/Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/agent.rs:
+/Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/channel.rs:
+/Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/error.rs:
+/Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/knownhosts.rs:
+/Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/listener.rs:
+/Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/session.rs:
+/Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/sftp.rs:
+/Users/rzkfyn/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/ssh2-0.9.6/src/util.rs:
