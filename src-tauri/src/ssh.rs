@@ -95,10 +95,7 @@ pub fn connect_ssh(
         .shell()
         .map_err(|e| format!("Failed to start shell: {}", e))?;
 
-    // IMPORTANT for concurrency: Switch session to non-blocking mode.
-    // libssh2 holds an internal Mutex<SessionInner> across Channel/Stream operations.
-    // In blocking mode, channel.read(&mut buf) holds the session mutex indefinitely
-    // waiting for remote packets, completely starving channel.write() and sftp calls!
+    // Switch PTY channel to non-blocking so read() doesn't hang the thread/session
     sess.set_blocking(false);
 
     let is_alive = Arc::new(AtomicBool::new(true));
@@ -129,13 +126,12 @@ pub fn connect_ssh(
 
             match read_result {
                 Ok(0) => {
-                    // In non-blocking mode, Ok(0) can mean either EOF or no data yet if not eof().
-                    // Check channel eof status:
                     let is_eof = {
                         let ch = channel_reader.lock();
                         ch.eof()
                     };
                     if is_eof {
+                        eprintln!("[OpenTerm] Remote channel reported EOF");
                         break;
                     }
                     thread::sleep(Duration::from_millis(15));
@@ -148,7 +144,7 @@ pub fn connect_ssh(
                     if e.kind() == std::io::ErrorKind::WouldBlock {
                         thread::sleep(Duration::from_millis(15));
                     } else {
-                        eprintln!("SSH read error: {}", e);
+                        eprintln!("[OpenTerm] SSH read error: {}", e);
                         break;
                     }
                 }
@@ -194,11 +190,69 @@ pub fn connect_ssh(
         is_alive_writer.store(false, Ordering::SeqCst);
     });
 
+    // Helper to connect an isolated SSH session for SFTP
+    let sftp_sess_opt = match (|| -> Result<(Session, ssh2::Sftp), String> {
+        let sftp_tcp = TcpStream::connect_timeout(
+            &addr
+                .parse()
+                .or_else(|_| {
+                    use std::net::ToSocketAddrs;
+                    addr.to_socket_addrs()?
+                        .next()
+                        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "Host not found"))
+                })
+                .map_err(|e| format!("{}", e))?,
+            Duration::from_secs(10),
+        )
+        .map_err(|e| format!("{}", e))?;
+
+        sftp_tcp.set_nodelay(true).ok();
+
+        let mut sftp_sess = Session::new().map_err(|e| format!("{}", e))?;
+        sftp_sess.set_tcp_stream(sftp_tcp);
+        sftp_sess.handshake().map_err(|e| format!("{}", e))?;
+
+        match config.auth_type {
+            AuthType::Password => {
+                let pass = config.password.as_deref().unwrap_or("");
+                sftp_sess.userauth_password(&config.username, pass)
+                    .map_err(|e| format!("{}", e))?;
+            }
+            AuthType::Key => {
+                let key_path_str = config.private_key_path.as_deref().unwrap_or("");
+                let key_path = Path::new(key_path_str);
+                sftp_sess.userauth_pubkey_file(
+                    &config.username,
+                    None,
+                    key_path,
+                    config.passphrase.as_deref(),
+                )
+                .map_err(|e| format!("{}", e))?;
+            }
+        }
+
+        let sftp_handle = sftp_sess.sftp().map_err(|e| format!("{}", e))?;
+        Ok((sftp_sess, sftp_handle))
+    })() {
+        Ok((s, sftp)) => Some((Arc::new(Mutex::new(s)), Arc::new(Mutex::new(sftp)))),
+        Err(e) => {
+            eprintln!("[OpenTerm] SFTP initialization skipped/failed: {}", e);
+            None
+        }
+    };
+
+    let (sftp_session, sftp) = match sftp_sess_opt {
+        Some((s, sftp)) => (Some(s), Some(sftp)),
+        None => (None, None),
+    };
+
     // 7. Store Active Session in Manager
     let active_session = ActiveSession {
         id: session_id.clone(),
         name: config.name,
         session: sess_arc,
+        sftp_session,
+        sftp,
         pty_write_tx: Some(write_tx),
         is_alive,
     };
@@ -227,6 +281,10 @@ pub fn disconnect_ssh(manager: &SessionManager, session_id: &str) -> Result<(), 
         session.is_alive.store(false, Ordering::SeqCst);
         let sess_lock = session.session.lock();
         let _ = sess_lock.disconnect(None, "User disconnected", None);
+        if let Some(ref sftp_sess) = session.sftp_session {
+            let sftp_lock = sftp_sess.lock();
+            let _ = sftp_lock.disconnect(None, "User disconnected", None);
+        }
         Ok(())
     } else {
         Err(format!("Session {} not found", session_id))

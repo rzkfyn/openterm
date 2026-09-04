@@ -20,10 +20,12 @@ pub fn list_sftp_dir(
         .get_session(session_id)
         .ok_or_else(|| format!("Session {} not found", session_id))?;
 
-    let sess_lock = session.session.lock();
-    let sftp = sess_lock
-        .sftp()
-        .map_err(|e| format!("Failed to initialize SFTP subsystem: {}", e))?;
+    let sftp_arc = session
+        .sftp
+        .as_ref()
+        .ok_or_else(|| "SFTP subsystem is not available for this host".to_string())?;
+
+    let sftp = sftp_arc.lock();
 
     let path_to_read = if remote_path.is_empty() || remote_path == "." {
         Path::new(".")
@@ -119,10 +121,11 @@ pub fn download_sftp_file(
         let event_name = format!("transfer:progress:{}", transfer_id_buf);
 
         let run_transfer = || -> Result<(), String> {
-            let sess_lock = session_clone.session.lock();
-            let sftp = sess_lock
-                .sftp()
-                .map_err(|e| format!("SFTP init error: {}", e))?;
+            let sftp_arc = session_clone
+                .sftp
+                .as_ref()
+                .ok_or_else(|| "SFTP subsystem not initialized".to_string())?;
+            let sftp = sftp_arc.lock();
 
             let mut remote_file = sftp
                 .open(Path::new(&remote_path_buf))
@@ -278,10 +281,11 @@ pub fn upload_sftp_file(
                 .map_err(|e| format!("Failed to read metadata: {}", e))?;
             let total_bytes = meta.len();
 
-            let sess_lock = session_clone.session.lock();
-            let sftp = sess_lock
-                .sftp()
-                .map_err(|e| format!("SFTP init error: {}", e))?;
+            let sftp_arc = session_clone
+                .sftp
+                .as_ref()
+                .ok_or_else(|| "SFTP subsystem not initialized".to_string())?;
+            let sftp = sftp_arc.lock();
 
             let mut remote_file = sftp
                 .create(Path::new(&remote_path_buf))
