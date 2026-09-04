@@ -118,6 +118,8 @@ pub fn connect_ssh(
         let event_name = format!("ssh:data:{}", s_id_reader);
         let closed_event = format!("ssh:closed:{}", s_id_reader);
 
+        eprintln!("[PTY Reader] Thread started for session {}", s_id_reader);
+
         while is_alive_reader.load(Ordering::SeqCst) {
             let read_result = {
                 let mut ch = channel_reader.lock();
@@ -138,6 +140,7 @@ pub fn connect_ssh(
                 }
                 Ok(n) => {
                     let chunk = String::from_utf8_lossy(&buf[..n]).to_string();
+                    eprintln!("[PTY Reader] Emitting {} bytes to {}", n, event_name);
                     let _ = app_reader.emit(&event_name, chunk);
                 }
                 Err(e) => {
@@ -153,12 +156,15 @@ pub fn connect_ssh(
 
         is_alive_reader.store(false, Ordering::SeqCst);
         let _ = app_reader.emit(&closed_event, ());
+        eprintln!("[PTY Reader] Thread finished for session {}", s_id_reader);
     });
 
     // 6. Spawn PTY Writer Thread
     thread::spawn(move || {
+        eprintln!("[PTY Writer] Thread started for session");
         while is_alive_writer.load(Ordering::SeqCst) {
             if let Some(bytes) = write_rx.blocking_recv() {
+                eprintln!("[PTY Writer] Received {} bytes to write to channel", bytes.len());
                 let mut written = 0;
                 while written < bytes.len() && is_alive_writer.load(Ordering::SeqCst) {
                     let write_res = {
@@ -168,6 +174,7 @@ pub fn connect_ssh(
                     match write_res {
                         Ok(n) if n > 0 => {
                             written += n;
+                            eprintln!("[PTY Writer] Successfully wrote {} bytes", n);
                         }
                         Ok(_) => {
                             thread::sleep(Duration::from_millis(10));
@@ -176,7 +183,7 @@ pub fn connect_ssh(
                             thread::sleep(Duration::from_millis(10));
                         }
                         Err(e) => {
-                            eprintln!("SSH write error: {}", e);
+                            eprintln!("[PTY Writer] SSH write error: {}", e);
                             break;
                         }
                     }
@@ -188,6 +195,7 @@ pub fn connect_ssh(
             }
         }
         is_alive_writer.store(false, Ordering::SeqCst);
+        eprintln!("[PTY Writer] Thread finished");
     });
 
     // Helper to connect an isolated SSH session for SFTP

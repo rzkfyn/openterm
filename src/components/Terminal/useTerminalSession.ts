@@ -59,6 +59,7 @@ export function useTerminalSession(sessionId: string | null) {
 
     // 2. Stream user keystrokes to Rust backend
     const onDataDisposable = term.onData((data) => {
+      console.log('[xterm onData triggered]', JSON.stringify(data));
       tauriApi.sshWrite(sessionId, data).catch((err) => {
         console.error('Failed to write to SSH session:', err);
       });
@@ -70,6 +71,7 @@ export function useTerminalSession(sessionId: string | null) {
 
     tauriApi
       .onSshData(sessionId, (chunk) => {
+        console.log('[xterm onSshData received]', chunk.length, 'bytes');
         term.write(chunk);
       })
       .then((unlisten) => {
@@ -88,6 +90,7 @@ export function useTerminalSession(sessionId: string | null) {
     const resizeObserver = new ResizeObserver(() => {
       try {
         fitAddon.fit();
+        term.focus();
       } catch (e) {
         // Suppress layout race condition warnings during unmount
       }

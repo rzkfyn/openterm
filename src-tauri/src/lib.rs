@@ -19,11 +19,13 @@ fn ssh_connect(
     manager: State<SessionManager>,
     config: SessionConfig,
 ) -> Result<String, String> {
+    eprintln!("[ssh_connect] Connecting to {}:{} as {}", config.host, config.port, config.username);
     ssh::connect_ssh(app, &manager, config)
 }
 
 #[tauri::command]
 fn ssh_disconnect(manager: State<SessionManager>, session_id: String) -> Result<(), String> {
+    eprintln!("[ssh_disconnect] Disconnecting {}", session_id);
     ssh::disconnect_ssh(&manager, &session_id)
 }
 
@@ -33,6 +35,7 @@ fn ssh_write(
     session_id: String,
     data: String,
 ) -> Result<(), String> {
+    eprintln!("[ssh_write] session_id: {}, len: {}, bytes: {:?}", session_id, data.len(), data.as_bytes());
     ssh::write_ssh(&manager, &session_id, data.as_bytes())
 }
 
