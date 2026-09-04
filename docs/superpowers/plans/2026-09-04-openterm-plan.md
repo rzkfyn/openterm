@@ -39,11 +39,11 @@
 **Interfaces:**
 - Produces: Working development scaffold verifiable via `bun run build` and `cargo check` inside `src-tauri`.
 
-- [ ] **Step 1: Create package.json and install frontend dependencies**
-- [ ] **Step 2: Configure Vite with React 19 and Tailwind CSS v4**
-- [ ] **Step 3: Setup Tauri 2 Cargo.toml and tauri.conf.json**
-- [ ] **Step 4: Verify build works for frontend (`bun run build`) and rust backend (`cargo check`)**
-- [ ] **Step 5: Commit scaffold**
+- [x] **Step 1: Create package.json and install frontend dependencies**
+- [x] **Step 2: Configure Vite with React 19 and Tailwind CSS v4**
+- [x] **Step 3: Setup Tauri 2 Cargo.toml and tauri.conf.json**
+- [x] **Step 4: Verify build works for frontend (`bun run build`) and rust backend (`cargo check`)**
+- [x] **Step 5: Commit scaffold**
 
 ---
 
@@ -58,11 +58,11 @@
 **Interfaces:**
 - Produces: `SessionConfig`, `FileEntry`, `PaginatedEntries`, `TransferProgress`, and thread-safe `SessionManager` struct.
 
-- [ ] **Step 1: Write test for models and serialization in Rust**
-- [ ] **Step 2: Implement data structures in `models.rs`**
-- [ ] **Step 3: Implement `SessionManager` in `session.rs` for holding active SSH/SFTP sessions**
-- [ ] **Step 4: Run `cargo test` to verify models and state logic**
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Write test for models and serialization in Rust**
+- [x] **Step 2: Implement data structures in `models.rs`**
+- [x] **Step 3: Implement `SessionManager` in `session.rs` for holding active SSH/SFTP sessions**
+- [x] **Step 4: Run `cargo test` to verify models and state logic**
+- [x] **Step 5: Commit**
 
 ---
 
@@ -83,11 +83,11 @@
   - `ssh:data:{session_id}` (payload: String)
   - `ssh:status:{session_id}` (payload: StatusEvent)
 
-- [ ] **Step 1: Implement SSH connection with password & public key authentication using `ssh2`**
-- [ ] **Step 2: Implement PTY reader thread streaming raw bytes to Tauri events**
-- [ ] **Step 3: Implement input writing and window resizing commands**
-- [ ] **Step 4: Verify compilation and tests with `cargo test`**
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Implement SSH connection with password & public key authentication using `ssh2`**
+- [x] **Step 2: Implement PTY reader thread streaming raw bytes to Tauri events**
+- [x] **Step 3: Implement input writing and window resizing commands**
+- [x] **Step 4: Verify compilation and tests with `cargo test`**
+- [x] **Step 5: Commit**
 
 ---
 
@@ -108,11 +108,11 @@
 - Produces Tauri Events:
   - `transfer:progress:{transfer_id}` (payload: TransferProgress)
 
-- [ ] **Step 1: Implement `local_fs.rs` for chunked local directory reading**
-- [ ] **Step 2: Implement `sftp.rs` for chunked remote directory reading via libssh2 SFTP**
-- [ ] **Step 3: Implement disk-to-disk streaming download & upload with progress event emission**
-- [ ] **Step 4: Implement cancellation mechanism using atomic cancellation tokens**
-- [ ] **Step 5: Verify tests with `cargo test` and commit**
+- [x] **Step 1: Implement `local_fs.rs` for chunked local directory reading**
+- [x] **Step 2: Implement `sftp.rs` for chunked remote directory reading via libssh2 SFTP**
+- [x] **Step 3: Implement disk-to-disk streaming download & upload with progress event emission**
+- [x] **Step 4: Implement cancellation mechanism using atomic cancellation tokens**
+- [x] **Step 5: Verify tests with `cargo test` and commit**
 
 ---
 
@@ -129,11 +129,11 @@
 **Interfaces:**
 - Produces: Type-safe Zustand stores and Tauri wrapper functions for terminal and file interactions.
 
-- [ ] **Step 1: Define TypeScript interfaces in `src/types/index.ts`**
-- [ ] **Step 2: Build `src/services/tauri.ts` IPC & event bridge**
-- [ ] **Step 3: Implement `sessionStore`, `fileManagerStore`, and `transferStore`**
-- [ ] **Step 4: Add store unit tests and verify with test runner**
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Define TypeScript interfaces in `src/types/index.ts`**
+- [x] **Step 2: Build `src/services/tauri.ts` IPC & event bridge**
+- [x] **Step 3: Implement `sessionStore`, `fileManagerStore`, and `transferStore`**
+- [x] **Step 4: Add store unit tests and verify with test runner**
+- [x] **Step 5: Commit**
 
 ---
 
@@ -147,10 +147,10 @@
 **Interfaces:**
 - Produces: Full terminal viewport with auto-fit resizing, web links support, dark mode styling, and event streaming.
 
-- [ ] **Step 1: Implement `useTerminalSession` hook to bind Tauri `ssh:data` events to `xterm.Terminal`**
-- [ ] **Step 2: Build `TerminalView` component with `xterm-addon-fit` and resize listeners**
-- [ ] **Step 3: Verify terminal rendering and key capture**
-- [ ] **Step 4: Commit**
+- [x] **Step 1: Implement `useTerminalSession` hook to bind Tauri `ssh:data` events to `xterm.Terminal`**
+- [x] **Step 2: Build `TerminalView` component with `xterm-addon-fit` and resize listeners**
+- [x] **Step 3: Verify terminal rendering and key capture**
+- [x] **Step 4: Commit**
 
 ---
 
@@ -166,11 +166,11 @@
 **Interfaces:**
 - Produces: Dual-pane local/remote file browser with `@tanstack/react-virtual` virtualization, breadcrumbs, multi-select, and drag-and-drop or transfer buttons.
 
-- [ ] **Step 1: Implement `PathBreadcrumb` and file action toolbar**
-- [ ] **Step 2: Implement virtualized `FilePane` rendering thousands of files smoothly**
-- [ ] **Step 3: Implement `DualPaneExplorer` combining Local & Remote panes**
-- [ ] **Step 4: Implement `TransferDrawer` showing live file transfer progress bars**
-- [ ] **Step 5: Commit**
+- [x] **Step 1: Implement `PathBreadcrumb` and file action toolbar**
+- [x] **Step 2: Implement virtualized `FilePane` rendering thousands of files smoothly**
+- [x] **Step 3: Implement `DualPaneExplorer` combining Local & Remote panes**
+- [x] **Step 4: Implement `TransferDrawer` showing live file transfer progress bars**
+- [x] **Step 5: Commit**
 
 ---
 
@@ -185,8 +185,8 @@
 **Interfaces:**
 - Produces: Complete, polished desktop application with connection profile modal, split/tab view switching, and memory footprint validation.
 
-- [ ] **Step 1: Implement `NewConnectionModal` with password and private key options**
-- [ ] **Step 2: Implement `AppHeader` with session tabs, connection manager button, and view mode toggle (Terminal, SFTP, Split View)**
-- [ ] **Step 3: Assemble integrated views in `src/App.tsx`**
-- [ ] **Step 4: Run end-to-end linting, typing, frontend build, and cargo checks**
-- [ ] **Step 5: Commit and verify documentation**
+- [x] **Step 1: Implement `NewConnectionModal` with password and private key options**
+- [x] **Step 2: Implement `AppHeader` with session tabs, connection manager button, and view mode toggle (Terminal, SFTP, Split View)**
+- [x] **Step 3: Assemble integrated views in `src/App.tsx`**
+- [x] **Step 4: Run end-to-end linting, typing, frontend build, and cargo checks**
+- [x] **Step 5: Commit and verify documentation**
