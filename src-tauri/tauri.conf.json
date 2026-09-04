@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "OpenTerm",
         "width": 1200,
         "height": 800,
