@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { SessionConfig, AuthType } from '../../types';
-import { X, Server, Key, Lock, ArrowRight, Shield } from 'lucide-react';
+import { X, Server, Key, Lock, ArrowRight, Shield, FolderOpen } from 'lucide-react';
+import { open } from '@tauri-apps/plugin-dialog';
 
 interface NewConnectionModalProps {
   isOpen: boolean;
@@ -168,13 +169,30 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                   <label className="block mb-1.5 text-[11px] font-medium text-slate-400">
                     Identity Key Path (Absolute)
                   </label>
-                  <input
-                    type="text"
-                    value={privateKeyPath}
-                    onChange={(e) => setPrivateKeyPath(e.target.value)}
-                    placeholder="~/.ssh/id_ed25519"
-                    className="w-full rounded-xl bg-white/[0.03] border border-white/[0.08] px-3.5 py-2 text-white placeholder-slate-600 focus:outline-hidden focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 transition-all font-mono text-xs"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={privateKeyPath}
+                      onChange={(e) => setPrivateKeyPath(e.target.value)}
+                      placeholder="~/.ssh/id_ed25519"
+                      className="flex-1 min-w-0 rounded-xl bg-white/[0.03] border border-white/[0.08] px-3.5 py-2 text-white placeholder-slate-600 focus:outline-hidden focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 transition-all font-mono text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const selected = await open({
+                          multiple: false,
+                          directory: false,
+                          title: 'Select Private Key',
+                        });
+                        if (selected) setPrivateKeyPath(selected);
+                      }}
+                      className="flex items-center justify-center rounded-xl bg-white/[0.04] border border-white/[0.08] px-3 text-slate-400 hover:text-white hover:bg-white/[0.08] transition-colors"
+                      title="Browse"
+                    >
+                      <FolderOpen className="h-4 w-4 stroke-[1.5]" />
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="block mb-1.5 text-[11px] font-medium text-slate-400">

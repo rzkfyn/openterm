@@ -22,3 +22,4 @@ uuid = { version = "1.10", features = ["v4", "serde"] }
 parking_lot = "0.12"
 dirs = "5.0"
 thiserror = "1.0"
+tauri-plugin-dialog = "2.7.3"
