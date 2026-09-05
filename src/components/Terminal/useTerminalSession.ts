@@ -100,6 +100,13 @@ export function useTerminalSession(sessionId: string | null) {
 
     resizeObserver.observe(containerRef.current);
 
+    // Initial fit after rendering
+    requestAnimationFrame(() => {
+      try {
+        fitAddon.fit();
+      } catch (e) {}
+    });
+
     return () => {
       resizeObserver.disconnect();
       onDataDisposable.dispose();
@@ -110,6 +117,19 @@ export function useTerminalSession(sessionId: string | null) {
       fitAddonRef.current = null;
     };
   }, [sessionId]);
+
+  // Re-fit xterm when view mode changes (e.g. from hidden sftp to split/terminal)
+  const viewMode = useSessionStore((s) => s.viewMode);
+  useEffect(() => {
+    if (viewMode !== 'sftp' && fitAddonRef.current && terminalRef.current) {
+      requestAnimationFrame(() => {
+        try {
+          fitAddonRef.current?.fit();
+          terminalRef.current?.focus();
+        } catch (e) {}
+      });
+    }
+  }, [viewMode]);
 
   return { containerRef, terminal: terminalRef.current };
 }
