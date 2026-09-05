@@ -14,7 +14,9 @@ export const PathBreadcrumb: React.FC<PathBreadcrumbProps> = ({
   onRefresh,
   isRemote = false,
 }) => {
-  const parts = path.split('/').filter(Boolean);
+  // Normalize separators for splitting (handle both / and \)
+  const normalized = path.replace(/\\/g, '/');
+  const parts = normalized.split('/').filter(Boolean);
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(path);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -38,8 +40,11 @@ export const PathBreadcrumb: React.FC<PathBreadcrumbProps> = ({
   };
 
   const handleParent = () => {
-    if (!path || path === '/') return;
-    const parentPath = path.substring(0, path.lastIndexOf('/')) || '/';
+    if (!path || path === '/' || path === '\\') return;
+    const norm = path.replace(/\\/g, '/');
+    // Windows drive root like C:/ — nowhere to go
+    if (/^[A-Za-z]:\/?$/.test(norm)) return;
+    const parentPath = norm.substring(0, norm.lastIndexOf('/')) || '/';
     onNavigate(parentPath);
   };
 
@@ -76,7 +81,20 @@ export const PathBreadcrumb: React.FC<PathBreadcrumbProps> = ({
           </button>
 
           {parts.map((part, index) => {
-            const currentSubPath = '/' + parts.slice(0, index + 1).join('/');
+            // Build path: for Windows drive letters (e.g. "C:"), use "C:/"
+            // otherwise use unix-style joining
+            let currentSubPath: string;
+            if (index === 0 && /^[A-Za-z]:$/.test(part)) {
+              currentSubPath = part + '/';
+            } else {
+              const segments = parts.slice(0, index + 1);
+              // Check if first segment is a drive letter
+              if (/^[A-Za-z]:$/.test(segments[0])) {
+                currentSubPath = segments[0] + '/' + segments.slice(1).join('/');
+              } else {
+                currentSubPath = '/' + segments.join('/');
+              }
+            }
             const isLast = index === parts.length - 1;
 
             return (
