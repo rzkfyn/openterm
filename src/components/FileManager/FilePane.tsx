@@ -1,9 +1,12 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { FileEntry } from '../../types';
 import { FileItemRow } from './FileItemRow';
 import { PathBreadcrumb } from './PathBreadcrumb';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ChevronUp, ChevronDown } from 'lucide-react';
+
+type SortKey = 'name' | 'size' | 'modified';
+type SortDir = 'asc' | 'desc';
 
 interface FilePaneProps {
   title: string;
@@ -32,10 +35,44 @@ export const FilePane: React.FC<FilePaneProps> = ({
   onNavigate,
   onRefresh,
 }) => {
+  const [sortKey, setSortKey] = useState<SortKey>('name');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  };
+
+  const sortedEntries = useMemo(() => {
+    const sorted = [...entries].sort((a, b) => {
+      // Folders always first regardless of sort
+      if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+
+      let cmp = 0;
+      switch (sortKey) {
+        case 'name':
+          cmp = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+          break;
+        case 'size':
+          cmp = a.size - b.size;
+          break;
+        case 'modified':
+          cmp = (a.modified ?? 0) - (b.modified ?? 0);
+          break;
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return sorted;
+  }, [entries, sortKey, sortDir]);
+
   const parentRef = useRef<HTMLDivElement>(null);
 
   const rowVirtualizer = useVirtualizer({
-    count: entries.length,
+    count: sortedEntries.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 32,
     overscan: 12,
@@ -83,9 +120,18 @@ export const FilePane: React.FC<FilePaneProps> = ({
 
         {/* Table Column Headers */}
         <div className="flex h-6 items-center px-4 bg-white/[0.01] border-b border-white/[0.04] text-[9px] font-mono font-medium text-slate-500 uppercase tracking-widest select-none">
-          <div className="flex-1">Object Name</div>
-          <div className="w-20 text-right">Size</div>
-          <div className="w-28 text-right pr-2">Modified</div>
+          <button onClick={() => toggleSort('name')} className="flex flex-1 items-center gap-1 hover:text-slate-300 transition-colors">
+            <span>Name</span>
+            {sortKey === 'name' && (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
+          </button>
+          <button onClick={() => toggleSort('size')} className="flex w-20 items-center justify-end gap-1 hover:text-slate-300 transition-colors">
+            <span>Size</span>
+            {sortKey === 'size' && (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
+          </button>
+          <button onClick={() => toggleSort('modified')} className="flex w-28 items-center justify-end gap-1 pr-2 hover:text-slate-300 transition-colors">
+            <span>Modified</span>
+            {sortKey === 'modified' && (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
+          </button>
         </div>
 
         {/* Virtualized File List */}
@@ -115,7 +161,7 @@ export const FilePane: React.FC<FilePaneProps> = ({
               }}
             >
               {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                const entry = entries[virtualRow.index];
+                const entry = sortedEntries[virtualRow.index];
                 return (
                   <div
                     key={entry.path}

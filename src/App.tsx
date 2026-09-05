@@ -40,37 +40,35 @@ export default function App() {
       <AppHeader onOpenNewConnection={() => setIsModalOpen(true)} />
 
       {/* Main Responsive Asymmetrical & Split Workspace */}
-      <main className="relative z-10 flex flex-1 overflow-hidden">
-        {viewMode === 'terminal' && (
-          <div className="flex-1 h-full w-full">
-            <TerminalView
-              sessionId={currentSessionId}
-              sessionName={currentSession?.name}
-            />
-          </div>
-        )}
+      <main className="relative z-10 flex flex-1 overflow-hidden divide-x divide-white/[0.04]">
+        {/* Terminal Viewport */}
+        <div
+          className={`h-full min-w-0 transition-all duration-200 ${
+            viewMode === 'terminal'
+              ? 'flex-1'
+              : viewMode === 'split'
+              ? 'flex-1'
+              : 'hidden'
+          }`}
+        >
+          <TerminalView
+            sessionId={currentSessionId}
+            sessionName={currentSession?.name}
+          />
+        </div>
 
-        {viewMode === 'sftp' && (
-          <div className="flex-1 h-full w-full">
-            <DualPaneExplorer sessionId={currentSessionId} />
-          </div>
-        )}
-
-        {viewMode === 'split' && (
-          <div className="flex flex-1 h-full w-full overflow-hidden divide-x divide-white/[0.04]">
-            {/* Terminal Viewport */}
-            <div className="flex-1 h-full min-w-0">
-              <TerminalView
-                sessionId={currentSessionId}
-                sessionName={currentSession?.name}
-              />
-            </div>
-            {/* Dual SFTP Explorer */}
-            <div className="flex-1 h-full min-w-0">
-              <DualPaneExplorer sessionId={currentSessionId} />
-            </div>
-          </div>
-        )}
+        {/* Dual SFTP Explorer */}
+        <div
+          className={`h-full min-w-0 transition-all duration-200 ${
+            viewMode === 'sftp'
+              ? 'flex-1'
+              : viewMode === 'split'
+              ? 'flex-1'
+              : 'hidden'
+          }`}
+        >
+          <DualPaneExplorer sessionId={currentSessionId} />
+        </div>
       </main>
 
       {/* Background Direct File Transfer Drawer */}

@@ -1,4 +1,5 @@
 export type AuthType = 'password' | 'key';
+export type SessionConnectionStatus = 'connected' | 'disconnected';
 
 export interface SessionConfig {
   id?: string;
@@ -10,6 +11,7 @@ export interface SessionConfig {
   password?: string;
   privateKeyPath?: string;
   passphrase?: string;
+  status?: SessionConnectionStatus;
 }
 
 export interface FileEntry {

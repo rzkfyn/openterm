@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { tauriApi } from '../../services/tauri';
+import { useSessionStore } from '../../stores/sessionStore';
 
 export function useTerminalSession(sessionId: string | null) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -81,6 +82,7 @@ export function useTerminalSession(sessionId: string | null) {
     tauriApi
       .onSshClosed(sessionId, () => {
         term.writeln('\r\n\x1b[31m[Session closed by remote host]\x1b[0m\r\n');
+        useSessionStore.getState().markSessionClosed(sessionId);
       })
       .then((unlisten) => {
         unlistenClosed = unlisten;
@@ -98,6 +100,13 @@ export function useTerminalSession(sessionId: string | null) {
 
     resizeObserver.observe(containerRef.current);
 
+    // Initial fit after rendering
+    requestAnimationFrame(() => {
+      try {
+        fitAddon.fit();
+      } catch (e) {}
+    });
+
     return () => {
       resizeObserver.disconnect();
       onDataDisposable.dispose();
@@ -108,6 +117,19 @@ export function useTerminalSession(sessionId: string | null) {
       fitAddonRef.current = null;
     };
   }, [sessionId]);
+
+  // Re-fit xterm when view mode changes (e.g. from hidden sftp to split/terminal)
+  const viewMode = useSessionStore((s) => s.viewMode);
+  useEffect(() => {
+    if (viewMode !== 'sftp' && fitAddonRef.current && terminalRef.current) {
+      requestAnimationFrame(() => {
+        try {
+          fitAddonRef.current?.fit();
+          terminalRef.current?.focus();
+        } catch (e) {}
+      });
+    }
+  }, [viewMode]);
 
   return { containerRef, terminal: terminalRef.current };
 }

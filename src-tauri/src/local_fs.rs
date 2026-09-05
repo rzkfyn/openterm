@@ -17,9 +17,19 @@ pub fn read_local_dir(
         PathBuf::from(path_str)
     };
 
-    let canonical = target_path
+    #[allow(unused_mut)]
+    let mut canonical = target_path
         .canonicalize()
         .map_err(|e| format!("Failed to read path '{}': {}", path_str, e))?;
+
+    // Strip Windows verbatim prefix (\\?\) to avoid invalid path errors downstream
+    #[cfg(windows)]
+    {
+        let canonical_str = canonical.to_string_lossy();
+        if let Some(stripped) = canonical_str.strip_prefix(r"\\?\") {
+            canonical = PathBuf::from(stripped);
+        }
+    }
 
     let read_dir = fs::read_dir(&canonical)
         .map_err(|e| format!("Failed to read directory: {}", e))?;
@@ -86,4 +96,24 @@ pub fn read_local_dir(
         limit,
         has_more,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_strip_verbatim_prefix() {
+        let win_verbatim = r"\\?\C:\Users\tester";
+        let stripped = win_verbatim.strip_prefix(r"\\?\").unwrap();
+        assert_eq!(stripped, r"C:\Users\tester");
+    }
+
+    #[test]
+    fn test_read_local_dir_current() {
+        let res = read_local_dir(".", 0, 10);
+        assert!(res.is_ok());
+        let entries = res.unwrap();
+        assert!(!entries.entries.is_empty());
+    }
 }

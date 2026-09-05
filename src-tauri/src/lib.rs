@@ -114,6 +114,7 @@ pub fn run() {
     let session_manager = SessionManager::new();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             app.manage(session_manager);
             Ok(())

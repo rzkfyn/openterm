@@ -52,6 +52,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenNewConnection }) => 
         <div className="flex items-center space-x-1.5">
           {activeSessions.map((session) => {
             const isActive = session.id === currentSessionId;
+            const isDisconnected = session.status === 'disconnected';
             return (
               <div
                 key={session.id}
@@ -61,9 +62,20 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenNewConnection }) => 
                     ? 'bg-white/[0.08] border border-white/[0.15] text-white shadow-[0_2px_12px_-2px_rgba(0,0,0,0.5)]'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03] border border-transparent'
                 }`}
+                title={isDisconnected ? 'Session closed by remote host' : undefined}
               >
-                <div className={`h-1.5 w-1.5 rounded-full ${isActive ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]' : 'bg-slate-600'}`} />
-                <span className="truncate max-w-[120px] text-xs font-medium">{session.name}</span>
+                <div
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    isDisconnected
+                      ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]'
+                      : isActive
+                      ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]'
+                      : 'bg-slate-600'
+                  }`}
+                />
+                <span className={`truncate max-w-[120px] text-xs font-medium ${isDisconnected ? 'text-slate-500 line-through' : ''}`}>
+                  {session.name}
+                </span>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();

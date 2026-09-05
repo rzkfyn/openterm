@@ -23,7 +23,13 @@ pub fn list_sftp_dir(
     let sftp_arc = session
         .sftp
         .as_ref()
-        .ok_or_else(|| "SFTP subsystem is not available for this host".to_string())?;
+        .ok_or_else(|| {
+            session
+                .sftp_error
+                .as_deref()
+                .map(|err| format!("SFTP unavailable: {}", err))
+                .unwrap_or_else(|| "SFTP subsystem is not available for this host".to_string())
+        })?;
 
     let sftp = sftp_arc.lock();
 
