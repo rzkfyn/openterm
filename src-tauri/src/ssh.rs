@@ -234,7 +234,7 @@ pub fn connect_ssh(
     });
 
     // Helper to connect an isolated SSH session for SFTP
-    let sftp_sess_opt = match (|| -> Result<(Session, ssh2::Sftp), String> {
+    let (sftp_sess_opt, sftp_init_error) = match (|| -> Result<(Session, ssh2::Sftp), String> {
         let sftp_tcp = TcpStream::connect_timeout(
             &addr
                 .parse()
@@ -276,10 +276,10 @@ pub fn connect_ssh(
         let sftp_handle = sftp_sess.sftp().map_err(|e| format!("{}", e))?;
         Ok((sftp_sess, sftp_handle))
     })() {
-        Ok((s, sftp)) => Some((Arc::new(Mutex::new(s)), Arc::new(Mutex::new(sftp)))),
+        Ok((s, sftp)) => (Some((Arc::new(Mutex::new(s)), Arc::new(Mutex::new(sftp)))), None),
         Err(e) => {
             eprintln!("[OpenTerm] SFTP initialization skipped/failed: {}", e);
-            None
+            (None, Some(e))
         }
     };
 
@@ -295,6 +295,7 @@ pub fn connect_ssh(
         session: sess_arc,
         sftp_session,
         sftp,
+        sftp_error: sftp_init_error,
         pty_write_tx: Some(write_tx),
         is_alive,
     };

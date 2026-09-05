@@ -11,6 +11,7 @@ interface SessionState {
   
   setViewMode: (mode: ViewMode) => void;
   setCurrentSessionId: (id: string | null) => void;
+  markSessionClosed: (id: string) => void;
   connectSession: (config: SessionConfig) => Promise<string>;
   disconnectSession: (id: string) => Promise<void>;
   clearError: () => void;
@@ -27,11 +28,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   setCurrentSessionId: (id) => set({ currentSessionId: id }),
   clearError: () => set({ error: null }),
 
+  markSessionClosed: (id) => {
+    set((state) => ({
+      activeSessions: state.activeSessions.map((s) =>
+        s.id === id ? { ...s, status: 'disconnected' } : s
+      ),
+    }));
+  },
+
   connectSession: async (config) => {
     set({ isConnecting: true, error: null });
     try {
       const sessionId = await tauriApi.sshConnect(config);
-      const sessionWithId = { ...config, id: sessionId };
+      const sessionWithId: SessionConfig = { ...config, id: sessionId, status: 'connected' };
       set((state) => ({
         activeSessions: [...state.activeSessions.filter((s) => s.id !== sessionId), sessionWithId],
         currentSessionId: sessionId,

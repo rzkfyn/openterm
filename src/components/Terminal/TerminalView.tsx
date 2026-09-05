@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTerminalSession } from './useTerminalSession';
-import { Terminal as TerminalIcon, Sparkles, Activity } from 'lucide-react';
+import { useSessionStore } from '../../stores/sessionStore';
+import { Terminal as TerminalIcon, Sparkles, Activity, AlertCircle } from 'lucide-react';
 
 interface TerminalViewProps {
   sessionId: string | null;
@@ -9,6 +10,9 @@ interface TerminalViewProps {
 
 export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionName }) => {
   const { containerRef, terminal } = useTerminalSession(sessionId);
+  const activeSessions = useSessionStore((s) => s.activeSessions);
+  const currentSession = activeSessions.find((s) => s.id === sessionId);
+  const isDisconnected = currentSession?.status === 'disconnected';
 
   if (!sessionId) {
     return (
@@ -63,10 +67,17 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
             </div>
 
             <div className="flex items-center space-x-3 text-[10px] font-mono text-slate-500">
-              <span className="flex items-center space-x-1">
-                <Activity className="h-3 w-3 text-emerald-400" />
-                <span>Raw I/O Byte Stream</span>
-              </span>
+              {isDisconnected ? (
+                <span className="flex items-center space-x-1 text-rose-400">
+                  <AlertCircle className="h-3 w-3" />
+                  <span>Session Closed by Host</span>
+                </span>
+              ) : (
+                <span className="flex items-center space-x-1">
+                  <Activity className="h-3 w-3 text-emerald-400" />
+                  <span>Raw I/O Byte Stream</span>
+                </span>
+              )}
               <span className="px-1.5 py-0.5 rounded bg-white/[0.05] text-slate-400 border border-white/[0.06]">
                 xterm-256color
               </span>
