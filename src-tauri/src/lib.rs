@@ -14,13 +14,16 @@ fn ping() -> &'static str {
 }
 
 #[tauri::command]
-fn ssh_connect(
+async fn ssh_connect(
     app: AppHandle,
-    manager: State<SessionManager>,
+    manager: State<'_, SessionManager>,
     config: SessionConfig,
 ) -> Result<String, String> {
     eprintln!("[ssh_connect] Connecting to {}:{} as {}", config.host, config.port, config.username);
-    ssh::connect_ssh(app, &manager, config)
+    let mgr = manager.inner().clone();
+    tokio::task::spawn_blocking(move || ssh::connect_ssh(app, &mgr, config))
+        .await
+        .map_err(|e| format!("Task failed: {}", e))?
 }
 
 #[tauri::command]
@@ -37,6 +40,16 @@ fn ssh_write(
 ) -> Result<(), String> {
     eprintln!("[ssh_write] session_id: {}, len: {}, bytes: {:?}", session_id, data.len(), data.as_bytes());
     ssh::write_ssh(&manager, &session_id, data.as_bytes())
+}
+
+#[tauri::command]
+fn ssh_resize_pty(
+    manager: State<SessionManager>,
+    session_id: String,
+    cols: u32,
+    rows: u32,
+) -> Result<(), String> {
+    ssh::resize_pty(&manager, &session_id, cols, rows)
 }
 
 #[tauri::command]
@@ -124,6 +137,7 @@ pub fn run() {
             ssh_connect,
             ssh_disconnect,
             ssh_write,
+            ssh_resize_pty,
             local_list_dir,
             sftp_list_dir,
             sftp_download,

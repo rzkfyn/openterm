@@ -3,7 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { tauriApi } from '../../services/tauri';
-import { useSessionStore } from '../../stores/sessionStore';
+import { useSessionStore, takeoverEarlyBuffer } from '../../stores/sessionStore';
 
 export function useTerminalSession(sessionId: string | null) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -66,18 +66,19 @@ export function useTerminalSession(sessionId: string | null) {
       });
     });
 
-    // 3. Listen to incoming SSH bytes via Tauri event
-    let unlistenData: (() => void) | null = null;
-    let unlistenClosed: (() => void) | null = null;
+    // 3. Takeover early buffer: flush buffered data and redirect future
+    //    chunks to term.write with zero gap (reuses the same Tauri listener).
+    const { buffered, unlisten: earlyUnlisten } = takeoverEarlyBuffer(
+      sessionId,
+      (chunk) => term.write(chunk),
+    );
+    if (buffered.length > 0) {
+      term.write(buffered.join(''));
+    }
 
-    tauriApi
-      .onSshData(sessionId, (chunk) => {
-        console.log('[xterm onSshData received]', chunk.length, 'bytes');
-        term.write(chunk);
-      })
-      .then((unlisten) => {
-        unlistenData = unlisten;
-      });
+    // earlyUnlisten is the single Tauri listener — keep it as our live listener
+    let unlistenData: (() => void) | null = earlyUnlisten;
+    let unlistenClosed: (() => void) | null = null;
 
     tauriApi
       .onSshClosed(sessionId, () => {
@@ -88,24 +89,24 @@ export function useTerminalSession(sessionId: string | null) {
         unlistenClosed = unlisten;
       });
 
-    // 4. Resize handling
-    const resizeObserver = new ResizeObserver(() => {
+    // 4. Resize handling — notify SSH server of actual terminal size
+    const sendResize = () => {
       try {
         fitAddon.fit();
+        const { cols, rows } = term;
+        tauriApi.sshResizePty(sessionId, cols, rows).catch(() => {});
         term.focus();
       } catch (e) {
         // Suppress layout race condition warnings during unmount
       }
-    });
+    };
+
+    const resizeObserver = new ResizeObserver(() => sendResize());
 
     resizeObserver.observe(containerRef.current);
 
-    // Initial fit after rendering
-    requestAnimationFrame(() => {
-      try {
-        fitAddon.fit();
-      } catch (e) {}
-    });
+    // Initial fit + resize after rendering
+    requestAnimationFrame(() => sendResize());
 
     return () => {
       resizeObserver.disconnect();

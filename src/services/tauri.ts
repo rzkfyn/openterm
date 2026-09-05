@@ -19,6 +19,10 @@ export const tauriApi = {
     return await invoke<void>('ssh_write', { sessionId, data });
   },
 
+  sshResizePty: async (sessionId: string, cols: number, rows: number): Promise<void> => {
+    return await invoke<void>('ssh_resize_pty', { sessionId, cols, rows });
+  },
+
   onSshData: async (sessionId: string, callback: (data: string) => void): Promise<UnlistenFn> => {
     return await listen<string>(`ssh:data:${sessionId}`, (event) => {
       callback(event.payload);
