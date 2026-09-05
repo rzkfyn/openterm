@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 use std::net::TcpStream;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -14,6 +14,42 @@ use uuid::Uuid;
 
 use crate::models::{AuthType, SessionConfig};
 use crate::session::{ActiveSession, SessionManager};
+
+/// Resolve an existing public key associated with a private key path if available.
+/// Checks `<path>.pub` (direct append, e.g. `id_ed25519` -> `id_ed25519.pub`)
+/// and extension replacement if an extension exists (e.g. `id_rsa.pem` -> `id_rsa.pub`).
+fn resolve_public_key_path(priv_path: &Path) -> Option<PathBuf> {
+    let pub_direct = PathBuf::from(format!("{}.pub", priv_path.display()));
+    if pub_direct.is_file() {
+        return Some(pub_direct);
+    }
+    if priv_path.extension().is_some() {
+        let pub_ext = priv_path.with_extension("pub");
+        if pub_ext.is_file() {
+            return Some(pub_ext);
+        }
+    }
+    None
+}
+
+/// Authenticate an SSH session using public key.
+/// Tries using the companion `.pub` file if available, otherwise lets libssh2 compute/derive
+/// the public key from the private key.
+fn authenticate_pubkey(
+    sess: &Session,
+    username: &str,
+    key_path: &Path,
+    passphrase: Option<&str>,
+) -> Result<(), String> {
+    let pub_key = resolve_public_key_path(key_path);
+    sess.userauth_pubkey_file(
+        username,
+        pub_key.as_deref(),
+        key_path,
+        passphrase,
+    )
+    .map_err(|e| format!("Public key authentication failed: {}", e))
+}
 
 pub fn connect_ssh(
     app: AppHandle,
@@ -68,13 +104,12 @@ pub fn connect_ssh(
             if !key_path.exists() {
                 return Err(format!("Private key does not exist at: {}", key_path_str));
             }
-            sess.userauth_pubkey_file(
+            authenticate_pubkey(
+                &sess,
                 &config.username,
-                None,
                 key_path,
                 config.passphrase.as_deref(),
-            )
-            .map_err(|e| format!("Public key authentication failed: {}", e))?;
+            )?;
         }
     }
 
@@ -229,13 +264,12 @@ pub fn connect_ssh(
             AuthType::Key => {
                 let key_path_str = config.private_key_path.as_deref().unwrap_or("");
                 let key_path = Path::new(key_path_str);
-                sftp_sess.userauth_pubkey_file(
+                authenticate_pubkey(
+                    &sftp_sess,
                     &config.username,
-                    None,
                     key_path,
                     config.passphrase.as_deref(),
-                )
-                .map_err(|e| format!("{}", e))?;
+                )?;
             }
         }
 
@@ -296,5 +330,54 @@ pub fn disconnect_ssh(manager: &SessionManager, session_id: &str) -> Result<(), 
         Ok(())
     } else {
         Err(format!("Session {} not found", session_id))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn test_resolve_public_key_path_direct_pub() {
+        let temp_dir = std::env::temp_dir().join("openterm_key_test_direct");
+        let _ = fs::create_dir_all(&temp_dir);
+        let priv_key = temp_dir.join("id_ed25519");
+        let pub_key = temp_dir.join("id_ed25519.pub");
+        fs::write(&priv_key, "private").unwrap();
+        fs::write(&pub_key, "public").unwrap();
+
+        let resolved = resolve_public_key_path(&priv_key);
+        assert_eq!(resolved, Some(pub_key));
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_resolve_public_key_path_with_extension() {
+        let temp_dir = std::env::temp_dir().join("openterm_key_test_ext");
+        let _ = fs::create_dir_all(&temp_dir);
+        let priv_key = temp_dir.join("server.pem");
+        let pub_key = temp_dir.join("server.pub");
+        fs::write(&priv_key, "private").unwrap();
+        fs::write(&pub_key, "public").unwrap();
+
+        let resolved = resolve_public_key_path(&priv_key);
+        assert_eq!(resolved, Some(pub_key));
+
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_resolve_public_key_path_nonexistent() {
+        let temp_dir = std::env::temp_dir().join("openterm_key_test_none");
+        let _ = fs::create_dir_all(&temp_dir);
+        let priv_key = temp_dir.join("id_rsa");
+        fs::write(&priv_key, "private").unwrap();
+
+        let resolved = resolve_public_key_path(&priv_key);
+        assert_eq!(resolved, None);
+
+        let _ = fs::remove_dir_all(&temp_dir);
     }
 }
