@@ -6,6 +6,7 @@ vi.mock('../../services/tauri', () => ({
   tauriApi: {
     sshConnect: vi.fn().mockResolvedValue('test-sess-123'),
     sshDisconnect: vi.fn().mockResolvedValue(undefined),
+    onSshData: vi.fn().mockResolvedValue(() => {}),
     onTransferProgress: vi.fn().mockResolvedValue(() => {}),
     sftpDownload: vi.fn().mockResolvedValue(undefined),
   },
@@ -18,6 +19,7 @@ describe('Zustand Stores', () => {
     expect(useSessionStore.getState().viewMode).toBe('terminal');
 
     const sessId = await store.connectSession({
+      id: 'test-sess-123',
       name: 'Server 1',
       host: '192.168.1.100',
       port: 22,

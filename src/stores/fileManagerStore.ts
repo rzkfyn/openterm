@@ -35,7 +35,7 @@ const initialPaneState: PaneState = {
   selectedPaths: [],
 };
 
-export const useFileManagerStore = create<FileManagerState>((set, get) => ({
+export const useFileManagerStore = create<FileManagerState>((set) => ({
   local: { ...initialPaneState },
   remote: { ...initialPaneState },
 
