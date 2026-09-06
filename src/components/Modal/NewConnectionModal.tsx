@@ -1,24 +1,32 @@
-import React, { useState } from 'react';
-import { SessionConfig, AuthType } from '../../types';
-import { X, Server, Key, Lock, ArrowRight, Shield, FolderOpen } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { SessionConfig, AuthType, SavedConnection } from '../../types';
+import { X, Key, Lock, ArrowRight, Save, FolderOpen } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
+
+export type ModalMode = 'new' | 'edit';
 
 interface NewConnectionModalProps {
   isOpen: boolean;
+  mode: ModalMode;
+  editingConnection?: SavedConnection | null;
   onClose: () => void;
-  onConnect: (config: SessionConfig) => Promise<void>;
+  onSave: (conn: SavedConnection) => Promise<void>;
+  onSaveAndConnect: (conn: SavedConnection, config: SessionConfig) => Promise<void>;
   isLoading: boolean;
   error: string | null;
 }
 
 export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
   isOpen,
+  mode,
+  editingConnection,
   onClose,
-  onConnect,
+  onSave,
+  onSaveAndConnect,
   isLoading,
   error,
 }) => {
-  const [name, setName] = useState('Production Node');
+  const [name, setName] = useState('');
   const [host, setHost] = useState('');
   const [port, setPort] = useState(22);
   const [username, setUsername] = useState('root');
@@ -27,209 +35,271 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
   const [privateKeyPath, setPrivateKeyPath] = useState('');
   const [passphrase, setPassphrase] = useState('');
 
+  useEffect(() => {
+    if (!isOpen) return;
+    if (mode === 'edit' && editingConnection) {
+      setName(editingConnection.name);
+      setHost(editingConnection.host);
+      setPort(editingConnection.port);
+      setUsername(editingConnection.username);
+      setAuthType(editingConnection.authType);
+      setPrivateKeyPath(editingConnection.privateKeyPath || '');
+      setPassword('');
+      setPassphrase('');
+    } else {
+      setName('');
+      setHost('');
+      setPort(22);
+      setUsername('root');
+      setAuthType('password');
+      setPassword('');
+      setPrivateKeyPath('');
+      setPassphrase('');
+    }
+  }, [isOpen, mode, editingConnection]);
+
   if (!isOpen) return null;
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const connId = (mode === 'edit' && editingConnection?.id) || crypto.randomUUID();
+
+  const buildSavedConnection = (): SavedConnection => ({
+    id: connId,
+    name: name || host,
+    host,
+    port: Number(port) || 22,
+    username,
+    authType,
+    privateKeyPath: authType === 'key' ? privateKeyPath : undefined,
+    createdAt: editingConnection?.createdAt || 0,
+    updatedAt: 0,
+  });
+
+  const buildSessionConfig = (): SessionConfig => ({
+    name: name || host,
+    host,
+    port: Number(port) || 22,
+    username,
+    authType,
+    password: authType === 'password' ? password : undefined,
+    privateKeyPath: authType === 'key' ? privateKeyPath : undefined,
+    passphrase: authType === 'key' && passphrase ? passphrase : undefined,
+  });
+
+  const handleSaveOnly = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!host || !username) return;
-
-    await onConnect({
-      name: name || host,
-      host,
-      port: Number(port) || 22,
-      username,
-      authType,
-      password: authType === 'password' ? password : undefined,
-      privateKeyPath: authType === 'key' ? privateKeyPath : undefined,
-      passphrase: authType === 'key' && passphrase ? passphrase : undefined,
-    });
+    await onSave(buildSavedConnection());
   };
 
+  const handleSaveAndConnect = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!host || !username) return;
+    await onSaveAndConnect(buildSavedConnection(), buildSessionConfig());
+  };
+
+  const inputCls =
+    'w-full rounded-md bg-[#11111a] border border-[#2a2b38] focus:border-indigo-500/80 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors';
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-2xl p-4 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]">
-      {/* Outer Shell (Double-Bezel Architecture) */}
-      <div className="w-full max-w-lg p-1.5 rounded-[2rem] bg-white/[0.03] border border-white/[0.08] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)] overflow-hidden">
-        {/* Inner Core Container */}
-        <div className="rounded-[calc(2rem-0.375rem)] bg-[#050811] border border-white/[0.05] shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)] overflow-hidden">
-          {/* Modal Header */}
-          <div className="flex items-center justify-between border-b border-white/[0.06] bg-white/[0.02] px-6 py-4">
-            <div className="flex items-center space-x-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.04] border border-white/[0.08]">
-                <Server className="h-4 w-4 stroke-[1.5] text-emerald-400" />
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold tracking-tight text-white">Initialize Session</h3>
-                <p className="text-[11px] font-mono text-slate-500">SSH & SFTP Multi-Channel Profile</p>
-              </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 select-none">
+      <div className="w-full max-w-md rounded-lg bg-[#1e1e2d] border border-[#2a2b38] shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-[#2a2b38] bg-[#11111a] px-4 py-3">
+          <div>
+            <h3 className="text-xs font-semibold text-slate-100">
+              {mode === 'edit' ? 'Edit Connection Profile' : 'New Connection Profile'}
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded p-1 text-slate-400 hover:text-slate-100 hover:bg-[#1e1e2d] cursor-pointer transition-colors"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSaveAndConnect} className="p-4 space-y-3.5">
+          {error && (
+            <div className="p-2.5 rounded-md bg-rose-950/40 border border-rose-800 text-rose-300 text-xs">
+              {error}
             </div>
-            <button
-              onClick={onClose}
-              className="rounded-full p-1.5 text-slate-400 hover:bg-white/[0.08] hover:text-white transition-colors"
-            >
-              <X className="h-4 w-4 stroke-[1.5]" />
-            </button>
+          )}
+
+          <div>
+            <label className="block mb-1 text-[11px] font-medium text-slate-400">
+              Profile Name
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Production Server"
+              className={inputCls}
+            />
           </div>
 
-          {/* Form Body */}
-          <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs">
-            {error && (
-              <div className="p-3 rounded-xl bg-rose-950/30 border border-rose-900/50 text-rose-300 font-mono text-xs leading-relaxed">
-                {error}
-              </div>
-            )}
-
-            <div>
-              <label className="block mb-1.5 text-[11px] font-medium text-slate-400">Profile Identifier</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. EU Cluster Master"
-                className="w-full rounded-xl bg-white/[0.03] border border-white/[0.08] px-3.5 py-2 text-white placeholder-slate-600 focus:outline-hidden focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 transition-all font-mono text-xs"
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div className="col-span-2">
-                <label className="block mb-1.5 text-[11px] font-medium text-slate-400">Host / IP Target *</label>
-                <input
-                  type="text"
-                  required
-                  value={host}
-                  onChange={(e) => setHost(e.target.value)}
-                  placeholder="10.0.0.1 or node.example.com"
-                  className="w-full rounded-xl bg-white/[0.03] border border-white/[0.08] px-3.5 py-2 text-white placeholder-slate-600 focus:outline-hidden focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 transition-all font-mono text-xs"
-                />
-              </div>
-              <div>
-                <label className="block mb-1.5 text-[11px] font-medium text-slate-400">Port</label>
-                <input
-                  type="number"
-                  value={port}
-                  onChange={(e) => setPort(Number(e.target.value))}
-                  className="w-full rounded-xl bg-white/[0.03] border border-white/[0.08] px-3.5 py-2 text-white placeholder-slate-600 focus:outline-hidden focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 transition-all font-mono text-xs"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block mb-1.5 text-[11px] font-medium text-slate-400">Remote Username *</label>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="col-span-2">
+              <label className="block mb-1 text-[11px] font-medium text-slate-400">
+                Host / IP Target *
+              </label>
               <input
                 type="text"
                 required
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full rounded-xl bg-white/[0.03] border border-white/[0.08] px-3.5 py-2 text-white placeholder-slate-600 focus:outline-hidden focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 transition-all font-mono text-xs"
+                value={host}
+                onChange={(e) => setHost(e.target.value)}
+                placeholder="10.0.0.1"
+                className={inputCls}
               />
             </div>
-
             <div>
-              <label className="block mb-1.5 text-[11px] font-medium text-slate-400">Authentication Protocol</label>
-              <div className="flex p-1 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                <button
-                  type="button"
-                  onClick={() => setAuthType('password')}
-                  className={`flex-1 py-1.5 rounded-lg flex items-center justify-center space-x-2 text-xs transition-all duration-300 ${
-                    authType === 'password'
-                      ? 'bg-white text-black font-semibold shadow-sm'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <Lock className="h-3.5 w-3.5 stroke-[1.5]" />
-                  <span>Password</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAuthType('key')}
-                  className={`flex-1 py-1.5 rounded-lg flex items-center justify-center space-x-2 text-xs transition-all duration-300 ${
-                    authType === 'key'
-                      ? 'bg-white text-black font-semibold shadow-sm'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  <Key className="h-3.5 w-3.5 stroke-[1.5]" />
-                  <span>Private Key</span>
-                </button>
-              </div>
+              <label className="block mb-1 text-[11px] font-medium text-slate-400">
+                Port
+              </label>
+              <input
+                type="number"
+                value={port}
+                onChange={(e) => setPort(Number(e.target.value))}
+                className={inputCls}
+              />
             </div>
+          </div>
 
-            {authType === 'password' ? (
-              <div>
-                <label className="block mb-1.5 text-[11px] font-medium text-slate-400">Password</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded-xl bg-white/[0.03] border border-white/[0.08] px-3.5 py-2 text-white placeholder-slate-600 focus:outline-hidden focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 transition-all font-mono text-xs"
-                />
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div>
-                  <label className="block mb-1.5 text-[11px] font-medium text-slate-400">
-                    Identity Key Path (Absolute)
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={privateKeyPath}
-                      onChange={(e) => setPrivateKeyPath(e.target.value)}
-                      placeholder="~/.ssh/id_ed25519"
-                      className="flex-1 min-w-0 rounded-xl bg-white/[0.03] border border-white/[0.08] px-3.5 py-2 text-white placeholder-slate-600 focus:outline-hidden focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 transition-all font-mono text-xs"
-                    />
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const selected = await open({
-                          multiple: false,
-                          directory: false,
-                          title: 'Select Private Key',
-                        });
-                        if (selected) setPrivateKeyPath(selected);
-                      }}
-                      className="flex items-center justify-center rounded-xl bg-white/[0.04] border border-white/[0.08] px-3 text-slate-400 hover:text-white hover:bg-white/[0.08] transition-colors"
-                      title="Browse"
-                    >
-                      <FolderOpen className="h-4 w-4 stroke-[1.5]" />
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <label className="block mb-1.5 text-[11px] font-medium text-slate-400">
-                    Passphrase (Optional)
-                  </label>
-                  <input
-                    type="password"
-                    value={passphrase}
-                    onChange={(e) => setPassphrase(e.target.value)}
-                    className="w-full rounded-xl bg-white/[0.03] border border-white/[0.08] px-3.5 py-2 text-white placeholder-slate-600 focus:outline-hidden focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/30 transition-all font-mono text-xs"
-                  />
-                </div>
-              </div>
-            )}
+          <div>
+            <label className="block mb-1 text-[11px] font-medium text-slate-400">
+              Username *
+            </label>
+            <input
+              type="text"
+              required
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className={inputCls}
+            />
+          </div>
 
-            {/* Modal Actions */}
-            <div className="flex items-center justify-end space-x-3 pt-3 border-t border-white/[0.06]">
+          {/* Auth toggle */}
+          <div>
+            <label className="block mb-1 text-[11px] font-medium text-slate-400">
+              Authentication Method
+            </label>
+            <div className="flex rounded-md bg-[#11111a] p-0.5 border border-[#2a2b38]">
               <button
                 type="button"
-                onClick={onClose}
-                className="px-4 py-2 rounded-full text-xs font-medium text-slate-400 hover:text-white hover:bg-white/[0.05] transition-colors"
+                onClick={() => setAuthType('password')}
+                className={`flex-1 py-1 rounded flex items-center justify-center gap-1.5 text-xs font-medium cursor-pointer transition-colors ${
+                  authType === 'password'
+                    ? 'bg-indigo-600 text-white font-medium shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
               >
-                Dismiss
+                <Lock className="h-3 w-3" />
+                <span>Password</span>
               </button>
               <button
-                type="submit"
-                disabled={isLoading}
-                className="group relative flex items-center space-x-2.5 pl-4 pr-2 py-2 rounded-full bg-white text-slate-950 hover:bg-emerald-400 text-xs font-semibold tracking-tight transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.97] disabled:opacity-40"
+                type="button"
+                onClick={() => setAuthType('key')}
+                className={`flex-1 py-1 rounded flex items-center justify-center gap-1.5 text-xs font-medium cursor-pointer transition-colors ${
+                  authType === 'key'
+                    ? 'bg-indigo-600 text-white font-medium shadow-xs'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
               >
-                <span>{isLoading ? 'Establishing...' : 'Connect Session'}</span>
-                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-black/10 group-hover:bg-black group-hover:text-white transition-colors">
-                  <ArrowRight className="h-3 w-3 stroke-[2] transition-transform group-hover:translate-x-0.5" />
-                </div>
+                <Key className="h-3 w-3" />
+                <span>Private Key</span>
               </button>
             </div>
-          </form>
-        </div>
+          </div>
+
+          {authType === 'password' ? (
+            <div>
+              <label className="block mb-1 text-[11px] font-medium text-slate-400">
+                Password
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Not stored on device"
+                className={inputCls}
+              />
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              <div>
+                <label className="block mb-1 text-[11px] font-medium text-slate-400">
+                  Key Path
+                </label>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={privateKeyPath}
+                    onChange={(e) => setPrivateKeyPath(e.target.value)}
+                    placeholder="~/.ssh/id_ed25519"
+                    className={`flex-1 min-w-0 ${inputCls}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const selected = await open({
+                        multiple: false,
+                        directory: false,
+                        title: 'Select Private Key',
+                      });
+                      if (selected) setPrivateKeyPath(selected);
+                    }}
+                    className="flex items-center justify-center rounded-md bg-[#11111a] hover:bg-[#2a2b38] border border-[#2a2b38] px-2.5 text-slate-300 hover:text-white cursor-pointer transition-colors"
+                    title="Browse Files"
+                  >
+                    <FolderOpen className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block mb-1 text-[11px] font-medium text-slate-400">
+                  Passphrase (Optional)
+                </label>
+                <input
+                  type="password"
+                  value={passphrase}
+                  onChange={(e) => setPassphrase(e.target.value)}
+                  placeholder="Not stored on device"
+                  className={inputCls}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#2a2b38]">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-white hover:bg-[#11111a] cursor-pointer transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveOnly}
+              disabled={isLoading || !host || !username}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#2a2b38] hover:bg-[#343547] text-xs font-medium text-slate-200 cursor-pointer transition-colors disabled:opacity-40"
+            >
+              <Save className="h-3.5 w-3.5" />
+              <span>Save</span>
+            </button>
+            <button
+              type="submit"
+              disabled={isLoading || !host || !username}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-xs font-medium text-white cursor-pointer transition-colors shadow-sm disabled:opacity-40"
+            >
+              <span>{isLoading ? 'Connecting...' : 'Save & Connect'}</span>
+              <ArrowRight className="h-3.5 w-3.5 stroke-[2]" />
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

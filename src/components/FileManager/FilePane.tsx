@@ -3,7 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { FileEntry } from '../../types';
 import { FileItemRow } from './FileItemRow';
 import { PathBreadcrumb } from './PathBreadcrumb';
-import { Loader2, ChevronUp, ChevronDown } from 'lucide-react';
+import { Loader2, ChevronUp, ChevronDown, ArrowDownToLine } from 'lucide-react';
 
 type SortKey = 'name' | 'size' | 'modified';
 type SortDir = 'asc' | 'desc';
@@ -20,6 +20,7 @@ interface FilePaneProps {
   onSelect: (paths: string[]) => void;
   onNavigate: (path: string) => void;
   onRefresh: () => void;
+  onDropTransfer?: (source: 'local' | 'remote', paths: string[], targetFolder?: string) => void;
 }
 
 export const FilePane: React.FC<FilePaneProps> = ({
@@ -34,9 +35,11 @@ export const FilePane: React.FC<FilePaneProps> = ({
   onSelect,
   onNavigate,
   onRefresh,
+  onDropTransfer,
 }) => {
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [isPaneDragOver, setIsPaneDragOver] = useState(false);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -49,9 +52,7 @@ export const FilePane: React.FC<FilePaneProps> = ({
 
   const sortedEntries = useMemo(() => {
     const sorted = [...entries].sort((a, b) => {
-      // Folders always first regardless of sort
       if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-
       let cmp = 0;
       switch (sortKey) {
         case 'name':
@@ -74,8 +75,8 @@ export const FilePane: React.FC<FilePaneProps> = ({
   const rowVirtualizer = useVirtualizer({
     count: sortedEntries.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 32,
-    overscan: 12,
+    estimateSize: () => 24,
+    overscan: 16,
   });
 
   const handleRowSelect = (entry: FileEntry, e: React.MouseEvent) => {
@@ -96,96 +97,155 @@ export const FilePane: React.FC<FilePaneProps> = ({
     }
   };
 
+  const handlePaneDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    if (!isPaneDragOver) setIsPaneDragOver(true);
+  };
+
+  const handlePaneDragLeave = (e: React.DragEvent) => {
+    // Only deactivate if leaving the container boundaries
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsPaneDragOver(false);
+  };
+
+  const handlePaneDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsPaneDragOver(false);
+
+    if (!onDropTransfer) return;
+
+    try {
+      const raw = e.dataTransfer.getData('application/x-openterm-transfer');
+      if (raw) {
+        const { source, paths } = JSON.parse(raw);
+        onDropTransfer(source, paths, currentPath);
+      }
+    } catch (err) {
+      console.error('Failed to parse drag-and-drop payload:', err);
+    }
+  };
+
   return (
-    <div className="flex flex-1 flex-col h-full p-1 rounded-[1.5rem] bg-white/[0.02] border border-white/[0.06] shadow-[0_12px_40px_-8px_rgba(0,0,0,0.8)] overflow-hidden">
-      <div className="flex flex-1 flex-col rounded-[calc(1.5rem-0.25rem)] bg-[#050811] border border-white/[0.05] shadow-[inset_0_1px_1px_rgba(255,255,255,0.08)] overflow-hidden">
-        {/* Pane Header */}
-        <div className="flex h-8 items-center justify-between bg-white/[0.02] px-4 border-b border-white/[0.06] text-xs select-none">
-          <div className="flex items-center space-x-2">
-            <div className={`h-1.5 w-1.5 rounded-full ${isRemote ? 'bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.8)]' : 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]'}`} />
-            <span className="font-semibold text-slate-200 tracking-tight">{title}</span>
+    <div
+      className={`relative flex flex-1 flex-col h-full bg-[#1e1e2d] overflow-hidden select-none transition-colors ${
+        isPaneDragOver ? 'ring-2 ring-indigo-500/80 bg-[#252538]' : ''
+      }`}
+      onDragOver={handlePaneDragOver}
+      onDragLeave={handlePaneDragLeave}
+      onDrop={handlePaneDrop}
+    >
+      {/* Visual Dropzone Overlay Banner when dragging */}
+      {isPaneDragOver && (
+        <div className="absolute inset-0 z-30 pointer-events-none flex flex-col items-center justify-center bg-indigo-950/40 backdrop-blur-xs border-2 border-dashed border-indigo-400">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#11111a] border border-indigo-500 text-indigo-300 text-xs font-medium shadow-lg">
+            <ArrowDownToLine className="h-4 w-4 animate-bounce" />
+            <span>Drop to {isRemote ? 'Upload to Remote' : 'Download to Local'}</span>
           </div>
-          <span className="text-[10px] font-mono text-slate-500">
-            {entries.length} / {total} entries
-          </span>
         </div>
+      )}
 
-        {/* Path Breadcrumbs */}
-        <PathBreadcrumb
-          path={currentPath}
-          onNavigate={onNavigate}
-          onRefresh={onRefresh}
-          isRemote={isRemote}
-        />
-
-        {/* Table Column Headers */}
-        <div className="flex h-6 items-center px-4 bg-white/[0.01] border-b border-white/[0.04] text-[9px] font-mono font-medium text-slate-500 uppercase tracking-widest select-none">
-          <button onClick={() => toggleSort('name')} className="flex flex-1 items-center gap-1 hover:text-slate-300 transition-colors">
-            <span>Name</span>
-            {sortKey === 'name' && (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
-          </button>
-          <button onClick={() => toggleSort('size')} className="flex w-20 items-center justify-end gap-1 hover:text-slate-300 transition-colors">
-            <span>Size</span>
-            {sortKey === 'size' && (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
-          </button>
-          <button onClick={() => toggleSort('modified')} className="flex w-28 items-center justify-end gap-1 pr-2 hover:text-slate-300 transition-colors">
-            <span>Modified</span>
-            {sortKey === 'modified' && (sortDir === 'asc' ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
-          </button>
+      {/* Pane Section Header */}
+      <div className="flex h-[28px] items-center justify-between bg-[#11111a] px-3 border-b border-[#2a2b38] text-[11px] font-medium text-slate-300">
+        <div className="flex items-center gap-2">
+          <div className={`h-1.5 w-1.5 rounded-full ${isRemote ? 'bg-sky-400' : 'bg-indigo-400'}`} />
+          <span className="truncate">{title}</span>
         </div>
+        <span className="text-[10px] font-mono text-slate-500">
+          {entries.length}/{total}
+        </span>
+      </div>
 
-        {/* Virtualized File List */}
-        <div
-          ref={parentRef}
-          className="flex-1 overflow-y-auto relative w-full bg-[#03060e]"
+      <PathBreadcrumb
+        path={currentPath}
+        onNavigate={onNavigate}
+        onRefresh={onRefresh}
+        isRemote={isRemote}
+      />
+
+      {/* Column Headers */}
+      <div className="flex h-[22px] items-center px-3 bg-[#171724] border-b border-[#2a2b38] text-[10px] font-mono text-slate-400 select-none">
+        <button
+          type="button"
+          onClick={() => toggleSort('name')}
+          className="flex flex-1 items-center gap-1 hover:text-slate-200 cursor-pointer transition-colors"
         >
-          {isLoading && entries.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-slate-500 text-xs space-x-2">
-              <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
-              <span className="font-mono text-[11px]">Querying file system...</span>
-            </div>
-          ) : error ? (
-            <div className="p-4 text-xs font-mono text-rose-400 bg-rose-950/20 border border-rose-900/50 m-3 rounded-xl">
-              {error}
-            </div>
-          ) : entries.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-slate-600 text-xs font-mono">
-              Empty directory
-            </div>
-          ) : (
-            <div
-              style={{
-                height: `${rowVirtualizer.getTotalSize()}px`,
-                width: '100%',
-                position: 'relative',
-              }}
-            >
-              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                const entry = sortedEntries[virtualRow.index];
-                return (
-                  <div
-                    key={entry.path}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: `${virtualRow.size}px`,
-                      transform: `translateY(${virtualRow.start}px)`,
+          <span>Name</span>
+          {sortKey === 'name' && (sortDir === 'asc' ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
+        </button>
+        <button
+          type="button"
+          onClick={() => toggleSort('size')}
+          className="flex w-16 items-center justify-end gap-1 hover:text-slate-200 cursor-pointer transition-colors"
+        >
+          <span>Size</span>
+          {sortKey === 'size' && (sortDir === 'asc' ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
+        </button>
+        <button
+          type="button"
+          onClick={() => toggleSort('modified')}
+          className="flex w-24 items-center justify-end gap-1 pr-1 hover:text-slate-200 cursor-pointer transition-colors"
+        >
+          <span>Modified</span>
+          {sortKey === 'modified' && (sortDir === 'asc' ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
+        </button>
+      </div>
+
+      {/* File Tree List */}
+      <div ref={parentRef} className="flex-1 overflow-y-auto relative w-full bg-[#1e1e2d]">
+        {isLoading && entries.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-slate-400 text-xs gap-2">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-400" />
+            <span className="font-mono text-[11px]">Loading...</span>
+          </div>
+        ) : error ? (
+          <div className="p-2.5 m-2 text-xs font-mono text-rose-300 bg-rose-950/40 border border-rose-800 rounded-md">
+            {error}
+          </div>
+        ) : entries.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-slate-500 text-xs font-mono">
+            Empty folder
+          </div>
+        ) : (
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const entry = sortedEntries[virtualRow.index];
+              return (
+                <div
+                  key={entry.path}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  <FileItemRow
+                    entry={entry}
+                    isSelected={selectedPaths.includes(entry.path)}
+                    isRemote={isRemote}
+                    selectedPaths={selectedPaths}
+                    onSelect={handleRowSelect}
+                    onDoubleClick={handleDoubleClick}
+                    onDropOnFolder={(folderPath, src, paths) => {
+                      if (onDropTransfer) {
+                        onDropTransfer(src, paths, folderPath);
+                      }
                     }}
-                  >
-                    <FileItemRow
-                      entry={entry}
-                      isSelected={selectedPaths.includes(entry.path)}
-                      onSelect={handleRowSelect}
-                      onDoubleClick={handleDoubleClick}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,47 +1,47 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { FileEntry } from '../../types';
-import { Folder, File, FileText, FileCode, Archive } from 'lucide-react';
+import { Folder, File, FileCode, Archive } from 'lucide-react';
 
 interface FileItemRowProps {
   entry: FileEntry;
   isSelected: boolean;
+  isRemote?: boolean;
+  selectedPaths: string[];
   onSelect: (entry: FileEntry, event: React.MouseEvent) => void;
   onDoubleClick: (entry: FileEntry) => void;
+  onDropOnFolder?: (targetFolder: string, source: 'local' | 'remote', paths: string[]) => void;
 }
 
 export const FileItemRow: React.FC<FileItemRowProps> = ({
   entry,
   isSelected,
+  isRemote = false,
+  selectedPaths,
   onSelect,
   onDoubleClick,
+  onDropOnFolder,
 }) => {
+  const [isFolderDragOver, setIsFolderDragOver] = useState(false);
+
   const getIcon = () => {
     if (entry.isDir) {
       return (
-        <div className="flex h-5 w-5 items-center justify-center rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
-          <Folder className="h-3.5 w-3.5 stroke-[1.5] fill-emerald-400/20" />
-        </div>
+        <Folder className="h-3.5 w-3.5 text-amber-400 fill-amber-400/20 shrink-0" />
       );
     }
     const ext = entry.name.split('.').pop()?.toLowerCase();
     if (['zip', 'tar', 'gz', 'bz2', '7z', 'rar'].includes(ext || '')) {
       return (
-        <div className="flex h-5 w-5 items-center justify-center rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
-          <Archive className="h-3.5 w-3.5 stroke-[1.5]" />
-        </div>
+        <Archive className="h-3.5 w-3.5 text-rose-400 shrink-0" />
       );
     }
     if (['js', 'ts', 'tsx', 'jsx', 'rs', 'py', 'json', 'html', 'css', 'go', 'c', 'cpp'].includes(ext || '')) {
       return (
-        <div className="flex h-5 w-5 items-center justify-center rounded bg-sky-500/10 text-sky-400 border border-sky-500/20 shrink-0">
-          <FileCode className="h-3.5 w-3.5 stroke-[1.5]" />
-        </div>
+        <FileCode className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
       );
     }
     return (
-      <div className="flex h-5 w-5 items-center justify-center rounded bg-white/[0.04] text-slate-400 border border-white/[0.06] shrink-0">
-        <File className="h-3.5 w-3.5 stroke-[1.5]" />
-      </div>
+      <File className="h-3.5 w-3.5 text-slate-400 shrink-0" />
     );
   };
 
@@ -58,31 +58,87 @@ export const FileItemRow: React.FC<FileItemRowProps> = ({
     if (!secs) return '--';
     const d = new Date(secs * 1000);
     return d.toLocaleDateString(undefined, {
-      month: 'short',
+      month: 'numeric',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     });
   };
 
+  const handleDragStart = (e: React.DragEvent) => {
+    const pathsToTransfer = isSelected && selectedPaths.includes(entry.path)
+      ? selectedPaths
+      : [entry.path];
+
+    const payload = JSON.stringify({
+      source: isRemote ? 'remote' : 'local',
+      paths: pathsToTransfer,
+    });
+
+    e.dataTransfer.setData('application/x-openterm-transfer', payload);
+    e.dataTransfer.setData('text/plain', pathsToTransfer.join('\n'));
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (entry.isDir && onDropOnFolder) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'copy';
+      if (!isFolderDragOver) setIsFolderDragOver(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    if (entry.isDir) {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsFolderDragOver(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    if (entry.isDir && onDropOnFolder) {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsFolderDragOver(false);
+      try {
+        const raw = e.dataTransfer.getData('application/x-openterm-transfer');
+        if (raw) {
+          const { source, paths } = JSON.parse(raw);
+          onDropOnFolder(entry.path, source, paths);
+        }
+      } catch (err) {
+        console.error('Failed to parse drag drop data:', err);
+      }
+    }
+  };
+
   return (
     <div
+      draggable
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       onClick={(e) => onSelect(entry, e)}
       onDoubleClick={() => onDoubleClick(entry)}
-      className={`group flex h-8 items-center px-3 text-xs select-none cursor-pointer transition-colors duration-150 border-b border-white/[0.02] ${
-        isSelected
-          ? 'bg-emerald-500/15 text-white border-b-emerald-500/30'
-          : 'text-slate-300 hover:bg-white/[0.03] hover:text-white'
+      className={`group flex h-[24px] items-center px-3 text-xs select-none cursor-pointer transition-colors ${
+        isFolderDragOver
+          ? 'bg-indigo-500/25 border-2 border-indigo-500 text-white'
+          : isSelected
+          ? 'bg-[#2a2b42] text-white border-l-2 border-l-indigo-400'
+          : 'text-slate-300 hover:bg-[#232336] hover:text-white'
       }`}
     >
-      <div className="flex flex-1 items-center space-x-2.5 truncate pr-3">
+      <div className="flex flex-1 items-center gap-2 truncate pr-2">
         {getIcon()}
-        <span className="truncate font-mono text-[11px] tracking-tight">{entry.name}</span>
+        <span className="truncate font-sans text-xs">{entry.name}</span>
       </div>
-      <div className="w-20 text-right text-slate-500 font-mono text-[10px] shrink-0">
+      <div className="w-16 text-right text-slate-500 font-mono text-[10px] shrink-0">
         {formatSize(entry.size)}
       </div>
-      <div className="w-28 text-right text-slate-600 font-mono text-[10px] shrink-0 pl-2">
+      <div className="w-24 text-right text-slate-500 font-mono text-[10px] shrink-0 pr-1">
         {formatDate(entry.modified)}
       </div>
     </div>

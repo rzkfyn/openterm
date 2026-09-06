@@ -293,6 +293,7 @@ pub fn connect_ssh(
         id: session_id.clone(),
         name: config.name,
         session: sess_arc,
+        channel: channel_arc,
         sftp_session,
         sftp,
         sftp_error: sftp_init_error,
@@ -317,6 +318,20 @@ pub fn write_ssh(manager: &SessionManager, session_id: &str, data: &[u8]) -> Res
     } else {
         Err("No active PTY writer channel for this session".to_string())
     }
+}
+
+pub fn resize_pty(manager: &SessionManager, session_id: &str, cols: u32, rows: u32) -> Result<(), String> {
+    let active = manager
+        .get_session(session_id)
+        .ok_or_else(|| format!("Session {} not found", session_id))?;
+
+    let sess = active.session.lock();
+    sess.set_blocking(true);
+    let mut ch = active.channel.lock();
+    let res = ch.request_pty_size(cols, rows, None, None)
+        .map_err(|e| format!("PTY resize failed: {}", e));
+    sess.set_blocking(false);
+    res
 }
 
 pub fn disconnect_ssh(manager: &SessionManager, session_id: &str) -> Result<(), String> {

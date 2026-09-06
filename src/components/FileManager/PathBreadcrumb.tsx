@@ -14,7 +14,6 @@ export const PathBreadcrumb: React.FC<PathBreadcrumbProps> = ({
   onRefresh,
   isRemote = false,
 }) => {
-  // Normalize separators for splitting (handle both / and \)
   const normalized = path.replace(/\\/g, '/');
   const parts = normalized.split('/').filter(Boolean);
   const [isEditing, setIsEditing] = useState(false);
@@ -42,14 +41,13 @@ export const PathBreadcrumb: React.FC<PathBreadcrumbProps> = ({
   const handleParent = () => {
     if (!path || path === '/' || path === '\\') return;
     const norm = path.replace(/\\/g, '/');
-    // Windows drive root like C:/ — nowhere to go
     if (/^[A-Za-z]:\/?$/.test(norm)) return;
     const parentPath = norm.substring(0, norm.lastIndexOf('/')) || '/';
     onNavigate(parentPath);
   };
 
   return (
-    <div className="flex h-9 items-center justify-between border-b border-white/[0.06] bg-white/[0.015] px-3 text-xs text-slate-300">
+    <div className="flex h-[26px] items-center justify-between border-b border-[#2a2b38] bg-[#171724] px-2.5 text-xs text-slate-300 select-none">
       {isEditing ? (
         <input
           ref={inputRef}
@@ -61,34 +59,32 @@ export const PathBreadcrumb: React.FC<PathBreadcrumbProps> = ({
             if (e.key === 'Escape') setIsEditing(false);
           }}
           spellCheck={false}
-          className="flex-1 min-w-0 mr-2 px-2 py-1 rounded-md font-mono text-xs bg-white/[0.04] border border-emerald-500/30 text-slate-200 outline-none focus:border-emerald-500/60 placeholder:text-slate-600"
+          className="flex-1 min-w-0 mr-2 px-2 py-0.5 rounded bg-[#11111a] border border-indigo-500/70 text-slate-100 text-xs font-mono outline-none"
           placeholder={isRemote ? '/remote/path' : '/local/path'}
         />
       ) : (
         <div
-          className="flex flex-1 min-w-0 items-center space-x-1.5 overflow-x-auto no-scrollbar py-0.5 cursor-text"
+          className="flex flex-1 min-w-0 items-center gap-1 overflow-x-auto py-0.5 cursor-text no-scrollbar"
           onClick={(e) => {
             if (e.target === e.currentTarget) startEditing();
           }}
-          title="Click empty area to type a path"
+          title="Click to enter path"
         >
           <button
+            type="button"
             onClick={() => onNavigate(isRemote ? '.' : '/')}
-            className="p-1 text-slate-400 hover:text-white hover:bg-white/[0.06] rounded-md transition-colors"
+            className="p-1 text-slate-400 hover:text-slate-100 rounded hover:bg-[#252538] cursor-pointer transition-colors"
             title="Root directory"
           >
-            <Home className="h-3.5 w-3.5 stroke-[1.5]" />
+            <Home className="h-3 w-3" />
           </button>
 
           {parts.map((part, index) => {
-            // Build path: for Windows drive letters (e.g. "C:"), use "C:/"
-            // otherwise use unix-style joining
             let currentSubPath: string;
             if (index === 0 && /^[A-Za-z]:$/.test(part)) {
               currentSubPath = part + '/';
             } else {
               const segments = parts.slice(0, index + 1);
-              // Check if first segment is a drive letter
               if (/^[A-Za-z]:$/.test(segments[0])) {
                 currentSubPath = segments[0] + '/' + segments.slice(1).join('/');
               } else {
@@ -99,13 +95,14 @@ export const PathBreadcrumb: React.FC<PathBreadcrumbProps> = ({
 
             return (
               <React.Fragment key={currentSubPath}>
-                <ChevronRight className="h-3 w-3 text-slate-700 shrink-0" />
+                <ChevronRight className="h-2.5 w-2.5 text-slate-600 shrink-0" />
                 <button
+                  type="button"
                   onClick={() => onNavigate(currentSubPath)}
-                  className={`truncate max-w-[130px] px-2 py-0.5 rounded-md text-xs font-mono transition-all ${
+                  className={`truncate max-w-[130px] px-1.5 py-0.5 rounded text-[11px] font-sans cursor-pointer transition-colors ${
                     isLast
-                      ? 'font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
+                      ? 'text-indigo-300 font-medium bg-indigo-500/10'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#252538]'
                   }`}
                   title={part}
                 >
@@ -117,29 +114,32 @@ export const PathBreadcrumb: React.FC<PathBreadcrumbProps> = ({
         </div>
       )}
 
-      <div className="flex items-center space-x-1 shrink-0 ml-2">
+      <div className="flex items-center gap-0.5 shrink-0 ml-1.5">
         {!isEditing && (
           <button
+            type="button"
             onClick={startEditing}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-white/[0.06] rounded-md transition-colors"
-            title="Type a path"
+            className="p-1 text-slate-400 hover:text-slate-200 hover:bg-[#252538] rounded cursor-pointer transition-colors"
+            title="Edit path text"
           >
-            <PenLine className="h-3.5 w-3.5 stroke-[1.5]" />
+            <PenLine className="h-3 w-3" />
           </button>
         )}
         <button
+          type="button"
           onClick={handleParent}
-          className="p-1.5 text-slate-400 hover:text-white hover:bg-white/[0.06] rounded-md transition-colors"
+          className="p-1 text-slate-400 hover:text-slate-200 hover:bg-[#252538] rounded cursor-pointer transition-colors"
           title="Parent folder"
         >
-          <FolderUp className="h-3.5 w-3.5 stroke-[1.5]" />
+          <FolderUp className="h-3 w-3" />
         </button>
         <button
+          type="button"
           onClick={onRefresh}
-          className="p-1.5 text-slate-400 hover:text-white hover:bg-white/[0.06] rounded-md transition-colors"
+          className="p-1 text-slate-400 hover:text-slate-200 hover:bg-[#252538] rounded cursor-pointer transition-colors"
           title="Refresh directory"
         >
-          <RefreshCw className="h-3.5 w-3.5 stroke-[1.5]" />
+          <RefreshCw className="h-3 w-3" />
         </button>
       </div>
     </div>

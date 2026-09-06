@@ -9,6 +9,7 @@ pub struct ActiveSession {
     pub id: String,
     pub name: String,
     pub session: Arc<Mutex<Session>>,
+    pub channel: Arc<Mutex<ssh2::Channel>>,
     pub sftp_session: Option<Arc<Mutex<Session>>>,
     pub sftp: Option<Arc<Mutex<ssh2::Sftp>>>,
     pub sftp_error: Option<String>,

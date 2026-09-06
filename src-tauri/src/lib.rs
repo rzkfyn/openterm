@@ -3,9 +3,11 @@ pub mod models;
 pub mod session;
 pub mod sftp;
 pub mod ssh;
+pub mod storage;
 
 use models::{PaginatedEntries, SessionConfig};
 use session::SessionManager;
+use storage::SavedConnection;
 use tauri::{AppHandle, Manager, State};
 
 #[tauri::command]
@@ -14,13 +16,57 @@ fn ping() -> &'static str {
 }
 
 #[tauri::command]
-fn ssh_connect(
+fn open_url(url: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Failed to open URL: {}", e))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", &url])
+            .spawn()
+            .map_err(|e| format!("Failed to open URL: {}", e))?;
+    }
+    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Failed to open URL: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn list_connections() -> Result<Vec<SavedConnection>, String> {
+    storage::list()
+}
+
+#[tauri::command]
+fn save_connection(connection: SavedConnection) -> Result<SavedConnection, String> {
+    storage::save(connection)
+}
+
+#[tauri::command]
+fn delete_connection(id: String) -> Result<(), String> {
+    storage::delete(&id)
+}
+
+#[tauri::command]
+async fn ssh_connect(
     app: AppHandle,
-    manager: State<SessionManager>,
+    manager: State<'_, SessionManager>,
     config: SessionConfig,
 ) -> Result<String, String> {
     eprintln!("[ssh_connect] Connecting to {}:{} as {}", config.host, config.port, config.username);
-    ssh::connect_ssh(app, &manager, config)
+    let mgr = manager.inner().clone();
+    tokio::task::spawn_blocking(move || ssh::connect_ssh(app, &mgr, config))
+        .await
+        .map_err(|e| format!("Task failed: {}", e))?
 }
 
 #[tauri::command]
@@ -37,6 +83,16 @@ fn ssh_write(
 ) -> Result<(), String> {
     eprintln!("[ssh_write] session_id: {}, len: {}, bytes: {:?}", session_id, data.len(), data.as_bytes());
     ssh::write_ssh(&manager, &session_id, data.as_bytes())
+}
+
+#[tauri::command]
+fn ssh_resize_pty(
+    manager: State<SessionManager>,
+    session_id: String,
+    cols: u32,
+    rows: u32,
+) -> Result<(), String> {
+    ssh::resize_pty(&manager, &session_id, cols, rows)
 }
 
 #[tauri::command]
@@ -121,9 +177,14 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             ping,
+            open_url,
+            list_connections,
+            save_connection,
+            delete_connection,
             ssh_connect,
             ssh_disconnect,
             ssh_write,
+            ssh_resize_pty,
             local_list_dir,
             sftp_list_dir,
             sftp_download,

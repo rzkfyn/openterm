@@ -46,3 +46,16 @@ export interface TransferProgress {
 }
 
 export type ViewMode = 'terminal' | 'sftp' | 'split';
+
+/** Saved connection profile — no password/passphrase stored on disk. */
+export interface SavedConnection {
+  id: string;
+  name: string;
+  host: string;
+  port: number;
+  username: string;
+  authType: AuthType;
+  privateKeyPath?: string;
+  createdAt: number;
+  updatedAt: number;
+}

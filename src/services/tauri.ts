@@ -1,11 +1,30 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
-import { SessionConfig, PaginatedEntries, TransferProgress } from '../types';
+import { SessionConfig, PaginatedEntries, TransferProgress, SavedConnection } from '../types';
 
 export const tauriApi = {
   ping: async (): Promise<string> => {
     return await invoke<string>('ping');
   },
+
+  openUrl: async (url: string): Promise<void> => {
+    return await invoke<void>('open_url', { url });
+  },
+
+  // --- Saved connections ---
+  listConnections: async (): Promise<SavedConnection[]> => {
+    return await invoke<SavedConnection[]>('list_connections');
+  },
+
+  saveConnection: async (connection: SavedConnection): Promise<SavedConnection> => {
+    return await invoke<SavedConnection>('save_connection', { connection });
+  },
+
+  deleteConnection: async (id: string): Promise<void> => {
+    return await invoke<void>('delete_connection', { id });
+  },
+
+  // --- SSH ---
 
   sshConnect: async (config: SessionConfig): Promise<string> => {
     return await invoke<string>('ssh_connect', { config });
@@ -17,6 +36,10 @@ export const tauriApi = {
 
   sshWrite: async (sessionId: string, data: string): Promise<void> => {
     return await invoke<void>('ssh_write', { sessionId, data });
+  },
+
+  sshResizePty: async (sessionId: string, cols: number, rows: number): Promise<void> => {
+    return await invoke<void>('ssh_resize_pty', { sessionId, cols, rows });
   },
 
   onSshData: async (sessionId: string, callback: (data: string) => void): Promise<UnlistenFn> => {
