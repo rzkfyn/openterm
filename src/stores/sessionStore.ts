@@ -2,36 +2,41 @@ import { create } from 'zustand';
 import { SessionConfig, ViewMode } from '../types';
 import { tauriApi } from '../services/tauri';
 
-// Buffer SSH data that arrives before terminal mounts.
-// The early listener stays active until takeoverEarlyBuffer replaces its
-// callback with the live terminal writer — zero gap, zero data loss.
-const earlyBuffers = new Map<string, string[]>();
-const earlyCallbacks = new Map<string, { fn: (chunk: string) => void }>();
-const earlyUnlisteners = new Map<string, () => void>();
+// Global session stream registry:
+// Tauri listener stays alive for the entire duration of the session
+// (survives React StrictMode double-mounts, view mode switches, and tab changes).
+const sessionListeners = new Map<string, () => void>();
+const sessionLiveCallbacks = new Map<string, (chunk: string) => void>();
+const sessionOutputHistory = new Map<string, string[]>();
 
 /**
- * Drain buffered chunks and atomically redirect future data to `liveCb`.
- * The underlying Tauri listener stays — caller is responsible for
- * unlistening via the returned function.
+ * Attach a terminal view to a session's live data stream.
+ * Returns all output buffered since session start so terminal can replay it.
  */
+export function attachTerminalSubscriber(
+  sessionId: string,
+  onData: (chunk: string) => void,
+): { buffered: string[] } {
+  sessionLiveCallbacks.set(sessionId, onData);
+  const history = sessionOutputHistory.get(sessionId) || [];
+  return { buffered: [...history] };
+}
+
+/**
+ * Detach terminal view from live stream (on component unmount).
+ * Does NOT kill the Tauri listener — session keeps receiving and buffering data.
+ */
+export function detachTerminalSubscriber(sessionId: string) {
+  sessionLiveCallbacks.delete(sessionId);
+}
+
+// Backward-compat export if needed
 export function takeoverEarlyBuffer(
   sessionId: string,
   liveCb: (chunk: string) => void,
 ): { buffered: string[]; unlisten: (() => void) | null } {
-  const buf = earlyBuffers.get(sessionId) || [];
-  earlyBuffers.delete(sessionId);
-
-  // Redirect: any data arriving from now on goes straight to liveCb
-  const wrapper = earlyCallbacks.get(sessionId);
-  if (wrapper) {
-    wrapper.fn = liveCb;
-    earlyCallbacks.delete(sessionId);
-  }
-
-  const unlisten = earlyUnlisteners.get(sessionId) || null;
-  earlyUnlisteners.delete(sessionId);
-
-  return { buffered: buf, unlisten };
+  const { buffered } = attachTerminalSubscriber(sessionId, liveCb);
+  return { buffered, unlisten: () => detachTerminalSubscriber(sessionId) };
 }
 
 interface SessionState {
@@ -49,10 +54,10 @@ interface SessionState {
   clearError: () => void;
 }
 
-export const useSessionStore = create<SessionState>((set, get) => ({
+export const useSessionStore = create<SessionState>((set) => ({
   activeSessions: [],
   currentSessionId: null,
-  viewMode: 'split',
+  viewMode: 'terminal',
   isConnecting: false,
   error: null,
 
@@ -74,17 +79,23 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       // Generate ID upfront so we can listen before connect
       const sessionId = config.id || crypto.randomUUID();
 
-      // Register listener BEFORE connect so no data is lost
-      earlyBuffers.set(sessionId, []);
-      const wrapper = { fn: (chunk: string) => {
-        const buf = earlyBuffers.get(sessionId);
-        if (buf) buf.push(chunk);
-      }};
-      earlyCallbacks.set(sessionId, wrapper);
-      const earlyUnlisten = await tauriApi.onSshData(sessionId, (chunk) => {
-        wrapper.fn(chunk);
+      // Initialize buffer for this session
+      sessionOutputHistory.set(sessionId, []);
+
+      // Register persistent Tauri listener BEFORE connecting so zero initial output is lost
+      const unlisten = await tauriApi.onSshData(sessionId, (chunk) => {
+        const history = sessionOutputHistory.get(sessionId);
+        if (history) {
+          history.push(chunk);
+          // ponytail: keep last 1000 chunks; upgrade to disk ring buffer if heavy output
+          if (history.length > 1000) history.shift();
+        }
+        const liveCb = sessionLiveCallbacks.get(sessionId);
+        if (liveCb) {
+          liveCb(chunk);
+        }
       });
-      earlyUnlisteners.set(sessionId, earlyUnlisten);
+      sessionListeners.set(sessionId, unlisten);
 
       await tauriApi.sshConnect({ ...config, id: sessionId });
 
@@ -103,6 +114,15 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   disconnectSession: async (id) => {
+    // Unlisten from Tauri event
+    const unlisten = sessionListeners.get(id);
+    if (unlisten) {
+      unlisten();
+      sessionListeners.delete(id);
+    }
+    sessionLiveCallbacks.delete(id);
+    sessionOutputHistory.delete(id);
+
     try {
       await tauriApi.sshDisconnect(id);
     } catch (e) {
