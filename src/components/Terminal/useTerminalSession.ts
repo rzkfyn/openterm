@@ -3,7 +3,11 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { tauriApi } from '../../services/tauri';
-import { useSessionStore, takeoverEarlyBuffer } from '../../stores/sessionStore';
+import {
+  useSessionStore,
+  attachTerminalSubscriber,
+  detachTerminalSubscriber,
+} from '../../stores/sessionStore';
 
 export function useTerminalSession(sessionId: string | null) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -13,30 +17,30 @@ export function useTerminalSession(sessionId: string | null) {
   useEffect(() => {
     if (!sessionId || !containerRef.current) return;
 
-    // 1. Initialize xterm.js instance
+    // 1. Initialize xterm.js matching the custom dark midnight palette
     const term = new Terminal({
       cursorBlink: true,
-      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-      fontSize: 13,
-      lineHeight: 1.2,
+      fontFamily: 'Menlo, Monaco, "Courier New", "Cascadia Code", monospace',
+      fontSize: 12.5,
+      lineHeight: 1.25,
       theme: {
-        background: '#090d16',
+        background: '#13131d',
         foreground: '#e2e8f0',
-        cursor: '#38bdf8',
-        selectionBackground: 'rgba(56, 189, 248, 0.3)',
-        black: '#0f172a',
-        red: '#ef4444',
-        green: '#22c55e',
-        yellow: '#eab308',
-        blue: '#3b82f6',
+        cursor: '#818cf8',
+        selectionBackground: 'rgba(99, 102, 241, 0.3)',
+        black: '#11111a',
+        red: '#f43f5e',
+        green: '#10b981',
+        yellow: '#f59e0b',
+        blue: '#6366f1',
         magenta: '#a855f7',
         cyan: '#06b6d4',
         white: '#f8fafc',
         brightBlack: '#475569',
-        brightRed: '#f87171',
-        brightGreen: '#4ade80',
-        brightYellow: '#fde047',
-        brightBlue: '#60a5fa',
+        brightRed: '#fb7185',
+        brightGreen: '#34d399',
+        brightYellow: '#fbbf24',
+        brightBlue: '#818cf8',
         brightMagenta: '#c084fc',
         brightCyan: '#22d3ee',
         brightWhite: '#ffffff',
@@ -56,30 +60,26 @@ export function useTerminalSession(sessionId: string | null) {
     terminalRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    term.writeln(`\x1b[38;5;39m[OpenTerm]\x1b[0m Connected to session \x1b[33m${sessionId}\x1b[0m\r\n`);
+    term.writeln(`\x1b[38;5;105m[OpenTerm]\x1b[0m Connected to session \x1b[38;5;222m${sessionId}\x1b[0m\r\n`);
 
     // 2. Stream user keystrokes to Rust backend
     const onDataDisposable = term.onData((data) => {
-      console.log('[xterm onData triggered]', JSON.stringify(data));
       tauriApi.sshWrite(sessionId, data).catch((err) => {
         console.error('Failed to write to SSH session:', err);
       });
     });
 
-    // 3. Takeover early buffer: flush buffered data and redirect future
-    //    chunks to term.write with zero gap (reuses the same Tauri listener).
-    const { buffered, unlisten: earlyUnlisten } = takeoverEarlyBuffer(
-      sessionId,
-      (chunk) => term.write(chunk),
-    );
+    // 3. Attach to session stream registry:
+    //    replays all buffered data and streams live data.
+    const { buffered } = attachTerminalSubscriber(sessionId, (chunk) => {
+      term.write(chunk);
+    });
+
     if (buffered.length > 0) {
       term.write(buffered.join(''));
     }
 
-    // earlyUnlisten is the single Tauri listener — keep it as our live listener
-    let unlistenData: (() => void) | null = earlyUnlisten;
     let unlistenClosed: (() => void) | null = null;
-
     tauriApi
       .onSshClosed(sessionId, () => {
         term.writeln('\r\n\x1b[31m[Session closed by remote host]\x1b[0m\r\n');
@@ -94,7 +94,9 @@ export function useTerminalSession(sessionId: string | null) {
       try {
         fitAddon.fit();
         const { cols, rows } = term;
-        tauriApi.sshResizePty(sessionId, cols, rows).catch(() => {});
+        if (cols > 0 && rows > 0) {
+          tauriApi.sshResizePty(sessionId, cols, rows).catch(() => {});
+        }
         term.focus();
       } catch (e) {
         // Suppress layout race condition warnings during unmount
@@ -102,7 +104,6 @@ export function useTerminalSession(sessionId: string | null) {
     };
 
     const resizeObserver = new ResizeObserver(() => sendResize());
-
     resizeObserver.observe(containerRef.current);
 
     // Initial fit + resize after rendering
@@ -111,7 +112,7 @@ export function useTerminalSession(sessionId: string | null) {
     return () => {
       resizeObserver.disconnect();
       onDataDisposable.dispose();
-      if (unlistenData) unlistenData();
+      detachTerminalSubscriber(sessionId);
       if (unlistenClosed) unlistenClosed();
       term.dispose();
       terminalRef.current = null;

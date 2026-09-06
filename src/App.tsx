@@ -1,14 +1,22 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useSessionStore } from './stores/sessionStore';
+import { useSavedConnectionStore } from './stores/savedConnectionStore';
 import { AppHeader } from './components/Layout/AppHeader';
+import { StatusBar } from './components/Layout/StatusBar';
 import { TerminalView } from './components/Terminal/TerminalView';
 import { DualPaneExplorer } from './components/FileManager/DualPaneExplorer';
 import { TransferDrawer } from './components/FileManager/TransferDrawer';
-import { NewConnectionModal } from './components/Modal/NewConnectionModal';
-import { SessionConfig } from './types';
+import { NewConnectionModal, ModalMode } from './components/Modal/NewConnectionModal';
+import { ConnectModal } from './components/Modal/ConnectModal';
+import { Dashboard } from './components/Dashboard/Dashboard';
+import { SessionConfig, SavedConnection } from './types';
 
 export default function App() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isNewModalOpen, setIsNewModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<ModalMode>('new');
+  const [editingConnection, setEditingConnection] = useState<SavedConnection | null>(null);
+  const [connectTarget, setConnectTarget] = useState<SavedConnection | null>(null);
+
   const {
     activeSessions,
     currentSessionId,
@@ -19,66 +27,110 @@ export default function App() {
     clearError,
   } = useSessionStore();
 
+  const { save: saveConnection } = useSavedConnectionStore();
+
   const currentSession = activeSessions.find((s) => s.id === currentSessionId);
+
+  const openNewModal = () => {
+    setModalMode('new');
+    setEditingConnection(null);
+    clearError();
+    setIsNewModalOpen(true);
+  };
+
+  const openEditModal = (conn: SavedConnection) => {
+    setModalMode('edit');
+    setEditingConnection(conn);
+    clearError();
+    setIsNewModalOpen(true);
+  };
+
+  const handleSaveOnly = async (conn: SavedConnection) => {
+    await saveConnection(conn);
+    setIsNewModalOpen(false);
+  };
+
+  const handleSaveAndConnect = async (conn: SavedConnection, config: SessionConfig) => {
+    await saveConnection(conn);
+    try {
+      await connectSession(config);
+      setIsNewModalOpen(false);
+    } catch {
+      // error shown in modal via store
+    }
+  };
+
+  const handleDashboardConnect = (conn: SavedConnection) => {
+    clearError();
+    setConnectTarget(conn);
+  };
 
   const handleConnect = async (config: SessionConfig) => {
     try {
       await connectSession(config);
-      setIsModalOpen(false);
-    } catch (e) {
-      // Error handled in store
+      setConnectTarget(null);
+    } catch {
+      // error shown in modal
     }
   };
 
   return (
-    <div className="relative flex h-screen w-screen flex-col bg-[#030712] text-slate-100 overflow-hidden bg-noise">
-      {/* Background Ambient Radial Glow */}
-      <div className="absolute top-0 left-1/4 -translate-x-1/2 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute top-0 right-1/4 translate-x-1/2 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="flex h-screen w-screen flex-col bg-[#11111a] text-slate-200 overflow-hidden select-none font-sans">
+      <AppHeader onOpenNewConnection={openNewModal} />
 
-      {/* High-End Floating Navbar Header */}
-      <AppHeader onOpenNewConnection={() => setIsModalOpen(true)} />
-
-      {/* Main Responsive Asymmetrical & Split Workspace */}
-      <main className="relative z-10 flex flex-1 overflow-hidden divide-x divide-white/[0.04]">
-        {/* Terminal Viewport */}
-        <div
-          className={`h-full min-w-0 transition-all duration-200 ${
-            viewMode === 'terminal'
-              ? 'flex-1'
-              : viewMode === 'split'
-              ? 'flex-1'
-              : 'hidden'
-          }`}
-        >
-          <TerminalView
-            sessionId={currentSessionId}
-            sessionName={currentSession?.name}
+      {/* Main Workspace or Dashboard */}
+      {!currentSessionId ? (
+        <main className="flex-1 overflow-hidden bg-[#11111a]">
+          <Dashboard
+            onNewConnection={openNewModal}
+            onConnect={handleDashboardConnect}
+            onEdit={openEditModal}
           />
-        </div>
+        </main>
+      ) : (
+        <>
+          <main className="flex flex-1 overflow-hidden divide-x divide-[#2a2b38] bg-[#1e1e2d]">
+            <div
+              className={`h-full min-w-0 ${
+                viewMode === 'terminal' ? 'flex-1' : viewMode === 'split' ? 'flex-1' : 'hidden'
+              }`}
+            >
+              <TerminalView sessionId={currentSessionId} sessionName={currentSession?.name} />
+            </div>
+            <div
+              className={`h-full min-w-0 ${
+                viewMode === 'sftp' ? 'flex-1' : viewMode === 'split' ? 'flex-1' : 'hidden'
+              }`}
+            >
+              <DualPaneExplorer sessionId={currentSessionId} />
+            </div>
+          </main>
+          <TransferDrawer />
+        </>
+      )}
 
-        {/* Dual SFTP Explorer */}
-        <div
-          className={`h-full min-w-0 transition-all duration-200 ${
-            viewMode === 'sftp'
-              ? 'flex-1'
-              : viewMode === 'split'
-              ? 'flex-1'
-              : 'hidden'
-          }`}
-        >
-          <DualPaneExplorer sessionId={currentSessionId} />
-        </div>
-      </main>
+      {/* Clean Bottom Status Bar */}
+      <StatusBar />
 
-      {/* Background Direct File Transfer Drawer */}
-      <TransferDrawer />
-
-      {/* Double-Bezel New Connection Dialog */}
       <NewConnectionModal
-        isOpen={isModalOpen}
+        isOpen={isNewModalOpen}
+        mode={modalMode}
+        editingConnection={editingConnection}
         onClose={() => {
-          setIsModalOpen(false);
+          setIsNewModalOpen(false);
+          clearError();
+        }}
+        onSave={handleSaveOnly}
+        onSaveAndConnect={handleSaveAndConnect}
+        isLoading={isConnecting}
+        error={error}
+      />
+
+      <ConnectModal
+        isOpen={!!connectTarget}
+        connection={connectTarget}
+        onClose={() => {
+          setConnectTarget(null);
           clearError();
         }}
         onConnect={handleConnect}
