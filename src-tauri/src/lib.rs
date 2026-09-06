@@ -3,14 +3,57 @@ pub mod models;
 pub mod session;
 pub mod sftp;
 pub mod ssh;
+pub mod storage;
 
 use models::{PaginatedEntries, SessionConfig};
 use session::SessionManager;
+use storage::SavedConnection;
 use tauri::{AppHandle, Manager, State};
 
 #[tauri::command]
 fn ping() -> &'static str {
     "pong"
+}
+
+#[tauri::command]
+fn open_url(url: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Failed to open URL: {}", e))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", &url])
+            .spawn()
+            .map_err(|e| format!("Failed to open URL: {}", e))?;
+    }
+    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Failed to open URL: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn list_connections() -> Result<Vec<SavedConnection>, String> {
+    storage::list()
+}
+
+#[tauri::command]
+fn save_connection(connection: SavedConnection) -> Result<SavedConnection, String> {
+    storage::save(connection)
+}
+
+#[tauri::command]
+fn delete_connection(id: String) -> Result<(), String> {
+    storage::delete(&id)
 }
 
 #[tauri::command]
@@ -134,6 +177,10 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             ping,
+            open_url,
+            list_connections,
+            save_connection,
+            delete_connection,
             ssh_connect,
             ssh_disconnect,
             ssh_write,
