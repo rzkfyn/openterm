@@ -2188,7 +2188,7 @@ dependencies = [
 
 [[package]]
 name = "openterm"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "dirs 5.0.1",
  "parking_lot",
