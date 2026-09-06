@@ -41,28 +41,34 @@ jobs:
 
       - name: Sync version from git tag
         shell: bash
+        env:
+          TAG_NAME: ${{ github.ref_name }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${TAG_NAME#v}"
           echo "Syncing version to $VERSION"
 
-          # Patch tauri.conf.json
-          sed -i.bak 's/"version": *"[^"]*"/"version": "'"$VERSION"'"/' src-tauri/tauri.conf.json
-          rm -f src-tauri/tauri.conf.json.bak
+          node -e "
+            const fs = require('fs');
+            const version = '$VERSION';
 
-          # Patch Cargo.toml
-          sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
-          rm -f src-tauri/Cargo.toml.bak
+            // package.json
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = version;
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+            console.log('package.json -> ' + version);
 
-          # Patch package.json
-          sed -i.bak 's/"version": *"[^"]*"/"version": "'"$VERSION"'"/' package.json
-          rm -f package.json.bak
+            // src-tauri/tauri.conf.json
+            const tauri = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+            tauri.version = version;
+            fs.writeFileSync('src-tauri/tauri.conf.json', JSON.stringify(tauri, null, 2) + '\n');
+            console.log('tauri.conf.json -> ' + version);
 
-          echo "--- tauri.conf.json ---"
-          grep '"version"' src-tauri/tauri.conf.json
-          echo "--- Cargo.toml ---"
-          grep '^version' src-tauri/Cargo.toml
-          echo "--- package.json ---"
-          grep '"version"' package.json
+            // src-tauri/Cargo.toml
+            let cargo = fs.readFileSync('src-tauri/Cargo.toml', 'utf8');
+            cargo = cargo.replace(/^version = \".*\"$/m, 'version = \"' + version + '\"');
+            fs.writeFileSync('src-tauri/Cargo.toml', cargo);
+            console.log('Cargo.toml -> ' + version);
+          "
 
       - name: Build and upload to Release
         uses: tauri-apps/tauri-action@v0
