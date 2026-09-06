@@ -52,9 +52,36 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
     loadRemoteDir(sessionId, remote.currentPath);
   };
 
+  const handleDropTransfer = async (
+    targetIsRemote: boolean,
+    source: 'local' | 'remote',
+    paths: string[],
+    targetFolder?: string
+  ) => {
+    if (!sessionId || paths.length === 0) return;
+
+    if (targetIsRemote && source === 'local') {
+      const destDir = targetFolder || remote.currentPath;
+      for (const localFile of paths) {
+        const fileName = localFile.split('/').pop() || 'file';
+        const destRemote = `${destDir}/${fileName}`.replace(/\/+/g, '/');
+        await startUpload(sessionId, localFile, destRemote);
+      }
+      loadRemoteDir(sessionId, remote.currentPath);
+    } else if (!targetIsRemote && source === 'remote') {
+      const destDir = targetFolder || local.currentPath;
+      for (const remoteFile of paths) {
+        const fileName = remoteFile.split('/').pop() || 'file';
+        const destLocal = `${destDir}/${fileName}`.replace(/\/+/g, '/');
+        await startDownload(sessionId, remoteFile, destLocal);
+      }
+      loadLocalDir(local.currentPath);
+    }
+  };
+
   return (
-    <div className="flex h-full w-full bg-[#030712] overflow-hidden p-1.5 space-x-2">
-      {/* Local Pane */}
+    <div className="flex h-full w-full overflow-hidden bg-[#1e1e2d]">
+      {/* Local Explorer */}
       <FilePane
         title="Local Machine"
         isRemote={false}
@@ -67,32 +94,35 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
         onSelect={setLocalSelected}
         onNavigate={(p) => loadLocalDir(p)}
         onRefresh={() => loadLocalDir(local.currentPath)}
+        onDropTransfer={(src, paths, target) => handleDropTransfer(false, src, paths, target)}
       />
 
-      {/* Kinetic Transfer Action Bridge */}
-      <div className="flex flex-col items-center justify-center space-y-3 px-1 shrink-0">
+      {/* Transfer Action Bar */}
+      <div className="flex flex-col items-center justify-center gap-1.5 px-1.5 shrink-0 bg-[#11111a] border-x border-[#2a2b38]">
         <button
+          type="button"
           onClick={handleUpload}
           disabled={!sessionId || local.selectedPaths.length === 0}
-          className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.04] hover:bg-emerald-500 hover:text-black border border-white/[0.08] text-slate-300 disabled:opacity-20 disabled:hover:bg-white/[0.04] disabled:hover:text-slate-300 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-90"
+          className="flex h-7 w-7 items-center justify-center rounded-md bg-[#1e1e2d] border border-[#2a2b38] text-slate-300 hover:text-white hover:bg-indigo-600 hover:border-indigo-600 cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-[#1e1e2d] transition-colors"
           title="Upload to Remote Host (Push)"
         >
-          <ArrowRight className="h-4 w-4 stroke-[2] transition-transform group-hover:translate-x-0.5" />
+          <ArrowRight className="h-3.5 w-3.5" />
         </button>
         <button
+          type="button"
           onClick={handleDownload}
           disabled={!sessionId || remote.selectedPaths.length === 0}
-          className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.04] hover:bg-cyan-500 hover:text-black border border-white/[0.08] text-slate-300 disabled:opacity-20 disabled:hover:bg-white/[0.04] disabled:hover:text-slate-300 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-90"
+          className="flex h-7 w-7 items-center justify-center rounded-md bg-[#1e1e2d] border border-[#2a2b38] text-slate-300 hover:text-white hover:bg-indigo-600 hover:border-indigo-600 cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-[#1e1e2d] transition-colors"
           title="Download to Local Machine (Pull)"
         >
-          <ArrowLeft className="h-4 w-4 stroke-[2] transition-transform group-hover:-translate-x-0.5" />
+          <ArrowLeft className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      {/* Remote Pane */}
+      {/* Remote Explorer */}
       {sessionId ? (
         <FilePane
-          title="Remote SFTP Server"
+          title="Remote SFTP"
           isRemote={true}
           currentPath={remote.currentPath}
           entries={remote.entries}
@@ -103,21 +133,17 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
           onSelect={setRemoteSelected}
           onNavigate={(p) => loadRemoteDir(sessionId, p)}
           onRefresh={() => loadRemoteDir(sessionId, remote.currentPath)}
+          onDropTransfer={(src, paths, target) => handleDropTransfer(true, src, paths, target)}
         />
       ) : (
-        <div className="flex flex-1 flex-col p-1 rounded-[1.5rem] bg-white/[0.02] border border-white/[0.06] overflow-hidden">
-          <div className="flex flex-1 flex-col items-center justify-center rounded-[calc(1.5rem-0.25rem)] bg-[#050811] border border-white/[0.04] text-center p-8">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.03] border border-white/[0.06] mb-3">
-              <CloudOff className="h-6 w-6 stroke-[1.2] text-slate-500" />
-            </div>
-            <span className="rounded-full px-2.5 py-0.5 text-[9px] uppercase tracking-widest font-mono font-medium text-slate-400 bg-white/[0.04] border border-white/[0.06] mb-2">
-              SFTP Standby
-            </span>
-            <p className="text-xs font-medium text-slate-300">Remote Session Offline</p>
-            <p className="text-[11px] text-slate-500 mt-1 max-w-xs leading-relaxed">
-              Connect to an active SSH profile to mount the remote file system via SFTP.
-            </p>
+        <div className="flex flex-1 flex-col items-center justify-center bg-[#1e1e2d] text-center p-8">
+          <div className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-lg bg-[#11111a] border border-[#2a2b38]">
+            <CloudOff className="h-5 w-5 text-slate-500" />
           </div>
+          <p className="text-xs font-medium text-slate-300">Remote Offline</p>
+          <p className="text-[11px] text-slate-500 mt-1 max-w-xs">
+            Connect to an active SSH profile to browse remote filesystem.
+          </p>
         </div>
       )}
     </div>
