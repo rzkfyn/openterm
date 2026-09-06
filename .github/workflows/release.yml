@@ -42,51 +42,26 @@ jobs:
       - name: Sync version from git tag
         shell: bash
         run: |
-          # Strip leading 'v' from tag: v0.3.0 -> 0.3.0
           VERSION="${GITHUB_REF_NAME#v}"
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "Syncing version to $VERSION"
 
           # Patch tauri.conf.json
-          if command -v python3 &>/dev/null; then
-            python3 -c "
-import json, sys
-with open('src-tauri/tauri.conf.json', 'r') as f:
-    cfg = json.load(f)
-cfg['version'] = '$VERSION'
-with open('src-tauri/tauri.conf.json', 'w') as f:
-    json.dump(cfg, f, indent=2)
-"
-          else
-            # Fallback: sed
-            sed -i.bak 's/"version": *"[^"]*"/"version": "'"$VERSION"'"/' src-tauri/tauri.conf.json
-            rm -f src-tauri/tauri.conf.json.bak
-          fi
+          sed -i.bak 's/"version": *"[^"]*"/"version": "'"$VERSION"'"/' src-tauri/tauri.conf.json
+          rm -f src-tauri/tauri.conf.json.bak
 
           # Patch Cargo.toml
           sed -i.bak "s/^version = \".*\"/version = \"$VERSION\"/" src-tauri/Cargo.toml
           rm -f src-tauri/Cargo.toml.bak
 
-          # Patch package.json (add version field if missing)
-          if command -v python3 &>/dev/null; then
-            python3 -c "
-import json
-with open('package.json', 'r') as f:
-    pkg = json.load(f)
-pkg['version'] = '$VERSION'
-with open('package.json', 'w') as f:
-    json.dump(pkg, f, indent=2)
-"
-          else
-            sed -i.bak 's/"version": *"[^"]*"/"version": "'"$VERSION"'"/' package.json
-            rm -f package.json.bak
-          fi
+          # Patch package.json
+          sed -i.bak 's/"version": *"[^"]*"/"version": "'"$VERSION"'"/' package.json
+          rm -f package.json.bak
 
-          echo "--- tauri.conf.json version ---"
+          echo "--- tauri.conf.json ---"
           grep '"version"' src-tauri/tauri.conf.json
-          echo "--- Cargo.toml version ---"
+          echo "--- Cargo.toml ---"
           grep '^version' src-tauri/Cargo.toml
-          echo "--- package.json version ---"
+          echo "--- package.json ---"
           grep '"version"' package.json
 
       - name: Build and upload to Release
