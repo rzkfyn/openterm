@@ -247,6 +247,12 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                         multiple: false,
                         directory: false,
                         title: 'Select Private Key',
+                        filters: [
+                          {
+                            name: 'SSH Keys (*.ppk, *.pem, id_*, *)',
+                            extensions: ['ppk', 'pem', 'key', '*'],
+                          },
+                        ],
                       });
                       if (selected) setPrivateKeyPath(selected);
                     }}

@@ -112,4 +112,15 @@ export const tauriApi = {
       callback(event.payload);
     });
   },
+
+  onWindowDragDrop: async (
+    callback: (event: { paths: string[]; position: { x: number; y: number } }) => void
+  ): Promise<UnlistenFn> => {
+    return await listen<{ paths: string[]; position: { x: number; y: number } }>(
+      'tauri://drag-drop',
+      (event) => {
+        callback(event.payload);
+      }
+    );
+  },
 };

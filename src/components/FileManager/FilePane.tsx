@@ -115,14 +115,31 @@ export const FilePane: React.FC<FilePaneProps> = ({
 
     if (!onDropTransfer) return;
 
+    // 1. Internal transfer payload
     try {
       const raw = e.dataTransfer.getData('application/x-openterm-transfer');
       if (raw) {
         const { source, paths } = JSON.parse(raw);
         onDropTransfer(source, paths, currentPath);
+        return;
       }
     } catch (err) {
       console.error('Failed to parse drag-and-drop payload:', err);
+    }
+
+    // 2. External OS drop (e.g. Windows Explorer)
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const paths: string[] = [];
+      for (let i = 0; i < e.dataTransfer.files.length; i++) {
+        const f = e.dataTransfer.files[i];
+        const localPath = (f as any).path;
+        if (localPath) {
+          paths.push(localPath);
+        }
+      }
+      if (paths.length > 0) {
+        onDropTransfer('local', paths, currentPath);
+      }
     }
   };
 

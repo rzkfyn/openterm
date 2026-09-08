@@ -102,14 +102,32 @@ export const FileItemRow: React.FC<FileItemRowProps> = ({
       e.preventDefault();
       e.stopPropagation();
       setIsFolderDragOver(false);
+
+      // 1. Internal transfer
       try {
         const raw = e.dataTransfer.getData('application/x-openterm-transfer');
         if (raw) {
           const { source, paths } = JSON.parse(raw);
           onDropOnFolder(entry.path, source, paths);
+          return;
         }
       } catch (err) {
         console.error('Failed to parse drag drop data:', err);
+      }
+
+      // 2. External OS drop (e.g. Windows Explorer)
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        const paths: string[] = [];
+        for (let i = 0; i < e.dataTransfer.files.length; i++) {
+          const f = e.dataTransfer.files[i];
+          const localPath = (f as any).path;
+          if (localPath) {
+            paths.push(localPath);
+          }
+        }
+        if (paths.length > 0) {
+          onDropOnFolder(entry.path, 'local', paths);
+        }
       }
     }
   };

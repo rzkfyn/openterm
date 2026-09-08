@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { TransferProgress } from '../types';
 import { tauriApi } from '../services/tauri';
+import { getBasename } from '../utils/pathUtils';
 
 interface TransferState {
   transfers: Record<string, TransferProgress>;
@@ -34,7 +35,7 @@ export const useTransferStore = create<TransferState>((set, get) => ({
 
   startDownload: async (sessionId, remotePath, localPath) => {
     const transferId = `dl-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    const fileName = remotePath.split('/').pop() || remotePath;
+    const fileName = getBasename(remotePath) || remotePath;
 
     // Initial state
     set((state) => ({
@@ -79,7 +80,7 @@ export const useTransferStore = create<TransferState>((set, get) => ({
 
   startUpload: async (sessionId, localPath, remotePath) => {
     const transferId = `up-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-    const fileName = localPath.split('/').pop() || localPath;
+    const fileName = getBasename(localPath) || localPath;
 
     set((state) => ({
       transfers: {

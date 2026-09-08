@@ -102,6 +102,305 @@ pub fn list_sftp_dir(
     })
 }
 
+fn extract_filename(path: &str) -> String {
+    let cleaned = path.trim_start_matches(r"\\?\");
+    cleaned
+        .split(|c| c == '/' || c == '\\')
+        .filter(|s| !s.is_empty())
+        .last()
+        .unwrap_or(cleaned)
+        .to_string()
+}
+
+fn upload_single_file(
+    sftp: &ssh2::Sftp,
+    local_path: &Path,
+    remote_path: &str,
+    cancel_token: &std::sync::atomic::AtomicBool,
+    app_handle: &AppHandle,
+    event_name: &str,
+    transfer_id: &str,
+    file_name: &str,
+) -> Result<(), String> {
+    let mut local_file = File::open(local_path)
+        .map_err(|e| format!("Failed to open local file '{}': {}", local_path.display(), e))?;
+
+    let meta = local_file
+        .metadata()
+        .map_err(|e| format!("Failed to read metadata: {}", e))?;
+    let total_bytes = meta.len();
+
+    let mut remote_file = sftp
+        .create(Path::new(remote_path))
+        .map_err(|e| format!("Failed to create remote file '{}': {}", remote_path, e))?;
+
+    let mut buffer = [0u8; 131072]; // 128 KB buffer
+    let mut bytes_transferred: u64 = 0;
+    let mut last_percent_reported = -1;
+
+    loop {
+        if cancel_token.load(Ordering::SeqCst) {
+            let _ = app_handle.emit(
+                event_name,
+                TransferProgress {
+                    transfer_id: transfer_id.to_string(),
+                    file_name: file_name.to_string(),
+                    bytes_transferred,
+                    total_bytes,
+                    percentage: if total_bytes > 0 {
+                        (bytes_transferred as f32 / total_bytes as f32) * 100.0
+                    } else {
+                        0.0
+                    },
+                    status: TransferStatus::Cancelled,
+                    error: None,
+                },
+            );
+            return Err("Transfer cancelled by user".to_string());
+        }
+
+        let n = local_file
+            .read(&mut buffer)
+            .map_err(|e| format!("Local read error: {}", e))?;
+
+        if n == 0 {
+            break;
+        }
+
+        remote_file
+            .write_all(&buffer[..n])
+            .map_err(|e| format!("Remote write error: {}", e))?;
+
+        bytes_transferred += n as u64;
+
+        let percentage = if total_bytes > 0 {
+            (bytes_transferred as f32 / total_bytes as f32) * 100.0
+        } else {
+            0.0
+        };
+
+        let current_percent_int = percentage as i32;
+        if current_percent_int != last_percent_reported || bytes_transferred == total_bytes {
+            last_percent_reported = current_percent_int;
+            let _ = app_handle.emit(
+                event_name,
+                TransferProgress {
+                    transfer_id: transfer_id.to_string(),
+                    file_name: file_name.to_string(),
+                    bytes_transferred,
+                    total_bytes,
+                    percentage,
+                    status: TransferStatus::Transferring,
+                    error: None,
+                },
+            );
+        }
+    }
+
+    remote_file.flush().ok();
+    Ok(())
+}
+
+fn upload_dir_recursive(
+    sftp: &ssh2::Sftp,
+    local_dir: &Path,
+    remote_dir: &str,
+    cancel_token: &std::sync::atomic::AtomicBool,
+    app_handle: &AppHandle,
+    event_name: &str,
+    transfer_id: &str,
+) -> Result<(), String> {
+    let _ = sftp.mkdir(Path::new(remote_dir), 0o755);
+
+    if let Ok(entries) = std::fs::read_dir(local_dir) {
+        for entry_res in entries {
+            if cancel_token.load(Ordering::SeqCst) {
+                return Err("Transfer cancelled by user".to_string());
+            }
+            if let Ok(entry) = entry_res {
+                let entry_path = entry.path();
+                let child_name = entry.file_name().to_string_lossy().to_string();
+                let remote_child = format!("{}/{}", remote_dir.trim_end_matches('/'), child_name);
+
+                if entry_path.is_dir() {
+                    upload_dir_recursive(
+                        sftp,
+                        &entry_path,
+                        &remote_child,
+                        cancel_token,
+                        app_handle,
+                        event_name,
+                        transfer_id,
+                    )?;
+                } else {
+                    let _ = upload_single_file(
+                        sftp,
+                        &entry_path,
+                        &remote_child,
+                        cancel_token,
+                        app_handle,
+                        event_name,
+                        transfer_id,
+                        &child_name,
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn download_single_file(
+    sftp: &ssh2::Sftp,
+    remote_path: &str,
+    local_path: &Path,
+    cancel_token: &std::sync::atomic::AtomicBool,
+    app_handle: &AppHandle,
+    event_name: &str,
+    transfer_id: &str,
+    file_name: &str,
+) -> Result<(), String> {
+    if let Some(parent) = local_path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            format!("Failed to create local destination directory '{}': {}", parent.display(), e)
+        })?;
+    }
+
+    let mut remote_file = sftp
+        .open(Path::new(remote_path))
+        .map_err(|e| format!("Failed to open remote file '{}': {}", remote_path, e))?;
+
+    let stat = remote_file
+        .stat()
+        .map_err(|e| format!("Failed to stat remote file: {}", e))?;
+    let total_bytes = stat.size.unwrap_or(0);
+
+    let mut local_file = File::create(local_path)
+        .map_err(|e| format!("Failed to create local file '{}': {}", local_path.display(), e))?;
+
+    let mut buffer = [0u8; 131072]; // 128 KB buffer
+    let mut bytes_transferred: u64 = 0;
+    let mut last_percent_reported = -1;
+
+    loop {
+        if cancel_token.load(Ordering::SeqCst) {
+            let _ = app_handle.emit(
+                event_name,
+                TransferProgress {
+                    transfer_id: transfer_id.to_string(),
+                    file_name: file_name.to_string(),
+                    bytes_transferred,
+                    total_bytes,
+                    percentage: if total_bytes > 0 {
+                        (bytes_transferred as f32 / total_bytes as f32) * 100.0
+                    } else {
+                        0.0
+                    },
+                    status: TransferStatus::Cancelled,
+                    error: None,
+                },
+            );
+            return Err("Transfer cancelled by user".to_string());
+        }
+
+        let n = remote_file
+            .read(&mut buffer)
+            .map_err(|e| format!("Remote read error: {}", e))?;
+
+        if n == 0 {
+            break;
+        }
+
+        local_file
+            .write_all(&buffer[..n])
+            .map_err(|e| format!("Local write error: {}", e))?;
+
+        bytes_transferred += n as u64;
+
+        let percentage = if total_bytes > 0 {
+            (bytes_transferred as f32 / total_bytes as f32) * 100.0
+        } else {
+            0.0
+        };
+
+        let current_percent_int = percentage as i32;
+        if current_percent_int != last_percent_reported || bytes_transferred == total_bytes {
+            last_percent_reported = current_percent_int;
+            let _ = app_handle.emit(
+                event_name,
+                TransferProgress {
+                    transfer_id: transfer_id.to_string(),
+                    file_name: file_name.to_string(),
+                    bytes_transferred,
+                    total_bytes,
+                    percentage,
+                    status: TransferStatus::Transferring,
+                    error: None,
+                },
+            );
+        }
+    }
+
+    local_file.flush().ok();
+    Ok(())
+}
+
+fn download_dir_recursive(
+    sftp: &ssh2::Sftp,
+    remote_dir: &str,
+    local_dir: &Path,
+    cancel_token: &std::sync::atomic::AtomicBool,
+    app_handle: &AppHandle,
+    event_name: &str,
+    transfer_id: &str,
+) -> Result<(), String> {
+    std::fs::create_dir_all(local_dir).map_err(|e| {
+        format!("Failed to create local directory '{}': {}", local_dir.display(), e)
+    })?;
+
+    if let Ok(entries) = sftp.readdir(Path::new(remote_dir)) {
+        for (child_path, child_stat) in entries {
+            if cancel_token.load(Ordering::SeqCst) {
+                return Err("Transfer cancelled by user".to_string());
+            }
+            let child_name = child_path
+                .file_name()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default();
+            if child_name == "." || child_name == ".." || child_name.is_empty() {
+                continue;
+            }
+
+            let remote_child = format!("{}/{}", remote_dir.trim_end_matches('/'), child_name);
+            let local_child = local_dir.join(&child_name);
+
+            if child_stat.is_dir() {
+                download_dir_recursive(
+                    sftp,
+                    &remote_child,
+                    &local_child,
+                    cancel_token,
+                    app_handle,
+                    event_name,
+                    transfer_id,
+                )?;
+            } else {
+                let _ = download_single_file(
+                    sftp,
+                    &remote_child,
+                    &local_child,
+                    cancel_token,
+                    app_handle,
+                    event_name,
+                    transfer_id,
+                    &child_name,
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Direct-to-Disk SFTP Download (Zero Binary in JavaScript)
 pub fn download_sftp_file(
     app: AppHandle,
@@ -125,6 +424,7 @@ pub fn download_sftp_file(
 
     thread::spawn(move || {
         let event_name = format!("transfer:progress:{}", transfer_id_buf);
+        let file_name = extract_filename(&remote_path_buf);
 
         let run_transfer = || -> Result<(), String> {
             let sftp_arc = session_clone
@@ -133,97 +433,43 @@ pub fn download_sftp_file(
                 .ok_or_else(|| "SFTP subsystem not initialized".to_string())?;
             let sftp = sftp_arc.lock();
 
-            let mut remote_file = sftp
-                .open(Path::new(&remote_path_buf))
-                .map_err(|e| format!("Failed to open remote file '{}': {}", remote_path_buf, e))?;
+            let local_clean = local_path_buf.trim_start_matches(r"\\?\");
+            let local_path_obj = Path::new(local_clean);
 
-            let stat = remote_file
-                .stat()
-                .map_err(|e| format!("Failed to stat remote file: {}", e))?;
-            let total_bytes = stat.size.unwrap_or(0);
+            let remote_stat = sftp.stat(Path::new(&remote_path_buf)).ok();
+            let is_remote_dir = remote_stat.map(|s| s.is_dir()).unwrap_or(false);
 
-            let mut local_file = File::create(Path::new(&local_path_buf))
-                .map_err(|e| format!("Failed to create local file '{}': {}", local_path_buf, e))?;
-
-            let mut buffer = [0u8; 131072]; // 128 KB buffer for optimal throughput
-            let mut bytes_transferred: u64 = 0;
-
-            let file_name = Path::new(&remote_path_buf)
-                .file_name()
-                .map(|f| f.to_string_lossy().to_string())
-                .unwrap_or_else(|| remote_path_buf.clone());
-
-            let mut last_percent_reported = -1;
-
-            loop {
-                if cancel_token.load(Ordering::SeqCst) {
-                    let _ = app_handle.emit(
-                        &event_name,
-                        TransferProgress {
-                            transfer_id: transfer_id_buf.clone(),
-                            file_name: file_name.clone(),
-                            bytes_transferred,
-                            total_bytes,
-                            percentage: if total_bytes > 0 {
-                                (bytes_transferred as f32 / total_bytes as f32) * 100.0
-                            } else {
-                                0.0
-                            },
-                            status: TransferStatus::Cancelled,
-                            error: None,
-                        },
-                    );
-                    return Err("Transfer cancelled by user".to_string());
-                }
-
-                let n = remote_file
-                    .read(&mut buffer)
-                    .map_err(|e| format!("Remote read error: {}", e))?;
-
-                if n == 0 {
-                    break;
-                }
-
-                local_file
-                    .write_all(&buffer[..n])
-                    .map_err(|e| format!("Local write error: {}", e))?;
-
-                bytes_transferred += n as u64;
-
-                let percentage = if total_bytes > 0 {
-                    (bytes_transferred as f32 / total_bytes as f32) * 100.0
-                } else {
-                    0.0
-                };
-
-                let current_percent_int = percentage as i32;
-                if current_percent_int != last_percent_reported || bytes_transferred == total_bytes {
-                    last_percent_reported = current_percent_int;
-                    let _ = app_handle.emit(
-                        &event_name,
-                        TransferProgress {
-                            transfer_id: transfer_id_buf.clone(),
-                            file_name: file_name.clone(),
-                            bytes_transferred,
-                            total_bytes,
-                            percentage,
-                            status: TransferStatus::Transferring,
-                            error: None,
-                        },
-                    );
-                }
+            if is_remote_dir {
+                download_dir_recursive(
+                    &sftp,
+                    &remote_path_buf,
+                    local_path_obj,
+                    &cancel_token,
+                    &app_handle,
+                    &event_name,
+                    &transfer_id_buf,
+                )?;
+            } else {
+                download_single_file(
+                    &sftp,
+                    &remote_path_buf,
+                    local_path_obj,
+                    &cancel_token,
+                    &app_handle,
+                    &event_name,
+                    &transfer_id_buf,
+                    &file_name,
+                )?;
             }
-
-            local_file.flush().ok();
 
             // Emit completion
             let _ = app_handle.emit(
                 &event_name,
                 TransferProgress {
                     transfer_id: transfer_id_buf.clone(),
-                    file_name,
-                    bytes_transferred,
-                    total_bytes,
+                    file_name: file_name.clone(),
+                    bytes_transferred: 0,
+                    total_bytes: 0,
                     percentage: 100.0,
                     status: TransferStatus::Completed,
                     error: None,
@@ -277,93 +523,39 @@ pub fn upload_sftp_file(
 
     thread::spawn(move || {
         let event_name = format!("transfer:progress:{}", transfer_id_buf);
+        let file_name = extract_filename(&local_path_buf);
 
         let run_transfer = || -> Result<(), String> {
-            let mut local_file = File::open(Path::new(&local_path_buf))
-                .map_err(|e| format!("Failed to open local file '{}': {}", local_path_buf, e))?;
-
-            let meta = local_file
-                .metadata()
-                .map_err(|e| format!("Failed to read metadata: {}", e))?;
-            let total_bytes = meta.len();
-
             let sftp_arc = session_clone
                 .sftp
                 .as_ref()
                 .ok_or_else(|| "SFTP subsystem not initialized".to_string())?;
             let sftp = sftp_arc.lock();
 
-            let mut remote_file = sftp
-                .create(Path::new(&remote_path_buf))
-                .map_err(|e| format!("Failed to create remote file '{}': {}", remote_path_buf, e))?;
+            let local_clean = local_path_buf.trim_start_matches(r"\\?\");
+            let local_path_obj = Path::new(local_clean);
 
-            let mut buffer = [0u8; 131072]; // 128 KB buffer
-            let mut bytes_transferred: u64 = 0;
-
-            let file_name = Path::new(&local_path_buf)
-                .file_name()
-                .map(|f| f.to_string_lossy().to_string())
-                .unwrap_or_else(|| local_path_buf.clone());
-
-            let mut last_percent_reported = -1;
-
-            loop {
-                if cancel_token.load(Ordering::SeqCst) {
-                    let _ = app_handle.emit(
-                        &event_name,
-                        TransferProgress {
-                            transfer_id: transfer_id_buf.clone(),
-                            file_name: file_name.clone(),
-                            bytes_transferred,
-                            total_bytes,
-                            percentage: if total_bytes > 0 {
-                                (bytes_transferred as f32 / total_bytes as f32) * 100.0
-                            } else {
-                                0.0
-                            },
-                            status: TransferStatus::Cancelled,
-                            error: None,
-                        },
-                    );
-                    return Err("Transfer cancelled by user".to_string());
-                }
-
-                let n = local_file
-                    .read(&mut buffer)
-                    .map_err(|e| format!("Local read error: {}", e))?;
-
-                if n == 0 {
-                    break;
-                }
-
-                remote_file
-                    .write_all(&buffer[..n])
-                    .map_err(|e| format!("Remote write error: {}", e))?;
-
-                bytes_transferred += n as u64;
-
-                let percentage = if total_bytes > 0 {
-                    (bytes_transferred as f32 / total_bytes as f32) * 100.0
-                } else {
-                    0.0
-                };
-
-                let current_percent_int = percentage as i32;
-                if current_percent_int != last_percent_reported || bytes_transferred == total_bytes {
-                    last_percent_reported = current_percent_int;
-                    let _ = app_handle.emit(
-                        &event_name,
-                        TransferProgress {
-                            transfer_id: transfer_id_buf.clone(),
-                            file_name: file_name.clone(),
-                            bytes_transferred,
-                            total_bytes,
-                            percentage,
-                            status: TransferStatus::Transferring,
-                            error: None,
-                        },
-                    );
-                }
+            if local_path_obj.is_dir() {
+                upload_dir_recursive(
+                    &sftp,
+                    local_path_obj,
+                    &remote_path_buf,
+                    &cancel_token,
+                    &app_handle,
+                    &event_name,
+                    &transfer_id_buf,
+                )?;
+            } else {
+                upload_single_file(
+                    &sftp,
+                    local_path_obj,
+                    &remote_path_buf,
+                    &cancel_token,
+                    &app_handle,
+                    &event_name,
+                    &transfer_id_buf,
+                    &file_name,
+                )?;
             }
 
             // Emit completion
@@ -371,9 +563,9 @@ pub fn upload_sftp_file(
                 &event_name,
                 TransferProgress {
                     transfer_id: transfer_id_buf.clone(),
-                    file_name,
-                    bytes_transferred,
-                    total_bytes,
+                    file_name: file_name.clone(),
+                    bytes_transferred: 0,
+                    total_bytes: 0,
                     percentage: 100.0,
                     status: TransferStatus::Completed,
                     error: None,
@@ -402,4 +594,27 @@ pub fn upload_sftp_file(
     });
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_filename_windows() {
+        assert_eq!(extract_filename(r"C:\Users\tester\file.txt"), "file.txt");
+        assert_eq!(extract_filename(r"\\?\C:\Users\tester\file.txt"), "file.txt");
+        assert_eq!(extract_filename(r"folder\nested\test.zip"), "test.zip");
+    }
+
+    #[test]
+    fn test_extract_filename_unix() {
+        assert_eq!(extract_filename("/var/log/nginx.log"), "nginx.log");
+        assert_eq!(extract_filename("relative/path/test.tar.gz"), "test.tar.gz");
+    }
+
+    #[test]
+    fn test_extract_filename_mixed() {
+        assert_eq!(extract_filename(r"C:/Users/tester\nested/file.bin"), "file.bin");
+    }
 }

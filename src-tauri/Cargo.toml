@@ -1,6 +1,6 @@
 [package]
 name = "openterm"
-version = "0.3.0"
+version = "0.4.0"
 description = "Lightweight Dual SSH & SFTP Client"
 authors = ["OpenTerm Contributors"]
 edition = "2021"
@@ -23,3 +23,4 @@ parking_lot = "0.12"
 dirs = "5.0"
 thiserror = "1.0"
 tauri-plugin-dialog = "2.7.3"
+ssh-key = { version = "0.7.0-rc.11", features = ["std", "ppk", "crypto", "ed25519", "rsa", "encryption"] }

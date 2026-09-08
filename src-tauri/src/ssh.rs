@@ -33,22 +33,97 @@ fn resolve_public_key_path(priv_path: &Path) -> Option<PathBuf> {
 }
 
 /// Authenticate an SSH session using public key.
-/// Tries using the companion `.pub` file if available, otherwise lets libssh2 compute/derive
-/// the public key from the private key.
+/// Supports PuTTY (.ppk v2/v3), OpenSSH format, and traditional OpenSSL PEM keys.
 fn authenticate_pubkey(
     sess: &Session,
     username: &str,
     key_path: &Path,
     passphrase: Option<&str>,
 ) -> Result<(), String> {
+    // 1. Read key file content
+    let content = std::fs::read_to_string(key_path)
+        .map_err(|e| format!("Failed to read private key file '{}': {}", key_path.display(), e))?;
+
+    let trimmed = content.trim_start();
+
+    // Strategy 1: PuTTY PPK format (.ppk, PuTTY-User-Key-File-2 or 3)
+    if trimmed.starts_with("PuTTY-User-Key-File") {
+        let priv_key = ssh_key::PrivateKey::from_ppk(
+            &content,
+            passphrase.filter(|s| !s.is_empty()).map(str::to_string),
+        )
+        .map_err(|e| {
+            let err_str = e.to_string();
+            if err_str.contains("MAC") || err_str.contains("password") || err_str.contains("passphrase") {
+                "Passphrase incorrect or missing for encrypted PuTTY (.ppk) key".to_string()
+            } else {
+                format!("Failed to parse PuTTY (.ppk) key: {}", e)
+            }
+        })?;
+
+        let openssh_priv = priv_key
+            .to_openssh(ssh_key::LineEnding::LF)
+            .map_err(|e| format!("Failed to export private key from PPK: {}", e))?;
+        let openssh_pub = priv_key
+            .public_key()
+            .to_openssh()
+            .map_err(|e| format!("Failed to export public key from PPK: {}", e))?;
+
+        return sess
+            .userauth_pubkey_memory(username, Some(&openssh_pub), &openssh_priv, None)
+            .map_err(|e| format!("Public key authentication failed with PPK: {}", e));
+    }
+
+    // Strategy 2: Modern OpenSSH format (-----BEGIN OPENSSH PRIVATE KEY-----)
+    if trimmed.contains("BEGIN OPENSSH PRIVATE KEY") {
+        let priv_key = match ssh_key::PrivateKey::from_openssh(&content) {
+            Ok(key) => {
+                if key.is_encrypted() {
+                    let pass = passphrase.unwrap_or("");
+                    key.decrypt(pass).map_err(|e| {
+                        format!("Passphrase incorrect or decryption failed for OpenSSH key: {}", e)
+                    })?
+                } else {
+                    key
+                }
+            }
+            Err(_) => {
+                // If direct parse failed, let libssh2 fallback try
+                return sess
+                    .userauth_pubkey_file(
+                        username,
+                        resolve_public_key_path(key_path).as_deref(),
+                        key_path,
+                        passphrase,
+                    )
+                    .map_err(|e| format!("Public key authentication failed: {}", e));
+            }
+        };
+
+        let openssh_priv = priv_key
+            .to_openssh(ssh_key::LineEnding::LF)
+            .map_err(|e| format!("Failed to export OpenSSH private key: {}", e))?;
+        let openssh_pub = priv_key
+            .public_key()
+            .to_openssh()
+            .map_err(|e| format!("Failed to export OpenSSH public key: {}", e))?;
+
+        // Attempt in-memory auth first
+        if let Ok(()) = sess.userauth_pubkey_memory(username, Some(&openssh_pub), &openssh_priv, None) {
+            return Ok(());
+        }
+    }
+
+    // Strategy 3: Standard OpenSSL PEM / PKCS#8 file auth with companion .pub if exists
     let pub_key = resolve_public_key_path(key_path);
-    sess.userauth_pubkey_file(
-        username,
-        pub_key.as_deref(),
-        key_path,
-        passphrase,
-    )
-    .map_err(|e| format!("Public key authentication failed: {}", e))
+    if let Ok(()) = sess.userauth_pubkey_file(username, pub_key.as_deref(), key_path, passphrase) {
+        return Ok(());
+    }
+
+    // Strategy 4: Direct in-memory raw fallback
+    let pub_content = pub_key.and_then(|p| std::fs::read_to_string(p).ok());
+    sess.userauth_pubkey_memory(username, pub_content.as_deref(), &content, passphrase)
+        .map_err(|e| format!("Public key authentication failed: {}", e))
 }
 
 pub fn connect_ssh(
@@ -396,4 +471,35 @@ mod tests {
 
         let _ = fs::remove_dir_all(&temp_dir);
     }
+
+    #[test]
+    fn test_parse_ppk_format_error() {
+        let fake_ppk = "PuTTY-User-Key-File-3: ssh-ed25519\nEncryption: none\nComment: test\nPublic-Lines: 0\nPrivate-Lines: 0\n";
+        let res = ssh_key::PrivateKey::from_ppk(fake_ppk, None);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_openssh_key_load_and_to_memory() {
+        use ssh_key::PrivateKey;
+        use ssh_key::LineEnding;
+
+        // Test unencrypted OpenSSH format key
+        let openssh_content = "-----BEGIN OPENSSH PRIVATE KEY-----\n\
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW\n\
+QyNTUxOQAAACBObuKoQh6rEKnx66+X4usXRXg5BHsRWpPj8MeXch8DUAAAAIgy3urLMt7q\n\
+ywAAAAtzc2gtZWQyNTUxOQAAACBObuKoQh6rEKnx66+X4usXRXg5BHsRWpPj8MeXch8DUA\n\
+AAAEAx2y59MX8iKVKTcrHPw7iXImOJF278X18G1Tin57uHNk5u4qhCHqsQqfHrr5fi6xdF\n\
+eDkEexFak+Pwx5dyHwNQAAAABHRlc3QB\n\
+-----END OPENSSH PRIVATE KEY-----\n";
+
+        let priv_key = PrivateKey::from_openssh(openssh_content).unwrap();
+        let pub_str = priv_key.public_key().to_openssh().unwrap();
+        let priv_str = priv_key.to_openssh(LineEnding::LF).unwrap();
+
+        assert!(pub_str.starts_with("ssh-ed25519 "));
+        assert!(priv_str.starts_with("-----BEGIN OPENSSH PRIVATE KEY-----"));
+    }
+
+
 }
