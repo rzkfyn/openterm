@@ -34,3 +34,39 @@ fn test_paginated_entries() {
     let serialized = serde_json::to_string(&page).unwrap();
     assert!(serialized.contains("\"hasMore\":true"));
 }
+
+#[test]
+fn test_saved_connection_with_folder_and_bookmarks() {
+    let conn = openterm_lib::storage::SavedConnection {
+        id: "test-id".into(),
+        name: "Web Server".into(),
+        host: "10.0.0.1".into(),
+        port: 22,
+        username: "admin".into(),
+        auth_type: openterm_lib::models::AuthType::Password,
+        private_key_path: None,
+        password: Some("secret".into()),
+        passphrase: None,
+        folder: Some("Production/Web".into()),
+        bookmarks: vec![
+            openterm_lib::storage::ConnectionBookmark {
+                id: "bm-1".into(),
+                name: "Nginx logs".into(),
+                local_path: Some("C:\\logs".into()),
+                remote_path: Some("/var/log/nginx".into()),
+            }
+        ],
+        created_at: 1000,
+        updated_at: 2000,
+    };
+
+    let json = serde_json::to_string(&conn).expect("serialize");
+    assert!(json.contains("\"folder\":\"Production/Web\""));
+    assert!(json.contains("\"bookmarks\":["));
+
+    let deserialized: openterm_lib::storage::SavedConnection = serde_json::from_str(&json).expect("deserialize");
+    assert_eq!(deserialized.folder, Some("Production/Web".into()));
+    assert_eq!(deserialized.bookmarks.len(), 1);
+    assert_eq!(deserialized.bookmarks[0].name, "Nginx logs");
+}
+

@@ -2,6 +2,17 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionBookmark {
+    pub id: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote_path: Option<String>,
+}
+
 /// Saved connection profile — no password/passphrase stored.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -15,6 +26,10 @@ pub struct SavedConnection {
     pub private_key_path: Option<String>,
     pub password: Option<String>,
     pub passphrase: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub folder: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bookmarks: Vec<ConnectionBookmark>,
     pub created_at: u64,
     pub updated_at: u64,
 }
