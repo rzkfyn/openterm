@@ -11,6 +11,7 @@ export interface SessionConfig {
   password?: string;
   privateKeyPath?: string;
   passphrase?: string;
+  bookmarks?: ConnectionBookmark[];
   status?: SessionConnectionStatus;
 }
 
