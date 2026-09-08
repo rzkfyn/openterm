@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AlertTriangle, X, FileText, ArrowRight } from 'lucide-react';
+import { AlertTriangle, X } from 'lucide-react';
 import { ConflictAction, FileStatInfo } from '../../types';
 
 export interface ConflictDetails {

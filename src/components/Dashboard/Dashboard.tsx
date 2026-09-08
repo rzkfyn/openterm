@@ -23,7 +23,6 @@ import {
 import { VaultModal } from '../Modal/VaultModal';
 import { TotpModal } from '../Modal/TotpModal';
 import { ImportExportModal } from '../Modal/ImportExportModal';
-import { TotpConfig } from '../../types';
 import { useTotpStore } from '../../stores/totpStore';
 
 interface DashboardProps {

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useSessionStore } from './stores/sessionStore';
 import { useSavedConnectionStore } from './stores/savedConnectionStore';
 import { useUpdateStore } from './stores/updateStore';
@@ -9,12 +9,12 @@ import { TerminalView } from './components/Terminal/TerminalView';
 import { DualPaneExplorer } from './components/FileManager/DualPaneExplorer';
 import { TransferDrawer } from './components/FileManager/TransferDrawer';
 import { ResizableSplitter } from './components/Common/ResizableSplitter';
+import { ErrorBoundary } from './components/Common/ErrorBoundary';
 import { NewConnectionModal, ModalMode } from './components/Modal/NewConnectionModal';
 import { ConnectModal } from './components/Modal/ConnectModal';
 import { AppLockOverlay } from './components/Modal/AppLockOverlay';
 import { Dashboard } from './components/Dashboard/Dashboard';
-import { SessionConfig, SavedConnection, TotpConfig } from './types';
-import { tauriApi } from './services/tauri';
+import { SessionConfig, SavedConnection } from './types';
 
 export default function App() {
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
@@ -169,7 +169,9 @@ export default function App() {
 
             {viewMode === 'sftp' && (
               <div className="h-full w-full min-w-0">
-                <DualPaneExplorer sessionId={currentSessionId} />
+                <ErrorBoundary fallbackTitle="SFTP Explorer Error">
+                  <DualPaneExplorer sessionId={currentSessionId} />
+                </ErrorBoundary>
               </div>
             )}
 
@@ -188,7 +190,9 @@ export default function App() {
                   style={{ width: `${100 - terminalSplitPercent}%` }}
                   className="h-full min-w-[200px] overflow-hidden"
                 >
-                  <DualPaneExplorer sessionId={currentSessionId} />
+                  <ErrorBoundary fallbackTitle="SFTP Split Explorer Error">
+                    <DualPaneExplorer sessionId={currentSessionId} />
+                  </ErrorBoundary>
                 </div>
               </>
             )}
