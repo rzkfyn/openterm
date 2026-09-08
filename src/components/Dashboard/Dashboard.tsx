@@ -18,7 +18,7 @@ import {
 import { VaultModal } from '../Modal/VaultModal';
 import { TotpModal } from '../Modal/TotpModal';
 import { TotpConfig } from '../../types';
-import { tauriApi } from '../../services/tauri';
+import { useTotpStore } from '../../stores/totpStore';
 
 interface DashboardProps {
   onNewConnection: () => void;
@@ -46,15 +46,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [isVaultModalOpen, setIsVaultModalOpen] = useState(false);
   const [isTotpModalOpen, setIsTotpModalOpen] = useState(false);
-  const [totpConfig, setTotpConfig] = useState<TotpConfig>({
-    enabled: false,
-    idleTimeoutMins: 15,
-    hasBackupCodes: false,
-  });
-
-  const loadTotp = () => {
-    tauriApi.totpGetConfig().then(setTotpConfig).catch(console.error);
-  };
+  const { config: totpConfig, loadConfig: loadTotp } = useTotpStore();
 
   useEffect(() => {
     loadTotp();
@@ -63,7 +55,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         load();
       }
     });
-  }, []);
+  }, [loadTotp, checkVaultStatus, load]);
 
   const filtered = search
     ? connections.filter(

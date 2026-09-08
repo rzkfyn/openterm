@@ -26,12 +26,28 @@ pub struct TotpSetupInfo {
     pub uri: String,
 }
 
-#[derive(Serialize, Deserialize, Default)]
+fn default_idle_timeout() -> u32 {
+    15
+}
+
+#[derive(Serialize, Deserialize)]
 struct SavedTotpData {
     enabled: bool,
     secret: String,
     backup_code_hashes: Vec<String>,
+    #[serde(default = "default_idle_timeout")]
     idle_timeout_mins: u32,
+}
+
+impl Default for SavedTotpData {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            secret: String::new(),
+            backup_code_hashes: vec![],
+            idle_timeout_mins: 15,
+        }
+    }
 }
 
 fn totp_file_path() -> Result<PathBuf, String> {
