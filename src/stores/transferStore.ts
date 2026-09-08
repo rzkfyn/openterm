@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { TransferProgress } from '../types';
 import { tauriApi } from '../services/tauri';
 import { getBasename } from '../utils/pathUtils';
+import { useFileManagerStore } from './fileManagerStore';
 
 interface TransferState {
   transfers: Record<string, TransferProgress>;
@@ -57,6 +58,12 @@ export const useTransferStore = create<TransferState>((set, get) => ({
       get().updateTransferProgress(progress);
       if (progress.status === 'completed' || progress.status === 'failed' || progress.status === 'cancelled') {
         unlisten();
+        if (progress.status === 'completed') {
+          const fileStore = useFileManagerStore.getState();
+          if (fileStore.local.currentPath) {
+            fileStore.loadLocalDir(fileStore.local.currentPath).catch(() => {});
+          }
+        }
       }
     });
 
@@ -100,6 +107,12 @@ export const useTransferStore = create<TransferState>((set, get) => ({
       get().updateTransferProgress(progress);
       if (progress.status === 'completed' || progress.status === 'failed' || progress.status === 'cancelled') {
         unlisten();
+        if (progress.status === 'completed') {
+          const fileStore = useFileManagerStore.getState();
+          if (fileStore.remote.currentPath) {
+            fileStore.loadRemoteDir(sessionId, fileStore.remote.currentPath).catch(() => {});
+          }
+        }
       }
     });
 

@@ -100,6 +100,8 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
     });
   };
 
+  const prevSessionIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!local.currentPath) {
       loadLocalDir('~');
@@ -107,7 +109,12 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
   }, [local.currentPath, loadLocalDir]);
 
   useEffect(() => {
-    if (sessionId && !remote.currentPath) {
+    if (!sessionId) {
+      prevSessionIdRef.current = null;
+      return;
+    }
+    if (prevSessionIdRef.current !== sessionId || !remote.currentPath) {
+      prevSessionIdRef.current = sessionId;
       loadRemoteDir(sessionId, '.');
     }
   }, [sessionId, remote.currentPath, loadRemoteDir]);
@@ -133,9 +140,12 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
     ) => {
       if (!sessionId || sourcePaths.length === 0) return;
 
+      const currentRemote = useFileManagerStore.getState().remote.currentPath;
+      const currentLocal = useFileManagerStore.getState().local.currentPath;
+
       const destDir = isUpload
-        ? targetFolder || remote.currentPath
-        : targetFolder || local.currentPath;
+        ? (targetFolder || currentRemote)
+        : (targetFolder || currentLocal);
 
       let sessionConflictAction: ConflictAction | null = null;
 
@@ -214,12 +224,12 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
       }
 
       if (isUpload) {
-        loadRemoteDir(sessionId, remote.currentPath);
+        loadRemoteDir(sessionId, currentRemote);
       } else {
-        loadLocalDir(local.currentPath);
+        loadLocalDir(currentLocal);
       }
     },
-    [sessionId, remote.currentPath, local.currentPath, promptConflict, startUpload, startDownload, loadRemoteDir, loadLocalDir]
+    [sessionId, promptConflict, startUpload, startDownload, loadRemoteDir, loadLocalDir]
   );
 
   const handleDownload = async () => {
@@ -261,11 +271,38 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
         const { paths, position } = payload;
         if (!paths || paths.length === 0) return;
 
-        const windowWidth = window.innerWidth;
-        const isRemoteSide = sessionId ? position.x > windowWidth / 2 : false;
+        const dpr = window.devicePixelRatio || 1;
+        const targetEl =
+          document.elementFromPoint(position.x / dpr, position.y / dpr) ||
+          document.elementFromPoint(position.x, position.y);
 
-        if (isRemoteSide && sessionId) {
-          handleDropTransfer(true, 'local', paths, remote.currentPath);
+        const folderRow = targetEl?.closest('[data-file-row][data-is-dir="true"]');
+        const paneEl = targetEl?.closest('[data-file-pane]');
+
+        if (folderRow) {
+          const targetFolder = folderRow.getAttribute('data-entry-path');
+          const isRemoteFolder = folderRow.getAttribute('data-is-remote') === 'true';
+          if (targetFolder) {
+            if (isRemoteFolder && sessionId) {
+              handleDropTransfer(true, 'local', paths, targetFolder);
+            } else if (!isRemoteFolder) {
+              if (paths.length === 1 && paths[0]) {
+                loadLocalDir(targetFolder);
+              }
+            }
+            return;
+          }
+        }
+
+        const isRemotePane = paneEl
+          ? paneEl.getAttribute('data-pane-is-remote') === 'true'
+          : (sessionId ? (position.x / dpr) > window.innerWidth / 2 : false);
+
+        const currentRemote = useFileManagerStore.getState().remote.currentPath;
+
+        if (isRemotePane && sessionId) {
+          const targetDir = paneEl?.getAttribute('data-pane-current-path') || currentRemote;
+          handleDropTransfer(true, 'local', paths, targetDir);
         } else {
           // If single path dropped on local pane and is directory, navigate
           if (paths.length === 1) {
@@ -283,7 +320,7 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
     return () => {
       if (unlisten) unlisten();
     };
-  }, [sessionId, remote.currentPath, handleDropTransfer, loadLocalDir]);
+  }, [sessionId, handleDropTransfer, loadLocalDir]);
 
   // Context Menu CRUD Operations
   const handleRename = (entry: FileEntry, isRemote: boolean) => {

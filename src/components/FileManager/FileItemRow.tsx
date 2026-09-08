@@ -137,6 +137,10 @@ export const FileItemRow: React.FC<FileItemRowProps> = ({
   return (
     <div
       draggable
+      data-file-row="true"
+      data-is-dir={entry.isDir ? 'true' : 'false'}
+      data-is-remote={isRemote ? 'true' : 'false'}
+      data-entry-path={entry.path}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}

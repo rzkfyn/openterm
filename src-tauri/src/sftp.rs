@@ -11,6 +11,33 @@ use crate::local_fs::{self, PathAccessMode};
 use crate::models::{FileEntry, FileStatInfo, PaginatedEntries, TransferProgress, TransferStatus};
 use crate::session::SessionManager;
 
+/// Normalizes a remote path into a clean POSIX path, resolving '.' and relative paths via SFTP realpath.
+pub fn normalize_remote_path(sftp: &ssh2::Sftp, remote_path: &str) -> String {
+    let clean = remote_path.replace('\\', "/");
+    let target = if clean.is_empty() || clean == "." {
+        Path::new(".")
+    } else {
+        Path::new(&clean)
+    };
+
+    let resolved = sftp
+        .realpath(target)
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_else(|_| {
+            if clean.is_empty() || clean == "." {
+                "/".to_string()
+            } else {
+                clean
+            }
+        });
+
+    if resolved.is_empty() || resolved == "." {
+        "/".to_string()
+    } else {
+        resolved
+    }
+}
+
 pub fn list_sftp_dir(
     manager: &SessionManager,
     session_id: &str,
@@ -35,15 +62,12 @@ pub fn list_sftp_dir(
 
     let sftp = sftp_arc.lock();
 
-    let path_to_read = if remote_path.is_empty() || remote_path == "." {
-        Path::new(".")
-    } else {
-        Path::new(remote_path)
-    };
+    let resolved_dir = normalize_remote_path(&sftp, remote_path);
+    let path_to_read = Path::new(&resolved_dir);
 
     let dir_entries = sftp
         .readdir(path_to_read)
-        .map_err(|e| format!("Failed to read remote directory '{}': {}", remote_path, e))?;
+        .map_err(|e| format!("Failed to read remote directory '{}': {}", resolved_dir, e))?;
 
     let mut entries: Vec<FileEntry> = Vec::new();
 
@@ -65,9 +89,16 @@ pub fn list_sftp_dir(
         let modified = stat.mtime;
         let permissions = stat.perm;
 
+        // Build clean POSIX path for each entry
+        let entry_path = if resolved_dir == "/" {
+            format!("/{}", name)
+        } else {
+            format!("{}/{}", resolved_dir.trim_end_matches('/'), name)
+        };
+
         entries.push(FileEntry {
             name,
-            path: path_buf.to_string_lossy().to_string(),
+            path: entry_path,
             size,
             is_dir,
             is_symlink,
@@ -95,7 +126,7 @@ pub fn list_sftp_dir(
     let has_more = offset + paged.len() < total;
 
     Ok(PaginatedEntries {
-        path: remote_path.to_string(),
+        path: resolved_dir,
         entries: paged,
         total,
         offset,
@@ -428,7 +459,7 @@ pub fn download_sftp_file(
 
     let cancel_token = manager.register_transfer(transfer_id.to_string());
     let session_clone = session.clone();
-    let remote_path_buf = remote_path.to_string();
+    let remote_path_buf = remote_path.replace('\\', "/");
     let local_path_buf = validated_local.to_string_lossy().to_string();
     let transfer_id_buf = transfer_id.to_string();
     let app_handle = app.clone();
@@ -529,7 +560,7 @@ pub fn upload_sftp_file(
     let cancel_token = manager.register_transfer(transfer_id.to_string());
     let session_clone = session.clone();
     let local_path_buf = validated_local.to_string_lossy().to_string();
-    let remote_path_buf = remote_path.to_string();
+    let remote_path_buf = remote_path.replace('\\', "/");
     let transfer_id_buf = transfer_id.to_string();
     let app_handle = app.clone();
     let manager_clone = manager.clone();
@@ -652,7 +683,8 @@ pub fn stat_sftp_path(
         .ok_or_else(|| "SFTP subsystem is not available".to_string())?;
     let sftp = sftp_arc.lock();
 
-    let p = Path::new(path);
+    let clean = path.replace('\\', "/");
+    let p = Path::new(&clean);
     match sftp.stat(p) {
         Ok(stat) => Ok(FileStatInfo {
             exists: true,
@@ -684,8 +716,10 @@ pub fn rename_sftp_path(
         .ok_or_else(|| "SFTP subsystem is not available".to_string())?;
     let sftp = sftp_arc.lock();
 
-    sftp.rename(Path::new(old_path), Path::new(new_path), None)
-        .map_err(|e| format!("Failed to rename '{}' to '{}': {}", old_path, new_path, e))
+    let clean_old = old_path.replace('\\', "/");
+    let clean_new = new_path.replace('\\', "/");
+    sftp.rename(Path::new(&clean_old), Path::new(&clean_new), None)
+        .map_err(|e| format!("Failed to rename '{}' to '{}': {}", clean_old, clean_new, e))
 }
 
 pub fn remove_sftp_path(
@@ -703,11 +737,12 @@ pub fn remove_sftp_path(
         .ok_or_else(|| "SFTP subsystem is not available".to_string())?;
     let sftp = sftp_arc.lock();
 
+    let clean = path.replace('\\', "/");
     if is_dir {
-        remove_remote_dir_recursive(&sftp, path)
+        remove_remote_dir_recursive(&sftp, &clean)
     } else {
-        sftp.unlink(Path::new(path))
-            .map_err(|e| format!("Failed to delete remote file '{}': {}", path, e))
+        sftp.unlink(Path::new(&clean))
+            .map_err(|e| format!("Failed to delete remote file '{}': {}", clean, e))
     }
 }
 
@@ -725,8 +760,9 @@ pub fn mkdir_sftp(
         .ok_or_else(|| "SFTP subsystem is not available".to_string())?;
     let sftp = sftp_arc.lock();
 
-    sftp.mkdir(Path::new(path), 0o755)
-        .map_err(|e| format!("Failed to create remote directory '{}': {}", path, e))
+    let clean = path.replace('\\', "/");
+    sftp.mkdir(Path::new(&clean), 0o755)
+        .map_err(|e| format!("Failed to create remote directory '{}': {}", clean, e))
 }
 
 pub fn touch_sftp(
@@ -743,9 +779,10 @@ pub fn touch_sftp(
         .ok_or_else(|| "SFTP subsystem is not available".to_string())?;
     let sftp = sftp_arc.lock();
 
+    let clean = path.replace('\\', "/");
     let _file = sftp
-        .create(Path::new(path))
-        .map_err(|e| format!("Failed to create remote file '{}': {}", path, e))?;
+        .create(Path::new(&clean))
+        .map_err(|e| format!("Failed to create remote file '{}': {}", clean, e))?;
     Ok(())
 }
 
@@ -764,6 +801,7 @@ pub fn chmod_sftp(
         .ok_or_else(|| "SFTP subsystem is not available".to_string())?;
     let sftp = sftp_arc.lock();
 
+    let clean = path.replace('\\', "/");
     let stat = FileStat {
         size: None,
         uid: None,
@@ -772,8 +810,8 @@ pub fn chmod_sftp(
         atime: None,
         mtime: None,
     };
-    sftp.setstat(Path::new(path), stat)
-        .map_err(|e| format!("Failed to change permissions for '{}': {}", path, e))
+    sftp.setstat(Path::new(&clean), stat)
+        .map_err(|e| format!("Failed to change permissions for '{}': {}", clean, e))
 }
 
 pub fn read_sftp_text_file(
@@ -791,9 +829,10 @@ pub fn read_sftp_text_file(
         .ok_or_else(|| "SFTP subsystem is not available".to_string())?;
     let sftp = sftp_arc.lock();
 
+    let clean = path.replace('\\', "/");
     let mut remote_file = sftp
-        .open(Path::new(path))
-        .map_err(|e| format!("Failed to open remote file '{}': {}", path, e))?;
+        .open(Path::new(&clean))
+        .map_err(|e| format!("Failed to open remote file '{}': {}", clean, e))?;
 
     let stat = remote_file
         .stat()
@@ -848,13 +887,14 @@ pub fn write_sftp_text_file(
         .ok_or_else(|| "SFTP subsystem is not available".to_string())?;
     let sftp = sftp_arc.lock();
 
+    let clean = path.replace('\\', "/");
     let mut remote_file = sftp
-        .create(Path::new(path))
-        .map_err(|e| format!("Failed to open remote file for writing '{}': {}", path, e))?;
+        .create(Path::new(&clean))
+        .map_err(|e| format!("Failed to open remote file for writing '{}': {}", clean, e))?;
 
     remote_file
         .write_all(content.as_bytes())
-        .map_err(|e| format!("Failed to write to remote file '{}': {}", path, e))?;
+        .map_err(|e| format!("Failed to write to remote file '{}': {}", clean, e))?;
 
     Ok(())
 }
@@ -879,5 +919,14 @@ mod tests {
     #[test]
     fn test_extract_filename_mixed() {
         assert_eq!(extract_filename(r"C:/Users/tester\nested/file.bin"), "file.bin");
+    }
+
+    #[test]
+    fn test_clean_remote_path_normalization() {
+        let windows_style = r"\var\www\html\sub";
+        assert_eq!(windows_style.replace('\\', "/"), "/var/www/html/sub");
+
+        let mixed_style = r"/var/www\html/assets\img";
+        assert_eq!(mixed_style.replace('\\', "/"), "/var/www/html/assets/img");
     }
 }
