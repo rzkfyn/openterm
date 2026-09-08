@@ -62,11 +62,30 @@ export function useTerminalSession(sessionId: string | null) {
 
     term.writeln(`\x1b[38;5;105m[OpenTerm]\x1b[0m Connected to session \x1b[38;5;222m${sessionId}\x1b[0m\r\n`);
 
-    // 2. Stream user keystrokes to Rust backend
-    const onDataDisposable = term.onData((data) => {
-      tauriApi.sshWrite(sessionId, data).catch((err) => {
+    // 2. Stream user keystrokes to Rust backend with async coalescing
+    let pendingWrite = '';
+    let isWriting = false;
+
+    const flushQueue = async () => {
+      if (isWriting || !pendingWrite) return;
+      isWriting = true;
+      const toSend = pendingWrite;
+      pendingWrite = '';
+      try {
+        await tauriApi.sshWrite(sessionId, toSend);
+      } catch (err) {
         console.error('Failed to write to SSH session:', err);
-      });
+      } finally {
+        isWriting = false;
+        if (pendingWrite) {
+          flushQueue();
+        }
+      }
+    };
+
+    const onDataDisposable = term.onData((data) => {
+      pendingWrite += data;
+      flushQueue();
     });
 
     // 3. Attach to session stream registry:

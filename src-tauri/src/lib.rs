@@ -178,7 +178,6 @@ fn ssh_write(
     session_id: String,
     data: String,
 ) -> Result<(), String> {
-    eprintln!("[ssh_write] session_id: {}, len: {}, bytes: {:?}", session_id, data.len(), data.as_bytes());
     ssh::write_ssh(&manager, &session_id, data.as_bytes())
 }
 
