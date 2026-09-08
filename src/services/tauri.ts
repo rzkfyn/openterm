@@ -6,6 +6,7 @@ import {
   TransferProgress,
   SavedConnection,
   FileStatInfo,
+  VaultStatus,
 } from '../types';
 
 export const tauriApi = {
@@ -28,6 +29,33 @@ export const tauriApi = {
 
   deleteConnection: async (id: string): Promise<void> => {
     return await invoke<void>('delete_connection', { id });
+  },
+
+  // --- Vault & Master Password ---
+  vaultGetStatus: async (): Promise<VaultStatus> => {
+    return await invoke<VaultStatus>('vault_get_status');
+  },
+
+  vaultUnlock: async (masterPassword: string): Promise<SavedConnection[]> => {
+    return await invoke<SavedConnection[]>('vault_unlock', { masterPassword });
+  },
+
+  vaultLock: async (): Promise<void> => {
+    return await invoke<void>('vault_lock');
+  },
+
+  vaultSetPassword: async (
+    newPassword: string,
+    oldPassword?: string
+  ): Promise<void> => {
+    return await invoke<void>('vault_set_password', {
+      oldPassword: oldPassword || null,
+      newPassword,
+    });
+  },
+
+  vaultRemovePassword: async (currentPassword: string): Promise<void> => {
+    return await invoke<void>('vault_remove_password', { currentPassword });
   },
 
   // --- SSH ---

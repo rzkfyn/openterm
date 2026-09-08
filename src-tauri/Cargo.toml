@@ -24,3 +24,7 @@ dirs = "5.0"
 thiserror = "1.0"
 tauri-plugin-dialog = "2.7.3"
 ssh-key = { version = "0.7.0-rc.11", features = ["std", "ppk", "crypto", "ed25519", "rsa", "encryption"] }
+aes-gcm = "0.10"
+sha2 = "0.10"
+hmac = "0.12"
+rand = "0.8"

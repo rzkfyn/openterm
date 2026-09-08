@@ -22,6 +22,13 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
   const [password, setPassword] = useState('');
   const [passphrase, setPassphrase] = useState('');
 
+  React.useEffect(() => {
+    if (connection) {
+      setPassword(connection.password || '');
+      setPassphrase(connection.passphrase || '');
+    }
+  }, [connection]);
+
   if (!isOpen || !connection) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {

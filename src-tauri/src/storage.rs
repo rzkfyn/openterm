@@ -13,6 +13,8 @@ pub struct SavedConnection {
     pub username: String,
     pub auth_type: crate::models::AuthType,
     pub private_key_path: Option<String>,
+    pub password: Option<String>,
+    pub passphrase: Option<String>,
     pub created_at: u64,
     pub updated_at: u64,
 }

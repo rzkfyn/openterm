@@ -65,6 +65,13 @@ export interface SavedConnection {
   username: string;
   authType: AuthType;
   privateKeyPath?: string;
+  password?: string;
+  passphrase?: string;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface VaultStatus {
+  isEncrypted: boolean;
+  isUnlocked: boolean;
 }

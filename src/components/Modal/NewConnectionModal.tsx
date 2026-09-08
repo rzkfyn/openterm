@@ -34,6 +34,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
   const [password, setPassword] = useState('');
   const [privateKeyPath, setPrivateKeyPath] = useState('');
   const [passphrase, setPassphrase] = useState('');
+  const [savePassword, setSavePassword] = useState(true);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -44,8 +45,9 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
       setUsername(editingConnection.username);
       setAuthType(editingConnection.authType);
       setPrivateKeyPath(editingConnection.privateKeyPath || '');
-      setPassword('');
-      setPassphrase('');
+      setPassword(editingConnection.password || '');
+      setPassphrase(editingConnection.passphrase || '');
+      setSavePassword(Boolean(editingConnection.password || editingConnection.passphrase));
     } else {
       setName('');
       setHost('');
@@ -55,6 +57,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
       setPassword('');
       setPrivateKeyPath('');
       setPassphrase('');
+      setSavePassword(true);
     }
   }, [isOpen, mode, editingConnection]);
 
@@ -70,6 +73,8 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
     username,
     authType,
     privateKeyPath: authType === 'key' ? privateKeyPath : undefined,
+    password: authType === 'password' && savePassword && password ? password : undefined,
+    passphrase: authType === 'key' && savePassword && passphrase ? passphrase : undefined,
     createdAt: editingConnection?.createdAt || 0,
     updatedAt: 0,
   });
@@ -277,6 +282,19 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
               </div>
             </div>
           )}
+
+          {/* Remember credentials in Vault */}
+          <div className="pt-1">
+            <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={savePassword}
+                onChange={(e) => setSavePassword(e.target.checked)}
+                className="rounded accent-indigo-500 cursor-pointer"
+              />
+              <span>Remember password/passphrase in profile</span>
+            </label>
+          </div>
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#2a2b38]">

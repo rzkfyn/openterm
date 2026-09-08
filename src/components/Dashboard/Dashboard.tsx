@@ -11,7 +11,10 @@ import {
   Search,
   Key,
   Lock,
+  Shield,
+  Unlock,
 } from 'lucide-react';
+import { VaultModal } from '../Modal/VaultModal';
 
 interface DashboardProps {
   onNewConnection: () => void;
@@ -24,12 +27,26 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onConnect,
   onEdit,
 }) => {
-  const { connections, isLoading, load, remove, duplicate } = useSavedConnectionStore();
+  const {
+    connections,
+    isLoading,
+    vaultStatus,
+    checkVaultStatus,
+    load,
+    remove,
+    duplicate,
+    lockVault,
+  } = useSavedConnectionStore();
   const [search, setSearch] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [isVaultModalOpen, setIsVaultModalOpen] = useState(false);
 
   useEffect(() => {
-    load();
+    checkVaultStatus().then((status) => {
+      if (status.isUnlocked) {
+        load();
+      }
+    });
   }, []);
 
   const filtered = search
@@ -66,14 +83,56 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onNewConnection}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium cursor-pointer transition-colors shadow-sm"
-          >
-            <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
-            <span>New Connection</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsVaultModalOpen(true)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium cursor-pointer transition-colors ${
+                vaultStatus.isEncrypted
+                  ? vaultStatus.isUnlocked
+                    ? 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300 hover:bg-emerald-900/50'
+                    : 'bg-amber-950/40 border-amber-700/50 text-amber-300 hover:bg-amber-900/50'
+                  : 'bg-[#1e1e2d] border-[#2a2b38] text-slate-300 hover:text-white hover:bg-[#252538]'
+              }`}
+              title={
+                vaultStatus.isEncrypted
+                  ? vaultStatus.isUnlocked
+                    ? 'Vault Unlocked (Click to manage or lock)'
+                    : 'Vault Locked'
+                  : 'Enable Master Password Vault'
+              }
+            >
+              <Shield className="h-3.5 w-3.5" />
+              <span>
+                {vaultStatus.isEncrypted
+                  ? vaultStatus.isUnlocked
+                    ? 'Vault Active'
+                    : 'Vault Locked'
+                  : 'Enable Vault'}
+              </span>
+            </button>
+
+            {vaultStatus.isEncrypted && vaultStatus.isUnlocked && (
+              <button
+                type="button"
+                onClick={lockVault}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-[#1e1e2d] border border-[#2a2b38] text-slate-400 hover:text-rose-300 hover:border-rose-900/40 text-xs font-medium cursor-pointer transition-colors"
+                title="Lock Vault"
+              >
+                <Lock className="h-3 w-3" />
+                <span>Lock</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={onNewConnection}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium cursor-pointer transition-colors shadow-sm"
+            >
+              <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
+              <span>New Connection</span>
+            </button>
+          </div>
         </div>
 
         {/* Search & Filter Bar */}
@@ -94,8 +153,28 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        {/* Connections List */}
-        {isLoading ? (
+        {/* Connections List or Locked Screen */}
+        {vaultStatus.isEncrypted && !vaultStatus.isUnlocked ? (
+          <div className="py-14 px-4 text-center border border-[#2a2b38] rounded-lg bg-[#1e1e2d] p-8 space-y-4">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              <Lock className="h-6 w-6" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-white">Vault is Locked</h3>
+              <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                Your connection profiles and credentials are securely encrypted with AES-256-GCM. Enter your master password to unlock.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsVaultModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-xs font-medium cursor-pointer transition-colors shadow-sm"
+            >
+              <Unlock className="h-3.5 w-3.5" />
+              <span>Unlock Vault</span>
+            </button>
+          </div>
+        ) : isLoading ? (
           <div className="py-12 text-center text-xs text-slate-500 font-mono">
             Loading connection profiles...
           </div>
@@ -222,6 +301,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         )}
       </div>
+
+      <VaultModal
+        isOpen={isVaultModalOpen}
+        status={vaultStatus}
+        onClose={() => setIsVaultModalOpen(false)}
+        onStatusChange={async () => {
+          const status = await checkVaultStatus();
+          if (status.isUnlocked) {
+            load();
+          }
+        }}
+      />
     </div>
   );
 };

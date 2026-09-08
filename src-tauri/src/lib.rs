@@ -4,11 +4,13 @@ pub mod session;
 pub mod sftp;
 pub mod ssh;
 pub mod storage;
+pub mod vault;
 
 use models::{PaginatedEntries, SessionConfig};
 use session::SessionManager;
 use storage::SavedConnection;
 use tauri::{AppHandle, Manager, State};
+use vault::{VaultState, VaultStatus};
 
 #[tauri::command]
 fn ping() -> &'static str {
@@ -42,18 +44,60 @@ fn open_url(url: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn list_connections() -> Result<Vec<SavedConnection>, String> {
-    storage::list()
+fn list_connections(vault_state: State<VaultState>) -> Result<Vec<SavedConnection>, String> {
+    vault::list_vault_connections(&vault_state)
 }
 
 #[tauri::command]
-fn save_connection(connection: SavedConnection) -> Result<SavedConnection, String> {
-    storage::save(connection)
+fn save_connection(
+    vault_state: State<VaultState>,
+    connection: SavedConnection,
+) -> Result<SavedConnection, String> {
+    vault::save_vault_connection(&vault_state, connection)
 }
 
 #[tauri::command]
-fn delete_connection(id: String) -> Result<(), String> {
-    storage::delete(&id)
+fn delete_connection(vault_state: State<VaultState>, id: String) -> Result<(), String> {
+    vault::delete_vault_connection(&vault_state, &id)
+}
+
+#[tauri::command]
+fn vault_get_status(vault_state: State<VaultState>) -> Result<VaultStatus, String> {
+    vault::get_status(&vault_state)
+}
+
+#[tauri::command]
+fn vault_unlock(
+    vault_state: State<VaultState>,
+    master_password: String,
+) -> Result<Vec<SavedConnection>, String> {
+    vault::unlock_vault(&vault_state, &master_password)
+}
+
+#[tauri::command]
+fn vault_lock(vault_state: State<VaultState>) -> Result<(), String> {
+    vault::lock_vault(&vault_state)
+}
+
+#[tauri::command]
+fn vault_set_password(
+    vault_state: State<VaultState>,
+    old_password: Option<String>,
+    new_password: String,
+) -> Result<(), String> {
+    vault::set_master_password(
+        &vault_state,
+        old_password.as_deref(),
+        &new_password,
+    )
+}
+
+#[tauri::command]
+fn vault_remove_password(
+    vault_state: State<VaultState>,
+    current_password: String,
+) -> Result<(), String> {
+    vault::remove_master_password(&vault_state, &current_password)
 }
 
 #[tauri::command]
@@ -271,11 +315,13 @@ fn sftp_write_text_file(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let session_manager = SessionManager::new();
+    let vault_state = VaultState::new();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .setup(|app| {
+        .setup(move |app| {
             app.manage(session_manager);
+            app.manage(vault_state);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -284,6 +330,11 @@ pub fn run() {
             list_connections,
             save_connection,
             delete_connection,
+            vault_get_status,
+            vault_unlock,
+            vault_lock,
+            vault_set_password,
+            vault_remove_password,
             ssh_connect,
             ssh_disconnect,
             ssh_write,
