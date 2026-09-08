@@ -67,6 +67,12 @@ jobs:
             cargo = cargo.replace(/^version = \".*\"$/m, 'version = \"' + version + '\"');
             fs.writeFileSync('src-tauri/Cargo.toml', cargo);
             console.log('Cargo.toml -> ' + version);
+
+            // src/version.ts
+            if (fs.existsSync('src/version.ts')) {
+              fs.writeFileSync('src/version.ts', "export const APP_VERSION = '" + version + "';\n");
+              console.log('src/version.ts -> ' + version);
+            }
           "
 
       - name: Build and upload to Release
