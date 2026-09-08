@@ -21,6 +21,12 @@ fn ping() -> &'static str {
 
 #[tauri::command]
 fn open_url(url: String) -> Result<(), String> {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err("Only http and https URLs are allowed".to_string());
+    }
+    if url.chars().any(|c| c.is_control() || c == '"' || c == '\'' || c == '`') {
+        return Err("URL contains invalid characters".to_string());
+    }
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open")
@@ -30,8 +36,8 @@ fn open_url(url: String) -> Result<(), String> {
     }
     #[cfg(target_os = "windows")]
     {
-        std::process::Command::new("cmd")
-            .args(["/C", "start", &url])
+        std::process::Command::new("rundll32")
+            .args(["url.dll,FileProtocolHandler", &url])
             .spawn()
             .map_err(|e| format!("Failed to open URL: {}", e))?;
     }

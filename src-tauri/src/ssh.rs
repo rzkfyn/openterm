@@ -7,7 +7,7 @@ use std::thread;
 use std::time::Duration;
 
 use parking_lot::Mutex;
-use ssh2::Session;
+use ssh2::{CheckResult, KnownHostFileKind, Session};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::mpsc::unbounded_channel;
 use uuid::Uuid;
@@ -126,6 +126,57 @@ fn authenticate_pubkey(
         .map_err(|e| format!("Public key authentication failed: {}", e))
 }
 
+/// Verify SSH host key against known_hosts (prevents MITM)
+fn verify_host_key(sess: &Session, host: &str, port: u16) -> Result<(), String> {
+    let mut known_hosts = sess
+        .known_hosts()
+        .map_err(|e| format!("Failed to initialize known hosts: {}", e))?;
+
+    let known_hosts_path = dirs::home_dir().map(|h| h.join(".ssh").join("known_hosts"));
+
+    if let Some(ref path) = known_hosts_path {
+        if path.exists() {
+            let _ = known_hosts.read_file(path, KnownHostFileKind::OpenSSH);
+        }
+    }
+
+    let (key, key_type) = sess
+        .host_key()
+        .ok_or_else(|| "Failed to get remote host key".to_string())?;
+
+    match known_hosts.check_port(host, port, key) {
+        CheckResult::Match => Ok(()),
+        CheckResult::NotFound => {
+            let host_entry = if port == 22 {
+                host.to_string()
+            } else {
+                format!("[{}]:{}", host, port)
+            };
+            let _ = known_hosts.add(
+                &host_entry,
+                key,
+                &format!("OpenTerm host key for {}:{}", host, port),
+                key_type.into(),
+            );
+            if let Some(ref path) = known_hosts_path {
+                if let Some(parent) = path.parent() {
+                    let _ = std::fs::create_dir_all(parent);
+                }
+                let _ = known_hosts.write_file(path, KnownHostFileKind::OpenSSH);
+            }
+            Ok(())
+        }
+        CheckResult::Mismatch => Err(format!(
+            "Host key verification failed for {}:{}. Remote host identification has changed! Possible man-in-the-middle attack.",
+            host, port
+        )),
+        CheckResult::Failure => Err(format!(
+            "Host key check error for {}:{}",
+            host, port
+        )),
+    }
+}
+
 pub fn connect_ssh(
     app: AppHandle,
     manager: &SessionManager,
@@ -159,6 +210,9 @@ pub fn connect_ssh(
     sess.set_tcp_stream(tcp);
     sess.handshake()
         .map_err(|e| format!("SSH handshake failed: {}", e))?;
+
+    // Host key verification (MITM protection)
+    verify_host_key(&sess, &config.host, config.port)?;
 
     // 3. Authenticate
     match config.auth_type {
@@ -346,6 +400,7 @@ pub fn connect_ssh(
         let mut sftp_sess = Session::new().map_err(|e| format!("{}", e))?;
         sftp_sess.set_tcp_stream(sftp_tcp);
         sftp_sess.handshake().map_err(|e| format!("{}", e))?;
+        verify_host_key(&sftp_sess, &config.host, config.port)?;
 
         match config.auth_type {
             AuthType::Password => {

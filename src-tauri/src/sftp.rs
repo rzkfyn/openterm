@@ -7,6 +7,7 @@ use std::thread;
 use ssh2::FileStat;
 use tauri::{AppHandle, Emitter};
 
+use crate::local_fs::{self, PathAccessMode};
 use crate::models::{FileEntry, FileStatInfo, PaginatedEntries, TransferProgress, TransferStatus};
 use crate::session::SessionManager;
 
@@ -219,11 +220,18 @@ fn upload_dir_recursive(
                 return Err("Transfer cancelled by user".to_string());
             }
             if let Ok(entry) = entry_res {
+                let Ok(file_type) = entry.file_type() else {
+                    continue;
+                };
+                // Skip symlinks to prevent traversal attacks
+                if file_type.is_symlink() {
+                    continue;
+                }
                 let entry_path = entry.path();
                 let child_name = entry.file_name().to_string_lossy().to_string();
                 let remote_child = format!("{}/{}", remote_dir.trim_end_matches('/'), child_name);
 
-                if entry_path.is_dir() {
+                if file_type.is_dir() {
                     upload_dir_recursive(
                         sftp,
                         &entry_path,
@@ -233,7 +241,7 @@ fn upload_dir_recursive(
                         event_name,
                         transfer_id,
                     )?;
-                } else {
+                } else if file_type.is_file() {
                     let _ = upload_single_file(
                         sftp,
                         &entry_path,
@@ -261,6 +269,8 @@ fn download_single_file(
     transfer_id: &str,
     file_name: &str,
 ) -> Result<(), String> {
+    local_fs::validate_local_path(local_path.to_str().unwrap_or_default(), PathAccessMode::Write)?;
+
     if let Some(parent) = local_path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| {
             format!("Failed to create local destination directory '{}': {}", parent.display(), e)
@@ -411,6 +421,7 @@ pub fn download_sftp_file(
     local_path: &str,
     transfer_id: &str,
 ) -> Result<(), String> {
+    let validated_local = local_fs::validate_local_path(local_path, PathAccessMode::Write)?;
     let session = manager
         .get_session(session_id)
         .ok_or_else(|| format!("Session {} not found", session_id))?;
@@ -418,7 +429,7 @@ pub fn download_sftp_file(
     let cancel_token = manager.register_transfer(transfer_id.to_string());
     let session_clone = session.clone();
     let remote_path_buf = remote_path.to_string();
-    let local_path_buf = local_path.to_string();
+    let local_path_buf = validated_local.to_string_lossy().to_string();
     let transfer_id_buf = transfer_id.to_string();
     let app_handle = app.clone();
     let manager_clone = manager.clone();
@@ -510,13 +521,14 @@ pub fn upload_sftp_file(
     remote_path: &str,
     transfer_id: &str,
 ) -> Result<(), String> {
+    let validated_local = local_fs::validate_local_path(local_path, PathAccessMode::Read)?;
     let session = manager
         .get_session(session_id)
         .ok_or_else(|| format!("Session {} not found", session_id))?;
 
     let cancel_token = manager.register_transfer(transfer_id.to_string());
     let session_clone = session.clone();
-    let local_path_buf = local_path.to_string();
+    let local_path_buf = validated_local.to_string_lossy().to_string();
     let remote_path_buf = remote_path.to_string();
     let transfer_id_buf = transfer_id.to_string();
     let app_handle = app.clone();
