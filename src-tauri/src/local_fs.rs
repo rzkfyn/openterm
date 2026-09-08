@@ -98,6 +98,48 @@ pub fn read_local_dir(
     })
 }
 
+pub fn remove_local_path(path_str: &str, is_dir: bool) -> Result<(), String> {
+    let p = PathBuf::from(path_str);
+    if !p.exists() {
+        return Err(format!("Path does not exist: {}", path_str));
+    }
+    if is_dir {
+        fs::remove_dir_all(&p).map_err(|e| format!("Failed to delete directory '{}': {}", path_str, e))
+    } else {
+        fs::remove_file(&p).map_err(|e| format!("Failed to delete file '{}': {}", path_str, e))
+    }
+}
+
+pub fn rename_local_path(old_path: &str, new_path: &str) -> Result<(), String> {
+    let from = PathBuf::from(old_path);
+    let to = PathBuf::from(new_path);
+    if !from.exists() {
+        return Err(format!("Source path does not exist: {}", old_path));
+    }
+    fs::rename(&from, &to).map_err(|e| format!("Failed to rename '{}' to '{}': {}", old_path, new_path, e))
+}
+
+pub fn create_local_dir(path_str: &str) -> Result<(), String> {
+    let p = PathBuf::from(path_str);
+    fs::create_dir_all(&p).map_err(|e| format!("Failed to create directory '{}': {}", path_str, e))
+}
+
+pub fn create_local_file(path_str: &str) -> Result<(), String> {
+    let p = PathBuf::from(path_str);
+    if let Some(parent) = p.parent() {
+        if !parent.exists() {
+            let _ = fs::create_dir_all(parent);
+        }
+    }
+    fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(false)
+        .open(&p)
+        .map_err(|e| format!("Failed to create file '{}': {}", path_str, e))
+        .map(|_| ())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -115,5 +157,33 @@ mod tests {
         assert!(res.is_ok());
         let entries = res.unwrap();
         assert!(!entries.entries.is_empty());
+    }
+
+    #[test]
+    fn test_local_file_lifecycle() {
+        let temp_dir = std::env::temp_dir().join("openterm_test_local_lifecycle");
+        let _ = fs::remove_dir_all(&temp_dir);
+
+        // create directory
+        assert!(create_local_dir(&temp_dir.to_string_lossy()).is_ok());
+
+        // create file
+        let file_path = temp_dir.join("hello.txt");
+        assert!(create_local_file(&file_path.to_string_lossy()).is_ok());
+        assert!(file_path.exists());
+
+        // rename file
+        let new_file_path = temp_dir.join("world.txt");
+        assert!(rename_local_path(&file_path.to_string_lossy(), &new_file_path.to_string_lossy()).is_ok());
+        assert!(!file_path.exists());
+        assert!(new_file_path.exists());
+
+        // remove file
+        assert!(remove_local_path(&new_file_path.to_string_lossy(), false).is_ok());
+        assert!(!new_file_path.exists());
+
+        // remove dir
+        assert!(remove_local_path(&temp_dir.to_string_lossy(), true).is_ok());
+        assert!(!temp_dir.exists());
     }
 }

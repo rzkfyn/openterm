@@ -165,6 +165,95 @@ fn sftp_cancel_transfer(
     }
 }
 
+#[tauri::command]
+fn local_remove(path: String, is_dir: bool) -> Result<(), String> {
+    local_fs::remove_local_path(&path, is_dir)
+}
+
+#[tauri::command]
+fn local_rename(old_path: String, new_path: String) -> Result<(), String> {
+    local_fs::rename_local_path(&old_path, &new_path)
+}
+
+#[tauri::command]
+fn local_mkdir(path: String) -> Result<(), String> {
+    local_fs::create_local_dir(&path)
+}
+
+#[tauri::command]
+fn local_touch(path: String) -> Result<(), String> {
+    local_fs::create_local_file(&path)
+}
+
+#[tauri::command]
+fn sftp_remove(
+    manager: State<SessionManager>,
+    session_id: String,
+    path: String,
+    is_dir: bool,
+) -> Result<(), String> {
+    sftp::remove_sftp_path(&manager, &session_id, &path, is_dir)
+}
+
+#[tauri::command]
+fn sftp_rename(
+    manager: State<SessionManager>,
+    session_id: String,
+    old_path: String,
+    new_path: String,
+) -> Result<(), String> {
+    sftp::rename_sftp_path(&manager, &session_id, &old_path, &new_path)
+}
+
+#[tauri::command]
+fn sftp_mkdir(
+    manager: State<SessionManager>,
+    session_id: String,
+    path: String,
+) -> Result<(), String> {
+    sftp::mkdir_sftp(&manager, &session_id, &path)
+}
+
+#[tauri::command]
+fn sftp_touch(
+    manager: State<SessionManager>,
+    session_id: String,
+    path: String,
+) -> Result<(), String> {
+    sftp::touch_sftp(&manager, &session_id, &path)
+}
+
+#[tauri::command]
+fn sftp_chmod(
+    manager: State<SessionManager>,
+    session_id: String,
+    path: String,
+    mode: u32,
+) -> Result<(), String> {
+    sftp::chmod_sftp(&manager, &session_id, &path, mode)
+}
+
+#[tauri::command]
+fn sftp_read_text_file(
+    manager: State<SessionManager>,
+    session_id: String,
+    path: String,
+    max_bytes: Option<usize>,
+) -> Result<String, String> {
+    let limit = max_bytes.unwrap_or(2 * 1024 * 1024); // default 2MB
+    sftp::read_sftp_text_file(&manager, &session_id, &path, limit)
+}
+
+#[tauri::command]
+fn sftp_write_text_file(
+    manager: State<SessionManager>,
+    session_id: String,
+    path: String,
+    content: String,
+) -> Result<(), String> {
+    sftp::write_sftp_text_file(&manager, &session_id, &path, &content)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let session_manager = SessionManager::new();
@@ -190,6 +279,17 @@ pub fn run() {
             sftp_download,
             sftp_upload,
             sftp_cancel_transfer,
+            local_remove,
+            local_rename,
+            local_mkdir,
+            local_touch,
+            sftp_remove,
+            sftp_rename,
+            sftp_mkdir,
+            sftp_touch,
+            sftp_chmod,
+            sftp_read_text_file,
+            sftp_write_text_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

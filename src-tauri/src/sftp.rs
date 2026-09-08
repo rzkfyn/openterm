@@ -4,6 +4,7 @@ use std::path::Path;
 use std::sync::atomic::Ordering;
 use std::thread;
 
+use ssh2::FileStat;
 use tauri::{AppHandle, Emitter};
 
 use crate::models::{FileEntry, PaginatedEntries, TransferProgress, TransferStatus};
@@ -592,6 +593,225 @@ pub fn upload_sftp_file(
 
         manager_clone.remove_transfer(&transfer_id_buf);
     });
+
+    Ok(())
+}
+
+fn remove_remote_dir_recursive(sftp: &ssh2::Sftp, remote_dir: &str) -> Result<(), String> {
+    let path = Path::new(remote_dir);
+    let entries = sftp
+        .readdir(path)
+        .map_err(|e| format!("Failed to read remote directory '{}': {}", remote_dir, e))?;
+
+    for (child_path, stat) in entries {
+        let name = child_path
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .unwrap_or_default();
+        if name == "." || name == ".." {
+            continue;
+        }
+
+        let child_str = child_path.to_string_lossy().replace('\\', "/");
+        if stat.is_dir() {
+            remove_remote_dir_recursive(sftp, &child_str)?;
+        } else {
+            sftp.unlink(Path::new(&child_str))
+                .map_err(|e| format!("Failed to delete remote file '{}': {}", child_str, e))?;
+        }
+    }
+
+    sftp.rmdir(path)
+        .map_err(|e| format!("Failed to delete remote directory '{}': {}", remote_dir, e))?;
+    Ok(())
+}
+
+pub fn rename_sftp_path(
+    manager: &SessionManager,
+    session_id: &str,
+    old_path: &str,
+    new_path: &str,
+) -> Result<(), String> {
+    let session = manager
+        .get_session(session_id)
+        .ok_or_else(|| format!("Session {} not found", session_id))?;
+    let sftp_arc = session
+        .sftp
+        .as_ref()
+        .ok_or_else(|| "SFTP subsystem is not available".to_string())?;
+    let sftp = sftp_arc.lock();
+
+    sftp.rename(Path::new(old_path), Path::new(new_path), None)
+        .map_err(|e| format!("Failed to rename '{}' to '{}': {}", old_path, new_path, e))
+}
+
+pub fn remove_sftp_path(
+    manager: &SessionManager,
+    session_id: &str,
+    path: &str,
+    is_dir: bool,
+) -> Result<(), String> {
+    let session = manager
+        .get_session(session_id)
+        .ok_or_else(|| format!("Session {} not found", session_id))?;
+    let sftp_arc = session
+        .sftp
+        .as_ref()
+        .ok_or_else(|| "SFTP subsystem is not available".to_string())?;
+    let sftp = sftp_arc.lock();
+
+    if is_dir {
+        remove_remote_dir_recursive(&sftp, path)
+    } else {
+        sftp.unlink(Path::new(path))
+            .map_err(|e| format!("Failed to delete remote file '{}': {}", path, e))
+    }
+}
+
+pub fn mkdir_sftp(
+    manager: &SessionManager,
+    session_id: &str,
+    path: &str,
+) -> Result<(), String> {
+    let session = manager
+        .get_session(session_id)
+        .ok_or_else(|| format!("Session {} not found", session_id))?;
+    let sftp_arc = session
+        .sftp
+        .as_ref()
+        .ok_or_else(|| "SFTP subsystem is not available".to_string())?;
+    let sftp = sftp_arc.lock();
+
+    sftp.mkdir(Path::new(path), 0o755)
+        .map_err(|e| format!("Failed to create remote directory '{}': {}", path, e))
+}
+
+pub fn touch_sftp(
+    manager: &SessionManager,
+    session_id: &str,
+    path: &str,
+) -> Result<(), String> {
+    let session = manager
+        .get_session(session_id)
+        .ok_or_else(|| format!("Session {} not found", session_id))?;
+    let sftp_arc = session
+        .sftp
+        .as_ref()
+        .ok_or_else(|| "SFTP subsystem is not available".to_string())?;
+    let sftp = sftp_arc.lock();
+
+    let _file = sftp
+        .create(Path::new(path))
+        .map_err(|e| format!("Failed to create remote file '{}': {}", path, e))?;
+    Ok(())
+}
+
+pub fn chmod_sftp(
+    manager: &SessionManager,
+    session_id: &str,
+    path: &str,
+    mode: u32,
+) -> Result<(), String> {
+    let session = manager
+        .get_session(session_id)
+        .ok_or_else(|| format!("Session {} not found", session_id))?;
+    let sftp_arc = session
+        .sftp
+        .as_ref()
+        .ok_or_else(|| "SFTP subsystem is not available".to_string())?;
+    let sftp = sftp_arc.lock();
+
+    let stat = FileStat {
+        size: None,
+        uid: None,
+        gid: None,
+        perm: Some(mode),
+        atime: None,
+        mtime: None,
+    };
+    sftp.setstat(Path::new(path), stat)
+        .map_err(|e| format!("Failed to change permissions for '{}': {}", path, e))
+}
+
+pub fn read_sftp_text_file(
+    manager: &SessionManager,
+    session_id: &str,
+    path: &str,
+    max_bytes: usize,
+) -> Result<String, String> {
+    let session = manager
+        .get_session(session_id)
+        .ok_or_else(|| format!("Session {} not found", session_id))?;
+    let sftp_arc = session
+        .sftp
+        .as_ref()
+        .ok_or_else(|| "SFTP subsystem is not available".to_string())?;
+    let sftp = sftp_arc.lock();
+
+    let mut remote_file = sftp
+        .open(Path::new(path))
+        .map_err(|e| format!("Failed to open remote file '{}': {}", path, e))?;
+
+    let stat = remote_file
+        .stat()
+        .map_err(|e| format!("Failed to stat remote file '{}': {}", path, e))?;
+
+    if let Some(sz) = stat.size {
+        if sz > max_bytes as u64 {
+            return Err(format!(
+                "File size ({} bytes) exceeds maximum editor limit ({} bytes)",
+                sz, max_bytes
+            ));
+        }
+    }
+
+    let mut buffer = Vec::new();
+    let mut chunk = [0u8; 16384];
+    let mut total_read = 0;
+
+    loop {
+        let n = remote_file
+            .read(&mut chunk)
+            .map_err(|e| format!("Failed reading remote file '{}': {}", path, e))?;
+        if n == 0 {
+            break;
+        }
+        total_read += n;
+        if total_read > max_bytes {
+            return Err(format!(
+                "File exceeds maximum allowable size ({} bytes)",
+                max_bytes
+            ));
+        }
+        buffer.extend_from_slice(&chunk[..n]);
+    }
+
+    String::from_utf8(buffer)
+        .map_err(|_| "File appears to be binary (non UTF-8 content)".to_string())
+}
+
+pub fn write_sftp_text_file(
+    manager: &SessionManager,
+    session_id: &str,
+    path: &str,
+    content: &str,
+) -> Result<(), String> {
+    let session = manager
+        .get_session(session_id)
+        .ok_or_else(|| format!("Session {} not found", session_id))?;
+    let sftp_arc = session
+        .sftp
+        .as_ref()
+        .ok_or_else(|| "SFTP subsystem is not available".to_string())?;
+    let sftp = sftp_arc.lock();
+
+    let mut remote_file = sftp
+        .create(Path::new(path))
+        .map_err(|e| format!("Failed to open remote file for writing '{}': {}", path, e))?;
+
+    remote_file
+        .write_all(content.as_bytes())
+        .map_err(|e| format!("Failed to write to remote file '{}': {}", path, e))?;
 
     Ok(())
 }

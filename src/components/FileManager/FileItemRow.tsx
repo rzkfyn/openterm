@@ -9,6 +9,7 @@ interface FileItemRowProps {
   selectedPaths: string[];
   onSelect: (entry: FileEntry, event: React.MouseEvent) => void;
   onDoubleClick: (entry: FileEntry) => void;
+  onContextMenu?: (entry: FileEntry, event: React.MouseEvent) => void;
   onDropOnFolder?: (targetFolder: string, source: 'local' | 'remote', paths: string[]) => void;
 }
 
@@ -19,6 +20,7 @@ export const FileItemRow: React.FC<FileItemRowProps> = ({
   selectedPaths,
   onSelect,
   onDoubleClick,
+  onContextMenu,
   onDropOnFolder,
 }) => {
   const [isFolderDragOver, setIsFolderDragOver] = useState(false);
@@ -141,6 +143,13 @@ export const FileItemRow: React.FC<FileItemRowProps> = ({
       onDrop={handleDrop}
       onClick={(e) => onSelect(entry, e)}
       onDoubleClick={() => onDoubleClick(entry)}
+      onContextMenu={(e) => {
+        if (onContextMenu) {
+          e.preventDefault();
+          e.stopPropagation();
+          onContextMenu(entry, e);
+        }
+      }}
       className={`group flex h-[24px] items-center px-3 text-xs select-none cursor-pointer transition-colors ${
         isFolderDragOver
           ? 'bg-indigo-500/25 border-2 border-indigo-500 text-white'

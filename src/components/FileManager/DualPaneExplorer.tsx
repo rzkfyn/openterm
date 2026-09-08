@@ -1,9 +1,13 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import { useFileManagerStore } from '../../stores/fileManagerStore';
 import { useTransferStore } from '../../stores/transferStore';
 import { tauriApi } from '../../services/tauri';
 import { getBasename, joinLocalPath, joinRemotePath } from '../../utils/pathUtils';
 import { FilePane } from './FilePane';
+import { PromptModal } from '../Modal/PromptModal';
+import { ChmodModal } from './ChmodModal';
+import { FileEditorModal } from './FileEditorModal';
+import { FileEntry } from '../../types';
 import { ArrowRight, ArrowLeft, CloudOff } from 'lucide-react';
 
 interface DualPaneExplorerProps {
@@ -21,6 +25,43 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
   } = useFileManagerStore();
 
   const { startDownload, startUpload } = useTransferStore();
+
+  // Prompt Modal state
+  const [promptState, setPromptState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message?: string;
+    initialValue?: string;
+    placeholder?: string;
+    confirmLabel?: string;
+    isDanger?: boolean;
+    isConfirmOnly?: boolean;
+    onConfirm: (val: string) => void;
+  }>({
+    isOpen: false,
+    title: '',
+    onConfirm: () => {},
+  });
+
+  // Chmod Modal state
+  const [chmodState, setChmodState] = useState<{
+    isOpen: boolean;
+    entry: FileEntry | null;
+  }>({
+    isOpen: false,
+    entry: null,
+  });
+
+  // File Editor Modal state
+  const [editorState, setEditorState] = useState<{
+    isOpen: boolean;
+    filePath: string;
+    isRemote: boolean;
+  }>({
+    isOpen: false,
+    filePath: '',
+    isRemote: true,
+  });
 
   useEffect(() => {
     if (!local.currentPath) {
@@ -119,6 +160,154 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
     };
   }, [sessionId, remote.currentPath, handleDropTransfer, loadLocalDir]);
 
+  // Context Menu CRUD Operations
+  const handleRename = (entry: FileEntry, isRemote: boolean) => {
+    setPromptState({
+      isOpen: true,
+      title: `Rename ${entry.isDir ? 'Folder' : 'File'}`,
+      initialValue: entry.name,
+      confirmLabel: 'Rename',
+      onConfirm: async (newName: string) => {
+        if (!newName || newName === entry.name) {
+          setPromptState((prev) => ({ ...prev, isOpen: false }));
+          return;
+        }
+        try {
+          if (isRemote) {
+            if (!sessionId) return;
+            const newPath = joinRemotePath(remote.currentPath, newName);
+            await tauriApi.sftpRename(sessionId, entry.path, newPath);
+            loadRemoteDir(sessionId, remote.currentPath);
+          } else {
+            const newPath = joinLocalPath(local.currentPath, newName);
+            await tauriApi.localRename(entry.path, newPath);
+            loadLocalDir(local.currentPath);
+          }
+        } catch (err: any) {
+          alert(`Failed to rename: ${err?.message || err}`);
+        } finally {
+          setPromptState((prev) => ({ ...prev, isOpen: false }));
+        }
+      },
+    });
+  };
+
+  const handleDelete = (entry: FileEntry, isRemote: boolean) => {
+    setPromptState({
+      isOpen: true,
+      title: `Delete ${entry.isDir ? 'Folder' : 'File'}`,
+      message: `Are you sure you want to permanently delete "${entry.name}"?${
+        entry.isDir ? ' All files inside will also be deleted.' : ''
+      }`,
+      confirmLabel: 'Delete',
+      isDanger: true,
+      isConfirmOnly: true,
+      onConfirm: async () => {
+        try {
+          if (isRemote) {
+            if (!sessionId) return;
+            await tauriApi.sftpRemove(sessionId, entry.path, entry.isDir);
+            loadRemoteDir(sessionId, remote.currentPath);
+          } else {
+            await tauriApi.localRemove(entry.path, entry.isDir);
+            loadLocalDir(local.currentPath);
+          }
+        } catch (err: any) {
+          alert(`Failed to delete: ${err?.message || err}`);
+        } finally {
+          setPromptState((prev) => ({ ...prev, isOpen: false }));
+        }
+      },
+    });
+  };
+
+  const handleNewFile = (isRemote: boolean) => {
+    setPromptState({
+      isOpen: true,
+      title: 'Create New File',
+      placeholder: 'filename.txt',
+      confirmLabel: 'Create',
+      onConfirm: async (fileName: string) => {
+        if (!fileName) {
+          setPromptState((prev) => ({ ...prev, isOpen: false }));
+          return;
+        }
+        try {
+          if (isRemote) {
+            if (!sessionId) return;
+            const filePath = joinRemotePath(remote.currentPath, fileName);
+            await tauriApi.sftpTouch(sessionId, filePath);
+            loadRemoteDir(sessionId, remote.currentPath);
+          } else {
+            const filePath = joinLocalPath(local.currentPath, fileName);
+            await tauriApi.localTouch(filePath);
+            loadLocalDir(local.currentPath);
+          }
+        } catch (err: any) {
+          alert(`Failed to create file: ${err?.message || err}`);
+        } finally {
+          setPromptState((prev) => ({ ...prev, isOpen: false }));
+        }
+      },
+    });
+  };
+
+  const handleNewFolder = (isRemote: boolean) => {
+    setPromptState({
+      isOpen: true,
+      title: 'Create New Folder',
+      placeholder: 'new-folder',
+      confirmLabel: 'Create',
+      onConfirm: async (folderName: string) => {
+        if (!folderName) {
+          setPromptState((prev) => ({ ...prev, isOpen: false }));
+          return;
+        }
+        try {
+          if (isRemote) {
+            if (!sessionId) return;
+            const folderPath = joinRemotePath(remote.currentPath, folderName);
+            await tauriApi.sftpMkdir(sessionId, folderPath);
+            loadRemoteDir(sessionId, remote.currentPath);
+          } else {
+            const folderPath = joinLocalPath(local.currentPath, folderName);
+            await tauriApi.localMkdir(folderPath);
+            loadLocalDir(local.currentPath);
+          }
+        } catch (err: any) {
+          alert(`Failed to create folder: ${err?.message || err}`);
+        } finally {
+          setPromptState((prev) => ({ ...prev, isOpen: false }));
+        }
+      },
+    });
+  };
+
+  const handleChmodConfirm = async (mode: number) => {
+    if (!sessionId || !chmodState.entry) return;
+    try {
+      await tauriApi.sftpChmod(sessionId, chmodState.entry.path, mode);
+      loadRemoteDir(sessionId, remote.currentPath);
+    } catch (err: any) {
+      alert(`Failed to change permissions: ${err?.message || err}`);
+    } finally {
+      setChmodState({ isOpen: false, entry: null });
+    }
+  };
+
+  const handleTransferSingle = async (entry: FileEntry, isRemoteSource: boolean) => {
+    if (!sessionId) return;
+    if (isRemoteSource) {
+      const destLocal = joinLocalPath(local.currentPath, entry.name);
+      await startDownload(sessionId, entry.path, destLocal);
+      loadLocalDir(local.currentPath);
+    } else {
+      const destRemote = joinRemotePath(remote.currentPath, entry.name);
+      await startUpload(sessionId, entry.path, destRemote);
+      loadRemoteDir(sessionId, remote.currentPath);
+    }
+  };
+
   return (
     <div className="flex h-full w-full overflow-hidden bg-[#1e1e2d]">
       {/* Local Explorer */}
@@ -135,6 +324,11 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
         onNavigate={(p) => loadLocalDir(p)}
         onRefresh={() => loadLocalDir(local.currentPath)}
         onDropTransfer={(src, paths, target) => handleDropTransfer(false, src, paths, target)}
+        onTransferItem={(entry) => handleTransferSingle(entry, false)}
+        onRenameItem={(entry) => handleRename(entry, false)}
+        onDeleteItem={(entry) => handleDelete(entry, false)}
+        onNewFile={() => handleNewFile(false)}
+        onNewFolder={() => handleNewFolder(false)}
       />
 
       {/* Transfer Action Bar */}
@@ -174,6 +368,13 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
           onNavigate={(p) => loadRemoteDir(sessionId, p)}
           onRefresh={() => loadRemoteDir(sessionId, remote.currentPath)}
           onDropTransfer={(src, paths, target) => handleDropTransfer(true, src, paths, target)}
+          onEditFile={(entry) => setEditorState({ isOpen: true, filePath: entry.path, isRemote: true })}
+          onTransferItem={(entry) => handleTransferSingle(entry, true)}
+          onRenameItem={(entry) => handleRename(entry, true)}
+          onChmodItem={(entry) => setChmodState({ isOpen: true, entry })}
+          onDeleteItem={(entry) => handleDelete(entry, true)}
+          onNewFile={() => handleNewFile(true)}
+          onNewFolder={() => handleNewFolder(true)}
         />
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center bg-[#1e1e2d] text-center p-8">
@@ -186,6 +387,43 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
           </p>
         </div>
       )}
+
+      {/* Modals */}
+      <PromptModal
+        isOpen={promptState.isOpen}
+        title={promptState.title}
+        message={promptState.message}
+        initialValue={promptState.initialValue}
+        placeholder={promptState.placeholder}
+        confirmLabel={promptState.confirmLabel}
+        isDanger={promptState.isDanger}
+        isConfirmOnly={promptState.isConfirmOnly}
+        onConfirm={promptState.onConfirm}
+        onClose={() => setPromptState((prev) => ({ ...prev, isOpen: false }))}
+      />
+
+      <ChmodModal
+        isOpen={chmodState.isOpen}
+        fileName={chmodState.entry?.name || ''}
+        currentMode={chmodState.entry?.permissions}
+        onConfirm={handleChmodConfirm}
+        onClose={() => setChmodState({ isOpen: false, entry: null })}
+      />
+
+      <FileEditorModal
+        isOpen={editorState.isOpen}
+        filePath={editorState.filePath}
+        isRemote={editorState.isRemote}
+        sessionId={sessionId || undefined}
+        onClose={() => setEditorState({ isOpen: false, filePath: '', isRemote: true })}
+        onSaved={() => {
+          if (sessionId && editorState.isRemote) {
+            loadRemoteDir(sessionId, remote.currentPath);
+          } else {
+            loadLocalDir(local.currentPath);
+          }
+        }}
+      />
     </div>
   );
 };

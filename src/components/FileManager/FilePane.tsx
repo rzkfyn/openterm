@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { FileEntry } from '../../types';
 import { FileItemRow } from './FileItemRow';
 import { PathBreadcrumb } from './PathBreadcrumb';
+import { ContextMenu, ContextMenuPosition } from './ContextMenu';
 import { Loader2, ChevronUp, ChevronDown, ArrowDownToLine } from 'lucide-react';
 
 type SortKey = 'name' | 'size' | 'modified';
@@ -21,6 +22,13 @@ interface FilePaneProps {
   onNavigate: (path: string) => void;
   onRefresh: () => void;
   onDropTransfer?: (source: 'local' | 'remote', paths: string[], targetFolder?: string) => void;
+  onEditFile?: (entry: FileEntry) => void;
+  onTransferItem?: (entry: FileEntry) => void;
+  onRenameItem?: (entry: FileEntry) => void;
+  onChmodItem?: (entry: FileEntry) => void;
+  onDeleteItem?: (entry: FileEntry) => void;
+  onNewFile?: () => void;
+  onNewFolder?: () => void;
 }
 
 export const FilePane: React.FC<FilePaneProps> = ({
@@ -36,10 +44,21 @@ export const FilePane: React.FC<FilePaneProps> = ({
   onNavigate,
   onRefresh,
   onDropTransfer,
+  onEditFile,
+  onTransferItem,
+  onRenameItem,
+  onChmodItem,
+  onDeleteItem,
+  onNewFile,
+  onNewFolder,
 }) => {
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [isPaneDragOver, setIsPaneDragOver] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{
+    position: ContextMenuPosition;
+    targetEntry?: FileEntry | null;
+  } | null>(null);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -94,7 +113,27 @@ export const FilePane: React.FC<FilePaneProps> = ({
   const handleDoubleClick = (entry: FileEntry) => {
     if (entry.isDir) {
       onNavigate(entry.path);
+    } else if (onEditFile) {
+      onEditFile(entry);
     }
+  };
+
+  const handleRowContextMenu = (entry: FileEntry, e: React.MouseEvent) => {
+    if (!selectedPaths.includes(entry.path)) {
+      onSelect([entry.path]);
+    }
+    setContextMenu({
+      position: { x: e.clientX, y: e.clientY },
+      targetEntry: entry,
+    });
+  };
+
+  const handlePaneContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({
+      position: { x: e.clientX, y: e.clientY },
+      targetEntry: null,
+    });
   };
 
   const handlePaneDragOver = (e: React.DragEvent) => {
@@ -209,7 +248,11 @@ export const FilePane: React.FC<FilePaneProps> = ({
       </div>
 
       {/* File Tree List */}
-      <div ref={parentRef} className="flex-1 overflow-y-auto relative w-full bg-[#1e1e2d]">
+      <div
+        ref={parentRef}
+        onContextMenu={handlePaneContextMenu}
+        className="flex-1 overflow-y-auto relative w-full bg-[#1e1e2d]"
+      >
         {isLoading && entries.length === 0 ? (
           <div className="flex h-full items-center justify-center text-slate-400 text-xs gap-2">
             <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-400" />
@@ -252,6 +295,7 @@ export const FilePane: React.FC<FilePaneProps> = ({
                     selectedPaths={selectedPaths}
                     onSelect={handleRowSelect}
                     onDoubleClick={handleDoubleClick}
+                    onContextMenu={handleRowContextMenu}
                     onDropOnFolder={(folderPath, src, paths) => {
                       if (onDropTransfer) {
                         onDropTransfer(src, paths, folderPath);
@@ -264,6 +308,24 @@ export const FilePane: React.FC<FilePaneProps> = ({
           </div>
         )}
       </div>
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <ContextMenu
+          position={contextMenu.position}
+          targetEntry={contextMenu.targetEntry}
+          isRemote={isRemote}
+          onClose={() => setContextMenu(null)}
+          onEdit={onEditFile}
+          onTransfer={onTransferItem}
+          onRename={onRenameItem}
+          onChmod={onChmodItem}
+          onDelete={onDeleteItem}
+          onNewFile={onNewFile}
+          onNewFolder={onNewFolder}
+          onRefresh={onRefresh}
+        />
+      )}
     </div>
   );
 };

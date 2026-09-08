@@ -104,6 +104,50 @@ export const tauriApi = {
     return await invoke<void>('sftp_cancel_transfer', { transferId });
   },
 
+  localRemove: async (path: string, isDir: boolean): Promise<void> => {
+    return await invoke<void>('local_remove', { path, isDir });
+  },
+
+  localRename: async (oldPath: string, newPath: string): Promise<void> => {
+    return await invoke<void>('local_rename', { oldPath, newPath });
+  },
+
+  localMkdir: async (path: string): Promise<void> => {
+    return await invoke<void>('local_mkdir', { path });
+  },
+
+  localTouch: async (path: string): Promise<void> => {
+    return await invoke<void>('local_touch', { path });
+  },
+
+  sftpRemove: async (sessionId: string, path: string, isDir: boolean): Promise<void> => {
+    return await invoke<void>('sftp_remove', { sessionId, path, isDir });
+  },
+
+  sftpRename: async (sessionId: string, oldPath: string, newPath: string): Promise<void> => {
+    return await invoke<void>('sftp_rename', { sessionId, oldPath, newPath });
+  },
+
+  sftpMkdir: async (sessionId: string, path: string): Promise<void> => {
+    return await invoke<void>('sftp_mkdir', { sessionId, path });
+  },
+
+  sftpTouch: async (sessionId: string, path: string): Promise<void> => {
+    return await invoke<void>('sftp_touch', { sessionId, path });
+  },
+
+  sftpChmod: async (sessionId: string, path: string, mode: number): Promise<void> => {
+    return await invoke<void>('sftp_chmod', { sessionId, path, mode });
+  },
+
+  sftpReadTextFile: async (sessionId: string, path: string, maxBytes?: number): Promise<string> => {
+    return await invoke<string>('sftp_read_text_file', { sessionId, path, maxBytes });
+  },
+
+  sftpWriteTextFile: async (sessionId: string, path: string, content: string): Promise<void> => {
+    return await invoke<void>('sftp_write_text_file', { sessionId, path, content });
+  },
+
   onTransferProgress: async (
     transferId: string,
     callback: (progress: TransferProgress) => void
