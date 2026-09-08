@@ -51,6 +51,8 @@ interface SessionState {
   markSessionClosed: (id: string) => void;
   connectSession: (config: SessionConfig) => Promise<string>;
   disconnectSession: (id: string) => Promise<void>;
+  disconnectOtherSessions: (keepId: string) => Promise<void>;
+  disconnectAllSessions: () => Promise<void>;
   clearError: () => void;
 }
 
@@ -141,5 +143,24 @@ export const useSessionStore = create<SessionState>((set) => ({
         currentSessionId: nextCurrentId,
       };
     });
+  },
+
+  disconnectOtherSessions: async (keepId) => {
+    const { activeSessions, disconnectSession } = useSessionStore.getState();
+    const toDisconnect = activeSessions.filter((s) => s.id !== keepId);
+    for (const session of toDisconnect) {
+      if (session.id) {
+        await disconnectSession(session.id);
+      }
+    }
+  },
+
+  disconnectAllSessions: async () => {
+    const { activeSessions, disconnectSession } = useSessionStore.getState();
+    for (const session of activeSessions) {
+      if (session.id) {
+        await disconnectSession(session.id);
+      }
+    }
   },
 }));

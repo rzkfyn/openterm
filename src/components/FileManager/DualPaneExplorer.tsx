@@ -1,9 +1,10 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useFileManagerStore } from '../../stores/fileManagerStore';
 import { useTransferStore } from '../../stores/transferStore';
 import { tauriApi } from '../../services/tauri';
 import { getBasename, joinLocalPath, joinRemotePath } from '../../utils/pathUtils';
 import { FilePane } from './FilePane';
+import { ResizableSplitter } from '../Common/ResizableSplitter';
 import { PromptModal } from '../Modal/PromptModal';
 import { ChmodModal } from './ChmodModal';
 import { FileEditorModal } from './FileEditorModal';
@@ -62,6 +63,25 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
     filePath: '',
     isRemote: true,
   });
+
+  // Dual pane split percentage
+  const [localSplitPercent, setLocalSplitPercent] = useState<number>(() => {
+    const saved = localStorage.getItem('openterm_sftp_split_percent');
+    return saved ? Math.max(20, Math.min(80, parseFloat(saved))) : 50;
+  });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleDualPaneResize = (deltaX: number) => {
+    if (!containerRef.current) return;
+    const totalWidth = containerRef.current.clientWidth;
+    if (totalWidth <= 0) return;
+    const deltaPercent = (deltaX / totalWidth) * 100;
+    setLocalSplitPercent((prev) => {
+      const next = Math.max(20, Math.min(80, prev + deltaPercent));
+      localStorage.setItem('openterm_sftp_split_percent', next.toFixed(1));
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!local.currentPath) {
@@ -309,84 +329,91 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
   };
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-[#1e1e2d]">
+    <div ref={containerRef} className="flex h-full w-full overflow-hidden bg-[#1e1e2d] relative">
       {/* Local Explorer */}
-      <FilePane
-        title="Local Machine"
-        isRemote={false}
-        currentPath={local.currentPath}
-        entries={local.entries}
-        total={local.total}
-        isLoading={local.isLoading}
-        error={local.error}
-        selectedPaths={local.selectedPaths}
-        onSelect={setLocalSelected}
-        onNavigate={(p) => loadLocalDir(p)}
-        onRefresh={() => loadLocalDir(local.currentPath)}
-        onDropTransfer={(src, paths, target) => handleDropTransfer(false, src, paths, target)}
-        onTransferItem={(entry) => handleTransferSingle(entry, false)}
-        onRenameItem={(entry) => handleRename(entry, false)}
-        onDeleteItem={(entry) => handleDelete(entry, false)}
-        onNewFile={() => handleNewFile(false)}
-        onNewFolder={() => handleNewFolder(false)}
-      />
+      <div style={{ width: `${localSplitPercent}%` }} className="h-full min-w-[180px] overflow-hidden flex flex-col">
+        <FilePane
+          title="Local Machine"
+          isRemote={false}
+          currentPath={local.currentPath}
+          entries={local.entries}
+          total={local.total}
+          isLoading={local.isLoading}
+          error={local.error}
+          selectedPaths={local.selectedPaths}
+          onSelect={setLocalSelected}
+          onNavigate={(p) => loadLocalDir(p)}
+          onRefresh={() => loadLocalDir(local.currentPath)}
+          onDropTransfer={(src, paths, target) => handleDropTransfer(false, src, paths, target)}
+          onTransferItem={(entry) => handleTransferSingle(entry, false)}
+          onRenameItem={(entry) => handleRename(entry, false)}
+          onDeleteItem={(entry) => handleDelete(entry, false)}
+          onNewFile={() => handleNewFile(false)}
+          onNewFolder={() => handleNewFolder(false)}
+        />
+      </div>
 
-      {/* Transfer Action Bar */}
-      <div className="flex flex-col items-center justify-center gap-1.5 px-1.5 shrink-0 bg-[#11111a] border-x border-[#2a2b38]">
-        <button
-          type="button"
-          onClick={handleUpload}
-          disabled={!sessionId || local.selectedPaths.length === 0}
-          className="flex h-7 w-7 items-center justify-center rounded-md bg-[#1e1e2d] border border-[#2a2b38] text-slate-300 hover:text-white hover:bg-indigo-600 hover:border-indigo-600 cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-[#1e1e2d] transition-colors"
-          title="Upload to Remote Host (Push)"
-        >
-          <ArrowRight className="h-3.5 w-3.5" />
-        </button>
-        <button
-          type="button"
-          onClick={handleDownload}
-          disabled={!sessionId || remote.selectedPaths.length === 0}
-          className="flex h-7 w-7 items-center justify-center rounded-md bg-[#1e1e2d] border border-[#2a2b38] text-slate-300 hover:text-white hover:bg-indigo-600 hover:border-indigo-600 cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-[#1e1e2d] transition-colors"
-          title="Download to Local Machine (Pull)"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-        </button>
+      {/* Resizable Separator with Action Buttons */}
+      <div className="flex items-center shrink-0">
+        <div className="flex flex-col items-center justify-center gap-1.5 px-1.5 shrink-0 bg-[#11111a] border-x border-[#2a2b38] h-full">
+          <button
+            type="button"
+            onClick={handleUpload}
+            disabled={!sessionId || local.selectedPaths.length === 0}
+            className="flex h-7 w-7 items-center justify-center rounded-md bg-[#1e1e2d] border border-[#2a2b38] text-slate-300 hover:text-white hover:bg-indigo-600 hover:border-indigo-600 cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-[#1e1e2d] transition-colors"
+            title="Upload to Remote Host (Push)"
+          >
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={!sessionId || remote.selectedPaths.length === 0}
+            className="flex h-7 w-7 items-center justify-center rounded-md bg-[#1e1e2d] border border-[#2a2b38] text-slate-300 hover:text-white hover:bg-indigo-600 hover:border-indigo-600 cursor-pointer disabled:opacity-20 disabled:cursor-not-allowed disabled:hover:bg-[#1e1e2d] transition-colors"
+            title="Download to Local Machine (Pull)"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <ResizableSplitter onResize={handleDualPaneResize} />
       </div>
 
       {/* Remote Explorer */}
-      {sessionId ? (
-        <FilePane
-          title="Remote SFTP"
-          isRemote={true}
-          currentPath={remote.currentPath}
-          entries={remote.entries}
-          total={remote.total}
-          isLoading={remote.isLoading}
-          error={remote.error}
-          selectedPaths={remote.selectedPaths}
-          onSelect={setRemoteSelected}
-          onNavigate={(p) => loadRemoteDir(sessionId, p)}
-          onRefresh={() => loadRemoteDir(sessionId, remote.currentPath)}
-          onDropTransfer={(src, paths, target) => handleDropTransfer(true, src, paths, target)}
-          onEditFile={(entry) => setEditorState({ isOpen: true, filePath: entry.path, isRemote: true })}
-          onTransferItem={(entry) => handleTransferSingle(entry, true)}
-          onRenameItem={(entry) => handleRename(entry, true)}
-          onChmodItem={(entry) => setChmodState({ isOpen: true, entry })}
-          onDeleteItem={(entry) => handleDelete(entry, true)}
-          onNewFile={() => handleNewFile(true)}
-          onNewFolder={() => handleNewFolder(true)}
-        />
-      ) : (
-        <div className="flex flex-1 flex-col items-center justify-center bg-[#1e1e2d] text-center p-8">
-          <div className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-lg bg-[#11111a] border border-[#2a2b38]">
-            <CloudOff className="h-5 w-5 text-slate-500" />
+      <div style={{ width: `${100 - localSplitPercent}%` }} className="h-full min-w-[180px] overflow-hidden flex flex-col flex-1">
+        {sessionId ? (
+          <FilePane
+            title="Remote SFTP"
+            isRemote={true}
+            currentPath={remote.currentPath}
+            entries={remote.entries}
+            total={remote.total}
+            isLoading={remote.isLoading}
+            error={remote.error}
+            selectedPaths={remote.selectedPaths}
+            onSelect={setRemoteSelected}
+            onNavigate={(p) => loadRemoteDir(sessionId, p)}
+            onRefresh={() => loadRemoteDir(sessionId, remote.currentPath)}
+            onDropTransfer={(src, paths, target) => handleDropTransfer(true, src, paths, target)}
+            onEditFile={(entry) => setEditorState({ isOpen: true, filePath: entry.path, isRemote: true })}
+            onTransferItem={(entry) => handleTransferSingle(entry, true)}
+            onRenameItem={(entry) => handleRename(entry, true)}
+            onChmodItem={(entry) => setChmodState({ isOpen: true, entry })}
+            onDeleteItem={(entry) => handleDelete(entry, true)}
+            onNewFile={() => handleNewFile(true)}
+            onNewFolder={() => handleNewFolder(true)}
+          />
+        ) : (
+          <div className="flex flex-1 flex-col items-center justify-center bg-[#1e1e2d] text-center p-8">
+            <div className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-lg bg-[#11111a] border border-[#2a2b38]">
+              <CloudOff className="h-5 w-5 text-slate-500" />
+            </div>
+            <p className="text-xs font-medium text-slate-300">Remote Offline</p>
+            <p className="text-[11px] text-slate-500 mt-1 max-w-xs">
+              Connect to an active SSH profile to browse remote filesystem.
+            </p>
           </div>
-          <p className="text-xs font-medium text-slate-300">Remote Offline</p>
-          <p className="text-[11px] text-slate-500 mt-1 max-w-xs">
-            Connect to an active SSH profile to browse remote filesystem.
-          </p>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Modals */}
       <PromptModal

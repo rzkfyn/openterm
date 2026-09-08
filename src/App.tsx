@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useSessionStore } from './stores/sessionStore';
 import { useSavedConnectionStore } from './stores/savedConnectionStore';
 import { AppHeader } from './components/Layout/AppHeader';
@@ -6,6 +6,7 @@ import { StatusBar } from './components/Layout/StatusBar';
 import { TerminalView } from './components/Terminal/TerminalView';
 import { DualPaneExplorer } from './components/FileManager/DualPaneExplorer';
 import { TransferDrawer } from './components/FileManager/TransferDrawer';
+import { ResizableSplitter } from './components/Common/ResizableSplitter';
 import { NewConnectionModal, ModalMode } from './components/Modal/NewConnectionModal';
 import { ConnectModal } from './components/Modal/ConnectModal';
 import { Dashboard } from './components/Dashboard/Dashboard';
@@ -16,6 +17,25 @@ export default function App() {
   const [modalMode, setModalMode] = useState<ModalMode>('new');
   const [editingConnection, setEditingConnection] = useState<SavedConnection | null>(null);
   const [connectTarget, setConnectTarget] = useState<SavedConnection | null>(null);
+
+  // Terminal vs SFTP split percentage (persisted)
+  const [terminalSplitPercent, setTerminalSplitPercent] = useState<number>(() => {
+    const saved = localStorage.getItem('openterm_terminal_split_percent');
+    return saved ? Math.max(20, Math.min(80, parseFloat(saved))) : 50;
+  });
+  const mainRef = useRef<HTMLDivElement>(null);
+
+  const handleSplitResize = (deltaX: number) => {
+    if (!mainRef.current) return;
+    const totalWidth = mainRef.current.clientWidth;
+    if (totalWidth <= 0) return;
+    const deltaPercent = (deltaX / totalWidth) * 100;
+    setTerminalSplitPercent((prev) => {
+      const next = Math.max(20, Math.min(80, prev + deltaPercent));
+      localStorage.setItem('openterm_terminal_split_percent', next.toFixed(1));
+      return next;
+    });
+  };
 
   const {
     activeSessions,
@@ -89,21 +109,38 @@ export default function App() {
         </main>
       ) : (
         <>
-          <main className="flex flex-1 overflow-hidden divide-x divide-[#2a2b38] bg-[#1e1e2d]">
-            <div
-              className={`h-full min-w-0 ${
-                viewMode === 'terminal' ? 'flex-1' : viewMode === 'split' ? 'flex-1' : 'hidden'
-              }`}
-            >
-              <TerminalView sessionId={currentSessionId} sessionName={currentSession?.name} />
-            </div>
-            <div
-              className={`h-full min-w-0 ${
-                viewMode === 'sftp' ? 'flex-1' : viewMode === 'split' ? 'flex-1' : 'hidden'
-              }`}
-            >
-              <DualPaneExplorer sessionId={currentSessionId} />
-            </div>
+          <main ref={mainRef} className="flex flex-1 overflow-hidden bg-[#1e1e2d] relative">
+            {viewMode === 'terminal' && (
+              <div className="h-full w-full min-w-0">
+                <TerminalView sessionId={currentSessionId} sessionName={currentSession?.name} />
+              </div>
+            )}
+
+            {viewMode === 'sftp' && (
+              <div className="h-full w-full min-w-0">
+                <DualPaneExplorer sessionId={currentSessionId} />
+              </div>
+            )}
+
+            {viewMode === 'split' && (
+              <>
+                <div
+                  style={{ width: `${terminalSplitPercent}%` }}
+                  className="h-full min-w-[200px] overflow-hidden"
+                >
+                  <TerminalView sessionId={currentSessionId} sessionName={currentSession?.name} />
+                </div>
+
+                <ResizableSplitter onResize={handleSplitResize} />
+
+                <div
+                  style={{ width: `${100 - terminalSplitPercent}%` }}
+                  className="h-full min-w-[200px] overflow-hidden"
+                >
+                  <DualPaneExplorer sessionId={currentSessionId} />
+                </div>
+              </>
+            )}
           </main>
           <TransferDrawer />
         </>
