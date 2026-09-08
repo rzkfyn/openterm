@@ -36,3 +36,8 @@ node_modules/
 dist/
 src-tauri/target/
 src-tauri/gen/schemas/
+
+# foreign package manager lockfiles (use bun only)
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
