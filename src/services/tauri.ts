@@ -1,6 +1,12 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
-import { SessionConfig, PaginatedEntries, TransferProgress, SavedConnection } from '../types';
+import {
+  SessionConfig,
+  PaginatedEntries,
+  TransferProgress,
+  SavedConnection,
+  FileStatInfo,
+} from '../types';
 
 export const tauriApi = {
   ping: async (): Promise<string> => {
@@ -106,6 +112,14 @@ export const tauriApi = {
 
   localRemove: async (path: string, isDir: boolean): Promise<void> => {
     return await invoke<void>('local_remove', { path, isDir });
+  },
+
+  localStat: async (path: string): Promise<FileStatInfo> => {
+    return await invoke<FileStatInfo>('local_stat', { path });
+  },
+
+  sftpStat: async (sessionId: string, path: string): Promise<FileStatInfo> => {
+    return await invoke<FileStatInfo>('sftp_stat', { sessionId, path });
   },
 
   localRename: async (oldPath: string, newPath: string): Promise<void> => {

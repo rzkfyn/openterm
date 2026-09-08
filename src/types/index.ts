@@ -33,6 +33,15 @@ export interface PaginatedEntries {
   hasMore: boolean;
 }
 
+export interface FileStatInfo {
+  exists: boolean;
+  size: number;
+  modified?: number;
+  isDir: boolean;
+}
+
+export type ConflictAction = 'overwrite' | 'overwrite_newer' | 'overwrite_size' | 'rename' | 'skip';
+
 export type TransferStatus = 'pending' | 'transferring' | 'completed' | 'failed' | 'cancelled';
 
 export interface TransferProgress {

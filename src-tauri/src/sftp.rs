@@ -7,7 +7,7 @@ use std::thread;
 use ssh2::FileStat;
 use tauri::{AppHandle, Emitter};
 
-use crate::models::{FileEntry, PaginatedEntries, TransferProgress, TransferStatus};
+use crate::models::{FileEntry, FileStatInfo, PaginatedEntries, TransferProgress, TransferStatus};
 use crate::session::SessionManager;
 
 pub fn list_sftp_dir(
@@ -624,6 +624,37 @@ fn remove_remote_dir_recursive(sftp: &ssh2::Sftp, remote_dir: &str) -> Result<()
     sftp.rmdir(path)
         .map_err(|e| format!("Failed to delete remote directory '{}': {}", remote_dir, e))?;
     Ok(())
+}
+
+pub fn stat_sftp_path(
+    manager: &SessionManager,
+    session_id: &str,
+    path: &str,
+) -> Result<FileStatInfo, String> {
+    let session = manager
+        .get_session(session_id)
+        .ok_or_else(|| format!("Session {} not found", session_id))?;
+    let sftp_arc = session
+        .sftp
+        .as_ref()
+        .ok_or_else(|| "SFTP subsystem is not available".to_string())?;
+    let sftp = sftp_arc.lock();
+
+    let p = Path::new(path);
+    match sftp.stat(p) {
+        Ok(stat) => Ok(FileStatInfo {
+            exists: true,
+            size: stat.size.unwrap_or(0),
+            modified: stat.mtime,
+            is_dir: stat.is_dir(),
+        }),
+        Err(_) => Ok(FileStatInfo {
+            exists: false,
+            size: 0,
+            modified: None,
+            is_dir: false,
+        }),
+    }
 }
 
 pub fn rename_sftp_path(

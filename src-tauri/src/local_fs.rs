@@ -4,7 +4,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::time::UNIX_EPOCH;
 
-use crate::models::{FileEntry, PaginatedEntries};
+use crate::models::{FileEntry, FileStatInfo, PaginatedEntries};
 
 pub fn read_local_dir(
     path_str: &str,
@@ -98,6 +98,30 @@ pub fn read_local_dir(
     })
 }
 
+pub fn stat_local_path(path_str: &str) -> FileStatInfo {
+    let p = PathBuf::from(path_str);
+    if let Ok(meta) = fs::metadata(&p) {
+        let modified = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+            .map(|d| d.as_secs());
+        FileStatInfo {
+            exists: true,
+            size: meta.len(),
+            modified,
+            is_dir: meta.is_dir(),
+        }
+    } else {
+        FileStatInfo {
+            exists: false,
+            size: 0,
+            modified: None,
+            is_dir: false,
+        }
+    }
+}
+
 pub fn remove_local_path(path_str: &str, is_dir: bool) -> Result<(), String> {
     let p = PathBuf::from(path_str);
     if !p.exists() {
@@ -185,5 +209,22 @@ mod tests {
         // remove dir
         assert!(remove_local_path(&temp_dir.to_string_lossy(), true).is_ok());
         assert!(!temp_dir.exists());
+    }
+
+    #[test]
+    fn test_local_file_stat() {
+        let temp_file = std::env::temp_dir().join("openterm_stat_test.txt");
+        let _ = fs::remove_file(&temp_file);
+
+        let stat_nonexistent = stat_local_path(&temp_file.to_string_lossy());
+        assert!(!stat_nonexistent.exists);
+
+        fs::write(&temp_file, "hello world").unwrap();
+        let stat_exists = stat_local_path(&temp_file.to_string_lossy());
+        assert!(stat_exists.exists);
+        assert_eq!(stat_exists.size, 11);
+        assert!(!stat_exists.is_dir);
+
+        let _ = fs::remove_file(&temp_file);
     }
 }

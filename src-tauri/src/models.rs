@@ -44,6 +44,15 @@ pub struct PaginatedEntries {
     pub has_more: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FileStatInfo {
+    pub exists: bool,
+    pub size: u64,
+    pub modified: Option<u64>,
+    pub is_dir: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransferProgress {

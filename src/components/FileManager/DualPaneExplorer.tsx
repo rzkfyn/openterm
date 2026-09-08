@@ -8,7 +8,9 @@ import { ResizableSplitter } from '../Common/ResizableSplitter';
 import { PromptModal } from '../Modal/PromptModal';
 import { ChmodModal } from './ChmodModal';
 import { FileEditorModal } from './FileEditorModal';
-import { FileEntry } from '../../types';
+import { TransferConflictModal, ConflictDetails } from './TransferConflictModal';
+import { ConflictAction, FileEntry } from '../../types';
+import { shouldTransferOnConflict, resolveDestinationPath } from '../../utils/conflictUtils';
 import { ArrowRight, ArrowLeft, CloudOff } from 'lucide-react';
 
 interface DualPaneExplorerProps {
@@ -64,6 +66,17 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
     isRemote: true,
   });
 
+  // Transfer Conflict Modal state
+  const [conflictState, setConflictState] = useState<{
+    isOpen: boolean;
+    conflict: ConflictDetails | null;
+    resolver: ((decision: { action: ConflictAction; applyToAll: boolean } | null) => void) | null;
+  }>({
+    isOpen: false,
+    conflict: null,
+    resolver: null,
+  });
+
   // Dual pane split percentage
   const [localSplitPercent, setLocalSplitPercent] = useState<number>(() => {
     const saved = localStorage.getItem('openterm_sftp_split_percent');
@@ -95,26 +108,126 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
     }
   }, [sessionId, remote.currentPath, loadRemoteDir]);
 
+  const promptConflict = useCallback(
+    (conflict: ConflictDetails): Promise<{ action: ConflictAction; applyToAll: boolean } | null> => {
+      return new Promise((resolve) => {
+        setConflictState({
+          isOpen: true,
+          conflict,
+          resolver: resolve,
+        });
+      });
+    },
+    []
+  );
+
+  const executeTransferWithConflict = useCallback(
+    async (
+      isUpload: boolean,
+      sourcePaths: string[],
+      targetFolder?: string
+    ) => {
+      if (!sessionId || sourcePaths.length === 0) return;
+
+      const destDir = isUpload
+        ? targetFolder || remote.currentPath
+        : targetFolder || local.currentPath;
+
+      let sessionConflictAction: ConflictAction | null = null;
+
+      for (const srcPath of sourcePaths) {
+        const fileName = getBasename(srcPath) || 'file';
+        let candidateDest = isUpload
+          ? joinRemotePath(destDir, fileName)
+          : joinLocalPath(destDir, fileName);
+
+        // Check if destination exists
+        const destStat = isUpload
+          ? await tauriApi.sftpStat(sessionId, candidateDest)
+          : await tauriApi.localStat(candidateDest);
+
+        let finalDest = candidateDest;
+
+        if (destStat.exists) {
+          const srcStat = isUpload
+            ? await tauriApi.localStat(srcPath)
+            : await tauriApi.sftpStat(sessionId, srcPath);
+
+          let actionToUse = sessionConflictAction;
+
+          if (!actionToUse) {
+            const decision = await promptConflict({
+              fileName,
+              sourcePath: srcPath,
+              destPath: candidateDest,
+              isUpload,
+              sourceStat: { size: srcStat.size, modified: srcStat.modified },
+              destStat,
+            });
+
+            if (!decision) {
+              // User canceled transfer queue
+              break;
+            }
+
+            actionToUse = decision.action;
+            if (decision.applyToAll) {
+              sessionConflictAction = decision.action;
+            }
+          }
+
+          if (actionToUse === 'skip') {
+            continue;
+          }
+
+          if (actionToUse === 'overwrite_newer' || actionToUse === 'overwrite_size') {
+            const allow = shouldTransferOnConflict(actionToUse, srcStat, destStat);
+            if (!allow) {
+              continue;
+            }
+          } else if (actionToUse === 'rename') {
+            const resolved = await resolveDestinationPath(
+              candidateDest,
+              'rename',
+              async (p) => {
+                const stat = isUpload
+                  ? await tauriApi.sftpStat(sessionId, p)
+                  : await tauriApi.localStat(p);
+                return stat.exists;
+              }
+            );
+            if (!resolved) continue;
+            finalDest = resolved;
+          }
+        }
+
+        // Start transfer
+        if (isUpload) {
+          await startUpload(sessionId, srcPath, finalDest);
+        } else {
+          await startDownload(sessionId, srcPath, finalDest);
+        }
+      }
+
+      if (isUpload) {
+        loadRemoteDir(sessionId, remote.currentPath);
+      } else {
+        loadLocalDir(local.currentPath);
+      }
+    },
+    [sessionId, remote.currentPath, local.currentPath, promptConflict, startUpload, startDownload, loadRemoteDir, loadLocalDir]
+  );
+
   const handleDownload = async () => {
     if (!sessionId) return;
     const paths = [...remote.selectedPaths];
-    for (const remoteFile of paths) {
-      const fileName = getBasename(remoteFile) || 'downloaded_file';
-      const destLocal = joinLocalPath(local.currentPath, fileName);
-      await startDownload(sessionId, remoteFile, destLocal);
-    }
-    loadLocalDir(local.currentPath);
+    await executeTransferWithConflict(false, paths);
   };
 
   const handleUpload = async () => {
     if (!sessionId) return;
     const paths = [...local.selectedPaths];
-    for (const localFile of paths) {
-      const fileName = getBasename(localFile) || 'uploaded_file';
-      const destRemote = joinRemotePath(remote.currentPath, fileName);
-      await startUpload(sessionId, localFile, destRemote);
-    }
-    loadRemoteDir(sessionId, remote.currentPath);
+    await executeTransferWithConflict(true, paths);
   };
 
   const handleDropTransfer = useCallback(
@@ -127,24 +240,12 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
       if (!sessionId || paths.length === 0) return;
 
       if (targetIsRemote && source === 'local') {
-        const destDir = targetFolder || remote.currentPath;
-        for (const localFile of paths) {
-          const fileName = getBasename(localFile) || 'file';
-          const destRemote = joinRemotePath(destDir, fileName);
-          await startUpload(sessionId, localFile, destRemote);
-        }
-        loadRemoteDir(sessionId, remote.currentPath);
+        await executeTransferWithConflict(true, paths, targetFolder);
       } else if (!targetIsRemote && source === 'remote') {
-        const destDir = targetFolder || local.currentPath;
-        for (const remoteFile of paths) {
-          const fileName = getBasename(remoteFile) || 'file';
-          const destLocal = joinLocalPath(destDir, fileName);
-          await startDownload(sessionId, remoteFile, destLocal);
-        }
-        loadLocalDir(local.currentPath);
+        await executeTransferWithConflict(false, paths, targetFolder);
       }
     },
-    [sessionId, local.currentPath, remote.currentPath, startUpload, startDownload, loadRemoteDir, loadLocalDir]
+    [sessionId, executeTransferWithConflict]
   );
 
   // Listen for native OS drag and drop from Windows Explorer / Desktop
@@ -317,15 +418,7 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
 
   const handleTransferSingle = async (entry: FileEntry, isRemoteSource: boolean) => {
     if (!sessionId) return;
-    if (isRemoteSource) {
-      const destLocal = joinLocalPath(local.currentPath, entry.name);
-      await startDownload(sessionId, entry.path, destLocal);
-      loadLocalDir(local.currentPath);
-    } else {
-      const destRemote = joinRemotePath(remote.currentPath, entry.name);
-      await startUpload(sessionId, entry.path, destRemote);
-      loadRemoteDir(sessionId, remote.currentPath);
-    }
+    await executeTransferWithConflict(!isRemoteSource, [entry.path]);
   };
 
   return (
@@ -449,6 +542,23 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
           } else {
             loadLocalDir(local.currentPath);
           }
+        }}
+      />
+
+      <TransferConflictModal
+        isOpen={conflictState.isOpen}
+        conflict={conflictState.conflict}
+        onResolve={(action, applyToAll) => {
+          if (conflictState.resolver) {
+            conflictState.resolver({ action, applyToAll });
+          }
+          setConflictState({ isOpen: false, conflict: null, resolver: null });
+        }}
+        onCancel={() => {
+          if (conflictState.resolver) {
+            conflictState.resolver(null);
+          }
+          setConflictState({ isOpen: false, conflict: null, resolver: null });
         }}
       />
     </div>

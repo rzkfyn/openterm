@@ -166,6 +166,20 @@ fn sftp_cancel_transfer(
 }
 
 #[tauri::command]
+fn local_stat(path: String) -> models::FileStatInfo {
+    local_fs::stat_local_path(&path)
+}
+
+#[tauri::command]
+fn sftp_stat(
+    manager: State<SessionManager>,
+    session_id: String,
+    path: String,
+) -> Result<models::FileStatInfo, String> {
+    sftp::stat_sftp_path(&manager, &session_id, &path)
+}
+
+#[tauri::command]
 fn local_remove(path: String, is_dir: bool) -> Result<(), String> {
     local_fs::remove_local_path(&path, is_dir)
 }
@@ -283,6 +297,8 @@ pub fn run() {
             local_rename,
             local_mkdir,
             local_touch,
+            local_stat,
+            sftp_stat,
             sftp_remove,
             sftp_rename,
             sftp_mkdir,
