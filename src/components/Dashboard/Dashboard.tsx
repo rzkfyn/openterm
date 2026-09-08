@@ -197,9 +197,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
             <button
               type="button"
-              onClick={() => setIsImportExportOpen(true)}
+              onClick={() => {
+                if (vaultStatus.isEncrypted && !vaultStatus.isUnlocked) {
+                  setIsVaultModalOpen(true);
+                  return;
+                }
+                setIsImportExportOpen(true);
+              }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1e1e2d] border border-[#2a2b38] text-slate-300 hover:text-white hover:border-slate-600 text-xs font-medium cursor-pointer transition-colors"
-              title="Import or Export connections"
+              title={vaultStatus.isEncrypted && !vaultStatus.isUnlocked ? 'Unlock Vault to Import / Export' : 'Import or Export connections'}
             >
               <ArrowUpDown className="h-3.5 w-3.5" />
               <span>Import / Export</span>
@@ -501,7 +507,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           load();
         }}
         onSaveConnection={async (conn) => {
-          return await save(conn as any);
+          return await save(conn);
         }}
       />
     </div>

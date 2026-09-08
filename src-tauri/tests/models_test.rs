@@ -70,3 +70,25 @@ fn test_saved_connection_with_folder_and_bookmarks() {
     assert_eq!(deserialized.bookmarks[0].name, "Nginx logs");
 }
 
+#[test]
+fn test_saved_connection_serde_defaults() {
+    // Simulates an imported profile where id, createdAt, updatedAt are omitted
+    let minimal_json = r#"{
+        "name": "Imported Server",
+        "host": "192.168.1.50",
+        "port": 22,
+        "username": "root",
+        "authType": "password"
+    }"#;
+
+    let parsed: openterm_lib::storage::SavedConnection = serde_json::from_str(minimal_json).expect("should deserialize with defaults");
+    assert!(!parsed.id.is_empty());
+    assert_eq!(parsed.name, "Imported Server");
+    assert_eq!(parsed.host, "192.168.1.50");
+    assert_eq!(parsed.created_at, 0);
+    assert_eq!(parsed.updated_at, 0);
+    assert_eq!(parsed.bookmarks.len(), 0);
+    assert!(parsed.folder.is_none());
+}
+
+

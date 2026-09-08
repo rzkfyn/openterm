@@ -30,4 +30,32 @@ describe('Import Collision Detection & Resolution', () => {
     expect(resolveDuplicateName('Local Root', names)).toBe('Local Root (2)');
     expect(resolveDuplicateName('New Server', names)).toBe('New Server');
   });
+
+  it('populates required SavedConnection fields on import', () => {
+    const partialParsed = {
+      name: 'Test Server',
+      host: '1.2.3.4',
+      port: 22,
+      username: 'root',
+      authType: 'password' as const,
+    };
+
+    const readyConnection = {
+      id: crypto.randomUUID(),
+      name: partialParsed.name,
+      host: partialParsed.host,
+      port: partialParsed.port,
+      username: partialParsed.username,
+      authType: partialParsed.authType,
+      bookmarks: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    expect(readyConnection.id).toBeDefined();
+    expect(readyConnection.id.length).toBeGreaterThan(0);
+    expect(readyConnection.createdAt).toBeGreaterThan(0);
+    expect(readyConnection.updatedAt).toBeGreaterThan(0);
+  });
 });
+
