@@ -31,18 +31,31 @@
 
 ## Features
 
-- [x] **Multi-session Management**: Open and switch between multiple remote SSH connections.
-- [x] **Interactive Terminal Shell**: Full `xterm-256color` compatibility with auto-fit resizing and web links.
-- [x] **Dual-Pane File Manager**: Side-by-side local filesystem and remote SFTP explorer.
-- [x] **Two-way File Transfers**: Intuitive push (upload) and pull (download) with active progress tracking.
-- [x] **Cancelable Transfers**: Direct cancellation using atomic tokens in Rust.
-- [x] **Authentication Support**:
-  - Password authentication
-  - Private Key authentication (with optional passphrase)
-- [x] **Three Workspace Views**:
+- [x] **Multi-session Management**: Open, reconnect, and switch between multiple remote SSH connections with live status indicators.
+- [x] **Interactive Terminal Shell**: Full `xterm-256color` compatibility with auto-fit resizing, web links, and buffer preservation across reconnections.
+- [x] **Dual-Pane File Manager**: Side-by-side local filesystem and remote SFTP explorer with virtualized scrolling.
+- [x] **In-App Remote File Editor**: Edit remote and local config, text, or script files with syntax highlighting and direct disk-to-socket saving.
+- [x] **Visual Permissions Manager (chmod)**: Inspect and edit Unix octal permissions (`0755`, `0644`) and user/group/other bit flags.
+- [x] **Transfer Conflict Resolution**: Side-by-side comparison modal with 5 resolution actions (Overwrite, Overwrite Newer, Overwrite if Size Differs, Auto-Rename `(n)`, Skip) and batch application.
+- [x] **Encrypted Profile Vault**: Master password security encrypting saved host credentials using PBKDF2-HMAC-SHA256 (100k rounds) and AES-256-GCM (`vault.enc`).
+- [x] **Two-Factor Authentication (2FA) & App Lock**: RFC 6238 TOTP authenticator protection with 8 single-use emergency backup recovery codes and configurable idle auto-lock.
+- [x] **Connection Resilience & Auto-Reconnect**: TCP keepalive probes (15s) and automatic exponential backoff reconnection worker (1s, 2s, 4s, 8s, 16s) that preserves terminal buffers and directory locations.
+- [x] **SFTP Quick Search & Filter Bar (`Ctrl+F`)**: Real-time substring filter on directory contents with matching items counter.
+- [x] **FileZilla-Style Drag-and-Drop Transfers**: Drag files between local and remote panes, into target folders, or directly from OS file explorer.
+- [x] **Keyboard Shortcuts**:
+  - `F5` / `Ctrl+R`: Refresh directory
+  - `F2`: Rename file/folder
+  - `Delete`: Delete file/folder
+  - `Ctrl+N`: Create new file
+  - `Ctrl+Shift+N`: Create new folder
+  - `Ctrl+F`: Focus search & filter bar
+  - `Ctrl+L` / `Alt+D`: Focus editable path bar
+  - `Enter`: Open folder / edit file
+  - `Backspace` / `Alt+Up`: Navigate to parent directory
+- [x] **Resizable Split Views**:
   - **Terminal Full View**: Maximized command-line workflow.
-  - **Dual Split View**: Terminal on the left, dual-pane SFTP on the right.
-  - **SFTP Full View**: Fullscreen file manager experience.
+  - **Dual Split View**: Draggable split between Terminal and SFTP explorer.
+  - **SFTP Full View**: Fullscreen file manager experience with draggable Local vs. Remote split.
 
 ---
 
