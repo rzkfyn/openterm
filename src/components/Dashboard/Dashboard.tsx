@@ -14,9 +14,11 @@ import {
   Shield,
   Unlock,
   Smartphone,
+  ArrowUpDown,
 } from 'lucide-react';
 import { VaultModal } from '../Modal/VaultModal';
 import { TotpModal } from '../Modal/TotpModal';
+import { ImportExportModal } from '../Modal/ImportExportModal';
 import { TotpConfig } from '../../types';
 import { useTotpStore } from '../../stores/totpStore';
 
@@ -38,6 +40,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     vaultStatus,
     checkVaultStatus,
     load,
+    save,
     remove,
     duplicate,
     lockVault,
@@ -46,6 +49,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [isVaultModalOpen, setIsVaultModalOpen] = useState(false);
   const [isTotpModalOpen, setIsTotpModalOpen] = useState(false);
+  const [isImportExportOpen, setIsImportExportOpen] = useState(false);
   const { config: totpConfig, loadConfig: loadTotp } = useTotpStore();
 
   useEffect(() => {
@@ -145,6 +149,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 <span>Lock</span>
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => setIsImportExportOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1e1e2d] border border-[#2a2b38] text-slate-300 hover:text-white hover:border-slate-600 text-xs font-medium cursor-pointer transition-colors"
+              title="Import or Export connections"
+            >
+              <ArrowUpDown className="h-3.5 w-3.5" />
+              <span>Import / Export</span>
+            </button>
 
             <button
               type="button"
@@ -341,6 +355,18 @@ export const Dashboard: React.FC<DashboardProps> = ({
         config={totpConfig}
         onClose={() => setIsTotpModalOpen(false)}
         onConfigChange={loadTotp}
+      />
+
+      <ImportExportModal
+        isOpen={isImportExportOpen}
+        onClose={() => setIsImportExportOpen(false)}
+        existingConnections={connections}
+        onImportComplete={() => {
+          load();
+        }}
+        onSaveConnection={async (conn) => {
+          return await save(conn as any);
+        }}
       />
     </div>
   );
