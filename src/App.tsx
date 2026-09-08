@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useSessionStore } from './stores/sessionStore';
 import { useSavedConnectionStore } from './stores/savedConnectionStore';
+import { useUpdateStore } from './stores/updateStore';
 import { AppHeader } from './components/Layout/AppHeader';
 import { StatusBar } from './components/Layout/StatusBar';
 import { TerminalView } from './components/Terminal/TerminalView';
@@ -33,6 +34,7 @@ export default function App() {
         setIsAppLocked(true);
       }
     });
+    useUpdateStore.getState().checkForUpdates();
   }, []);
 
   // Idle timeout tracking

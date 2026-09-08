@@ -1,9 +1,11 @@
 import React from 'react';
 import { useSessionStore } from '../../stores/sessionStore';
+import { useUpdateStore } from '../../stores/updateStore';
 import { tauriApi } from '../../services/tauri';
-import { Terminal, Columns, FolderTree, Wifi, WifiOff } from 'lucide-react';
+import { Terminal, Columns, FolderTree, Wifi, WifiOff, ArrowUpCircle, X } from 'lucide-react';
 
 const REPO_URL = 'https://github.com/rzkfyn/openterm';
+const RELEASES_URL = 'https://github.com/rzkfyn/openterm/releases';
 
 const GithubIcon: React.FC<{ className?: string }> = ({ className = 'h-3.5 w-3.5' }) => (
   <svg
@@ -22,6 +24,7 @@ const GithubIcon: React.FC<{ className?: string }> = ({ className = 'h-3.5 w-3.5
 
 export const StatusBar: React.FC = () => {
   const { activeSessions, currentSessionId, viewMode, setViewMode } = useSessionStore();
+  const { currentVersion, latestVersion, releaseUrl, hasUpdate, dismissed, dismissUpdate } = useUpdateStore();
   const currentSession = activeSessions.find((s) => s.id === currentSessionId);
   const isConnected = currentSession && currentSession.status !== 'disconnected';
 
@@ -31,18 +34,67 @@ export const StatusBar: React.FC = () => {
     });
   };
 
+  const handleOpenReleases = () => {
+    tauriApi.openUrl(RELEASES_URL).catch(() => {
+      window.open(RELEASES_URL, '_blank');
+    });
+  };
+
+  const handleOpenLatestRelease = () => {
+    const targetUrl = releaseUrl || RELEASES_URL;
+    tauriApi.openUrl(targetUrl).catch(() => {
+      window.open(targetUrl, '_blank');
+    });
+  };
+
   return (
     <footer className="flex h-[24px] items-center justify-between px-2.5 bg-[#11111a] border-t border-[#2a2b38] text-[#94a3b8] text-[11px] select-none shrink-0 z-20">
-      {/* Left: GitHub link + Active Session Info */}
+      {/* Left: GitHub link + Version + Active Session Info */}
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={handleOpenGithub}
-          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-slate-400 hover:text-white hover:bg-[#1e1e2d] transition-colors cursor-pointer"
-          title="Open repository on GitHub (rzkfyn/openterm)"
-        >
-          <GithubIcon className="h-3.5 w-3.5" />
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleOpenGithub}
+            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-slate-400 hover:text-white hover:bg-[#1e1e2d] transition-colors cursor-pointer"
+            title="Open repository on GitHub (rzkfyn/openterm)"
+          >
+            <GithubIcon className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={handleOpenReleases}
+            className="font-mono text-[10px] text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
+            title="View OpenTerm release history"
+          >
+            v{currentVersion}
+          </button>
+        </div>
+
+        {hasUpdate && !dismissed && latestVersion && (
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={handleOpenLatestRelease}
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30 transition-colors cursor-pointer text-[10px] font-medium"
+              title={`New version v${latestVersion} available! Click to view release.`}
+            >
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+              </span>
+              <ArrowUpCircle className="h-3 w-3 text-emerald-400" />
+              <span>Update v{latestVersion}</span>
+            </button>
+            <button
+              type="button"
+              onClick={dismissUpdate}
+              className="p-0.5 text-slate-500 hover:text-slate-300 rounded hover:bg-[#1e1e2d] transition-colors cursor-pointer"
+              title="Dismiss update badge"
+            >
+              <X className="h-2.5 w-2.5" />
+            </button>
+          </div>
+        )}
 
         {currentSession && (
           <>
