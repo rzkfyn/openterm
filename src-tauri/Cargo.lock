@@ -2662,7 +2662,7 @@ dependencies = [
 
 [[package]]
 name = "openterm"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "aes-gcm 0.10.3",
  "dirs 5.0.1",
