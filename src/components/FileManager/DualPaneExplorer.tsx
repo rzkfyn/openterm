@@ -29,8 +29,8 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
   } = useFileManagerStore();
 
   const { startDownload, startUpload } = useTransferStore();
-  const session = useSessionStore((state) => state.sessions.find((s) => s.id === sessionId));
-  const bookmarks = session?.config?.bookmarks || [];
+  const session = useSessionStore((state) => state.activeSessions.find((s) => s.id === sessionId));
+  const bookmarks = session?.bookmarks || [];
   const [showBookmarkMenu, setShowBookmarkMenu] = useState(false);
 
   // Prompt Modal state

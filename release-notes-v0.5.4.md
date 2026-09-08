@@ -16,6 +16,11 @@ OpenTerm v0.5.4 addresses a critical deserialization error when importing FileZi
 - **Shorter Cache Interval**: Reduced release check cache interval from 6 hours to 30 minutes to ensure newly published releases appear promptly.
 - **Manual Click-to-Check**: Clicking the version label (`v0.5.x`) in the status bar now forces an immediate update check with live spinner feedback (right-click retains opening release history).
 
+### 4. SFTP & Split View Blank Screen Crash Fix
+- **Zustand Selector Fix**: Fixed undefined store selector `state.sessions` in `DualPaneExplorer.tsx` to use `state.activeSessions`, resolving `Cannot read properties of undefined (reading 'find')` that crashed the React render tree.
+- **React ErrorBoundary**: Wrapped explorer views in `ErrorBoundary` with in-view retry prompt, preventing render errors from turning the entire app blank.
+- **Strict TypeScript Build Enforcement**: Added `tsc --noEmit` before `vite build` to ensure type safety violations fail CI/local builds before deployment.
+
 ---
 
 ## Verification & Stability

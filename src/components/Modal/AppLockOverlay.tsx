@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, ArrowRight, AlertCircle, ShieldAlert } from 'lucide-react';
+import { Lock, ArrowRight, AlertCircle } from 'lucide-react';
 import { tauriApi } from '../../services/tauri';
 
 interface AppLockOverlayProps {

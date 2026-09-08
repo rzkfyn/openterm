@@ -1,7 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { joinRemotePath, joinLocalPath, getBasename } from '../../../utils/pathUtils';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { joinRemotePath, getBasename } from '../../../utils/pathUtils';
 import { useFileManagerStore } from '../../../stores/fileManagerStore';
-import { useTransferStore } from '../../../stores/transferStore';
 
 describe('Drag and drop path resolution and navigation preservation', () => {
   beforeEach(() => {

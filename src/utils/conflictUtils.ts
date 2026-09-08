@@ -1,4 +1,4 @@
-import { ConflictAction, FileStatInfo } from '../types';
+import { ConflictAction } from '../types';
 import { generateIndexedPath } from './pathUtils';
 
 /**

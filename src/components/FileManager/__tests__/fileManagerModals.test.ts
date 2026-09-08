@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { joinRemotePath, joinLocalPath, getBasename } from '../../../utils/pathUtils';
+import { joinRemotePath, getBasename } from '../../../utils/pathUtils';
 
 describe('File Operations & Permissions Calculation', () => {
   it('calculates standard unix octal modes properly', () => {

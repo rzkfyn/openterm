@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, X, Copy, Check, AlertCircle, KeyRound, Smartphone } from 'lucide-react';
+import { ShieldCheck, X, Copy, Check, AlertCircle, Smartphone } from 'lucide-react';
 import QRCode from 'qrcode';
 import { tauriApi } from '../../services/tauri';
 import { TotpConfig, TotpSetupInfo } from '../../types';
