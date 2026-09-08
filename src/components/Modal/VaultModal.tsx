@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Shield, Lock, Unlock, X, KeyRound, AlertCircle, Check } from 'lucide-react';
 import { tauriApi } from '../../services/tauri';
 import { VaultStatus } from '../../types';
@@ -26,6 +26,17 @@ export const VaultModal: React.FC<VaultModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setMode(!status.isEncrypted ? 'setup' : !status.isUnlocked ? 'unlock' : 'change');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setError(null);
+      setSuccessMessage(null);
+    }
+  }, [isOpen, status.isEncrypted, status.isUnlocked]);
 
   if (!isOpen) return null;
 

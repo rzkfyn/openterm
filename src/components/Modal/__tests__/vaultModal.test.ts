@@ -14,4 +14,13 @@ describe('Vault Security & Password Validation', () => {
     expect(doPasswordsMatch('password123', 'password123')).toBe(true);
     expect(doPasswordsMatch('password123', 'password124')).toBe(false);
   });
+
+  it('selects correct default mode based on encryption and lock status', () => {
+    const getInitialMode = (isEncrypted: boolean, isUnlocked: boolean) =>
+      !isEncrypted ? 'setup' : !isUnlocked ? 'unlock' : 'change';
+
+    expect(getInitialMode(false, true)).toBe('setup');
+    expect(getInitialMode(true, false)).toBe('unlock');
+    expect(getInitialMode(true, true)).toBe('change');
+  });
 });
