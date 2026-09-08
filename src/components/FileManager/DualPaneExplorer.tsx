@@ -11,7 +11,8 @@ import { FileEditorModal } from './FileEditorModal';
 import { TransferConflictModal, ConflictDetails } from './TransferConflictModal';
 import { ConflictAction, FileEntry } from '../../types';
 import { shouldTransferOnConflict, resolveDestinationPath } from '../../utils/conflictUtils';
-import { ArrowRight, ArrowLeft, CloudOff } from 'lucide-react';
+import { ArrowRight, ArrowLeft, CloudOff, Bookmark } from 'lucide-react';
+import { useSessionStore } from '../../stores/sessionStore';
 
 interface DualPaneExplorerProps {
   sessionId: string | null;
@@ -28,6 +29,9 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
   } = useFileManagerStore();
 
   const { startDownload, startUpload } = useTransferStore();
+  const session = useSessionStore((state) => state.sessions.find((s) => s.id === sessionId));
+  const bookmarks = session?.config?.bookmarks || [];
+  const [showBookmarkMenu, setShowBookmarkMenu] = useState(false);
 
   // Prompt Modal state
   const [promptState, setPromptState] = useState<{
@@ -96,6 +100,8 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
     });
   };
 
+  const prevSessionIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!local.currentPath) {
       loadLocalDir('~');
@@ -103,7 +109,12 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
   }, [local.currentPath, loadLocalDir]);
 
   useEffect(() => {
-    if (sessionId && !remote.currentPath) {
+    if (!sessionId) {
+      prevSessionIdRef.current = null;
+      return;
+    }
+    if (prevSessionIdRef.current !== sessionId || !remote.currentPath) {
+      prevSessionIdRef.current = sessionId;
       loadRemoteDir(sessionId, '.');
     }
   }, [sessionId, remote.currentPath, loadRemoteDir]);
@@ -129,9 +140,12 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
     ) => {
       if (!sessionId || sourcePaths.length === 0) return;
 
+      const currentRemote = useFileManagerStore.getState().remote.currentPath;
+      const currentLocal = useFileManagerStore.getState().local.currentPath;
+
       const destDir = isUpload
-        ? targetFolder || remote.currentPath
-        : targetFolder || local.currentPath;
+        ? (targetFolder || currentRemote)
+        : (targetFolder || currentLocal);
 
       let sessionConflictAction: ConflictAction | null = null;
 
@@ -210,12 +224,12 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
       }
 
       if (isUpload) {
-        loadRemoteDir(sessionId, remote.currentPath);
+        loadRemoteDir(sessionId, currentRemote);
       } else {
-        loadLocalDir(local.currentPath);
+        loadLocalDir(currentLocal);
       }
     },
-    [sessionId, remote.currentPath, local.currentPath, promptConflict, startUpload, startDownload, loadRemoteDir, loadLocalDir]
+    [sessionId, promptConflict, startUpload, startDownload, loadRemoteDir, loadLocalDir]
   );
 
   const handleDownload = async () => {
@@ -257,11 +271,38 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
         const { paths, position } = payload;
         if (!paths || paths.length === 0) return;
 
-        const windowWidth = window.innerWidth;
-        const isRemoteSide = sessionId ? position.x > windowWidth / 2 : false;
+        const dpr = window.devicePixelRatio || 1;
+        const targetEl =
+          document.elementFromPoint(position.x / dpr, position.y / dpr) ||
+          document.elementFromPoint(position.x, position.y);
 
-        if (isRemoteSide && sessionId) {
-          handleDropTransfer(true, 'local', paths, remote.currentPath);
+        const folderRow = targetEl?.closest('[data-file-row][data-is-dir="true"]');
+        const paneEl = targetEl?.closest('[data-file-pane]');
+
+        if (folderRow) {
+          const targetFolder = folderRow.getAttribute('data-entry-path');
+          const isRemoteFolder = folderRow.getAttribute('data-is-remote') === 'true';
+          if (targetFolder) {
+            if (isRemoteFolder && sessionId) {
+              handleDropTransfer(true, 'local', paths, targetFolder);
+            } else if (!isRemoteFolder) {
+              if (paths.length === 1 && paths[0]) {
+                loadLocalDir(targetFolder);
+              }
+            }
+            return;
+          }
+        }
+
+        const isRemotePane = paneEl
+          ? paneEl.getAttribute('data-pane-is-remote') === 'true'
+          : (sessionId ? (position.x / dpr) > window.innerWidth / 2 : false);
+
+        const currentRemote = useFileManagerStore.getState().remote.currentPath;
+
+        if (isRemotePane && sessionId) {
+          const targetDir = paneEl?.getAttribute('data-pane-current-path') || currentRemote;
+          handleDropTransfer(true, 'local', paths, targetDir);
         } else {
           // If single path dropped on local pane and is directory, navigate
           if (paths.length === 1) {
@@ -279,7 +320,7 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
     return () => {
       if (unlisten) unlisten();
     };
-  }, [sessionId, remote.currentPath, handleDropTransfer, loadLocalDir]);
+  }, [sessionId, handleDropTransfer, loadLocalDir]);
 
   // Context Menu CRUD Operations
   const handleRename = (entry: FileEntry, isRemote: boolean) => {
@@ -467,6 +508,44 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
           >
             <ArrowLeft className="h-3.5 w-3.5" />
           </button>
+
+          {bookmarks.length > 0 && (
+            <div className="relative mt-2 pt-2 border-t border-[#2a2b38]">
+              <button
+                type="button"
+                onClick={() => setShowBookmarkMenu(!showBookmarkMenu)}
+                className="flex h-7 w-7 items-center justify-center rounded-md bg-[#1e1e2d] border border-[#2a2b38] text-amber-400 hover:text-white hover:bg-amber-600 hover:border-amber-600 cursor-pointer transition-colors"
+                title="Jump to SFTP Bookmark"
+              >
+                <Bookmark className="h-3.5 w-3.5" />
+              </button>
+              {showBookmarkMenu && (
+                <div className="absolute left-9 top-0 z-50 w-52 rounded-md bg-[#181824] border border-[#2a2b38] shadow-xl py-1 text-xs">
+                  <div className="px-2.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-b border-[#2a2b38]">
+                    SFTP Bookmarks
+                  </div>
+                  {bookmarks.map((bm) => (
+                    <button
+                      key={bm.id}
+                      type="button"
+                      onClick={() => {
+                        if (bm.localPath) loadLocalDir(bm.localPath);
+                        if (sessionId && bm.remotePath) loadRemoteDir(sessionId, bm.remotePath);
+                        setShowBookmarkMenu(false);
+                      }}
+                      className="w-full text-left px-2.5 py-1.5 hover:bg-[#252538] text-slate-200 cursor-pointer block truncate"
+                      title={`${bm.name}\nLocal: ${bm.localPath || 'N/A'}\nRemote: ${bm.remotePath || 'N/A'}`}
+                    >
+                      <div className="font-medium text-xs text-white truncate">{bm.name}</div>
+                      <div className="text-[10px] text-slate-400 font-mono truncate">
+                        {bm.remotePath ? `Remote: ${bm.remotePath}` : `Local: ${bm.localPath}`}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         <ResizableSplitter onResize={handleDualPaneResize} />
       </div>

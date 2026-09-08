@@ -11,6 +11,7 @@ export interface SessionConfig {
   password?: string;
   privateKeyPath?: string;
   passphrase?: string;
+  bookmarks?: ConnectionBookmark[];
   status?: SessionConnectionStatus;
 }
 
@@ -56,6 +57,13 @@ export interface TransferProgress {
 
 export type ViewMode = 'terminal' | 'sftp' | 'split';
 
+export interface ConnectionBookmark {
+  id: string;
+  name: string;
+  localPath?: string;
+  remotePath?: string;
+}
+
 /** Saved connection profile — no password/passphrase stored on disk. */
 export interface SavedConnection {
   id: string;
@@ -67,6 +75,8 @@ export interface SavedConnection {
   privateKeyPath?: string;
   password?: string;
   passphrase?: string;
+  folder?: string;
+  bookmarks?: ConnectionBookmark[];
   createdAt: number;
   updatedAt: number;
 }
@@ -74,6 +84,7 @@ export interface SavedConnection {
 export interface VaultStatus {
   isEncrypted: boolean;
   isUnlocked: boolean;
+  hasRecoveryEscrow?: boolean;
 }
 
 export interface TotpConfig {

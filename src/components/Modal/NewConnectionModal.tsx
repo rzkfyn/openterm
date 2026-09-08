@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { SessionConfig, AuthType, SavedConnection } from '../../types';
-import { X, Key, Lock, ArrowRight, Save, FolderOpen } from 'lucide-react';
+import { SessionConfig, AuthType, SavedConnection, ConnectionBookmark } from '../../types';
+import { X, Key, Lock, ArrowRight, Save, FolderOpen, Bookmark, Plus, Trash2 } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 
 export type ModalMode = 'new' | 'edit';
@@ -35,6 +35,9 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
   const [privateKeyPath, setPrivateKeyPath] = useState('');
   const [passphrase, setPassphrase] = useState('');
   const [savePassword, setSavePassword] = useState(true);
+  const [folder, setFolder] = useState('');
+  const [bookmarks, setBookmarks] = useState<ConnectionBookmark[]>([]);
+  const [showBookmarks, setShowBookmarks] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -48,6 +51,9 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
       setPassword(editingConnection.password || '');
       setPassphrase(editingConnection.passphrase || '');
       setSavePassword(Boolean(editingConnection.password || editingConnection.passphrase));
+      setFolder(editingConnection.folder || '');
+      setBookmarks(editingConnection.bookmarks || []);
+      setShowBookmarks(Boolean(editingConnection.bookmarks && editingConnection.bookmarks.length > 0));
     } else {
       setName('');
       setHost('');
@@ -58,6 +64,9 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
       setPrivateKeyPath('');
       setPassphrase('');
       setSavePassword(true);
+      setFolder('');
+      setBookmarks([]);
+      setShowBookmarks(false);
     }
   }, [isOpen, mode, editingConnection]);
 
@@ -75,6 +84,8 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
     privateKeyPath: authType === 'key' ? privateKeyPath : undefined,
     password: authType === 'password' && savePassword && password ? password : undefined,
     passphrase: authType === 'key' && savePassword && passphrase ? passphrase : undefined,
+    folder: folder.trim() || undefined,
+    bookmarks: bookmarks.length > 0 ? bookmarks : undefined,
     createdAt: editingConnection?.createdAt || 0,
     updatedAt: 0,
   });
@@ -88,6 +99,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
     password: authType === 'password' ? password : undefined,
     privateKeyPath: authType === 'key' ? privateKeyPath : undefined,
     passphrase: authType === 'key' && passphrase ? passphrase : undefined,
+    bookmarks: bookmarks.length > 0 ? bookmarks : undefined,
   });
 
   const handleSaveOnly = async (e: React.FormEvent) => {
@@ -141,6 +153,19 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Production Server"
+              className={inputCls}
+            />
+          </div>
+
+          <div>
+            <label className="block mb-1 text-[11px] font-medium text-slate-400">
+              Folder / Group (Optional)
+            </label>
+            <input
+              type="text"
+              value={folder}
+              onChange={(e) => setFolder(e.target.value)}
+              placeholder="e.g. Production or Work/API"
               className={inputCls}
             />
           </div>
@@ -294,6 +319,92 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
               />
               <span>Remember password/passphrase in profile</span>
             </label>
+          </div>
+
+          {/* SFTP Bookmarks */}
+          <div className="pt-2 border-t border-[#2a2b38]">
+            <div className="flex items-center justify-between mb-2">
+              <button
+                type="button"
+                onClick={() => setShowBookmarks(!showBookmarks)}
+                className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white cursor-pointer"
+              >
+                <Bookmark className="h-3.5 w-3.5 text-amber-400" />
+                <span>SFTP Directory Bookmarks ({bookmarks.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBookmarks(true);
+                  setBookmarks([
+                    ...bookmarks,
+                    {
+                      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2),
+                      name: `Bookmark ${bookmarks.length + 1}`,
+                      localPath: '',
+                      remotePath: '',
+                    },
+                  ]);
+                }}
+                className="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="h-3 w-3" />
+                <span>Add Bookmark</span>
+              </button>
+            </div>
+
+            {showBookmarks && bookmarks.length > 0 && (
+              <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                {bookmarks.map((bm, idx) => (
+                  <div key={bm.id} className="p-2 rounded bg-[#11111a] border border-[#2a2b38] space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <input
+                        type="text"
+                        placeholder="Bookmark Name (e.g. Web Root)"
+                        value={bm.name}
+                        onChange={(e) => {
+                          const updated = [...bookmarks];
+                          updated[idx] = { ...bm, name: e.target.value };
+                          setBookmarks(updated);
+                        }}
+                        className="flex-1 bg-[#1e1e2d] border border-[#2a2b38] rounded px-2 py-1 text-xs text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setBookmarks(bookmarks.filter((_, i) => i !== idx))}
+                        className="text-slate-500 hover:text-rose-400 p-1 cursor-pointer"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        placeholder="Local Dir (Optional)"
+                        value={bm.localPath || ''}
+                        onChange={(e) => {
+                          const updated = [...bookmarks];
+                          updated[idx] = { ...bm, localPath: e.target.value };
+                          setBookmarks(updated);
+                        }}
+                        className="bg-[#1e1e2d] border border-[#2a2b38] rounded px-2 py-1 text-[11px] text-slate-300"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Remote Dir (e.g. /var/www)"
+                        value={bm.remotePath || ''}
+                        onChange={(e) => {
+                          const updated = [...bookmarks];
+                          updated[idx] = { ...bm, remotePath: e.target.value };
+                          setBookmarks(updated);
+                        }}
+                        className="bg-[#1e1e2d] border border-[#2a2b38] rounded px-2 py-1 text-[11px] text-slate-300 font-mono"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Actions */}

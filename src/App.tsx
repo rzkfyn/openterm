@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useSessionStore } from './stores/sessionStore';
 import { useSavedConnectionStore } from './stores/savedConnectionStore';
 import { useUpdateStore } from './stores/updateStore';
+import { useTotpStore } from './stores/totpStore';
 import { AppHeader } from './components/Layout/AppHeader';
 import { StatusBar } from './components/Layout/StatusBar';
 import { TerminalView } from './components/Terminal/TerminalView';
@@ -23,19 +24,19 @@ export default function App() {
 
   // App Lock 2FA state
   const [isAppLocked, setIsAppLocked] = useState(false);
-  const [totpConfig, setTotpConfig] = useState<TotpConfig | null>(null);
+  const totpConfig = useTotpStore((state) => state.config);
+  const loadTotpConfig = useTotpStore((state) => state.loadConfig);
   const lastActivityRef = useRef<number>(Date.now());
 
   // Check 2FA config on launch
   useEffect(() => {
-    tauriApi.totpGetConfig().then((cfg) => {
-      setTotpConfig(cfg);
+    loadTotpConfig().then((cfg) => {
       if (cfg.enabled) {
         setIsAppLocked(true);
       }
     });
     useUpdateStore.getState().checkForUpdates();
-  }, []);
+  }, [loadTotpConfig]);
 
   // Idle timeout tracking
   useEffect(() => {
@@ -50,7 +51,7 @@ export default function App() {
 
     const interval = setInterval(() => {
       if (!totpConfig?.enabled || isAppLocked) return;
-      const timeoutMins = totpConfig.idleTimeoutMins || 15;
+      const timeoutMins = totpConfig.idleTimeoutMins ?? 15;
       if (timeoutMins <= 0) return; // 0 = disabled
 
       const idleDuration = (Date.now() - lastActivityRef.current) / 1000 / 60;

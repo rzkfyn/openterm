@@ -27,6 +27,9 @@ describe('pathUtils', () => {
     expect(joinRemotePath('/var/www', 'index.html')).toBe('/var/www/index.html');
     expect(joinRemotePath('.', 'test.txt')).toBe('test.txt');
     expect(joinRemotePath('/var/www/', 'sub', 'file.txt')).toBe('/var/www/sub/file.txt');
+    expect(joinRemotePath('/', 'file.txt')).toBe('/file.txt');
+    expect(joinRemotePath('\\var\\www\\sub', 'nested\\file.txt')).toBe('/var/www/sub/nested/file.txt');
+    expect(joinRemotePath('/var/www\\sub', 'file.txt')).toBe('/var/www/sub/file.txt');
   });
 
   it('generates indexed paths for duplicate files', () => {

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, X, Copy, Check, AlertCircle, KeyRound, Smartphone } from 'lucide-react';
+import QRCode from 'qrcode';
 import { tauriApi } from '../../services/tauri';
 import { TotpConfig, TotpSetupInfo } from '../../types';
+import { useTotpStore } from '../../stores/totpStore';
 
 interface TotpModalProps {
   isOpen: boolean;
@@ -17,6 +19,7 @@ export const TotpModal: React.FC<TotpModalProps> = ({
   onConfigChange,
 }) => {
   const [setupInfo, setSetupInfo] = useState<TotpSetupInfo | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [verifyCode, setVerifyCode] = useState('');
   const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
   const [disableCode, setDisableCode] = useState('');
@@ -40,9 +43,23 @@ export const TotpModal: React.FC<TotpModalProps> = ({
         setSetupInfo(info);
       });
     } else {
-      setSelectedTimeout(config.idleTimeoutMins || 15);
+      setSelectedTimeout(config.idleTimeoutMins ?? 15);
     }
   }, [isOpen, config.enabled, config.idleTimeoutMins]);
+
+  useEffect(() => {
+    if (setupInfo?.uri) {
+      QRCode.toDataURL(setupInfo.uri, {
+        margin: 1,
+        width: 160,
+        color: { dark: '#000000', light: '#ffffff' },
+      })
+        .then(setQrDataUrl)
+        .catch(() => setQrDataUrl(null));
+    } else {
+      setQrDataUrl(null);
+    }
+  }, [setupInfo?.uri]);
 
   if (!isOpen) return null;
 
@@ -97,7 +114,7 @@ export const TotpModal: React.FC<TotpModalProps> = ({
   const handleSaveTimeout = async (mins: number) => {
     setSelectedTimeout(mins);
     try {
-      await tauriApi.totpUpdateIdleTimeout(mins);
+      await useTotpStore.getState().updateIdleTimeout(mins);
       onConfigChange();
     } catch (err) {
       console.error('Failed to update idle timeout:', err);
@@ -223,10 +240,24 @@ export const TotpModal: React.FC<TotpModalProps> = ({
           </div>
         ) : (
           /* Setup / Activation view */
-          <form onSubmit={handleEnableTotp} className="mt-4 space-y-3.5">
+          <form onSubmit={handleEnableTotp} className="mt-4 space-y-3">
             <p className="text-xs text-slate-300">
-              Scan or enter this key in your authenticator app (Google Authenticator, Aegis, 1Password, etc.):
+              Scan barcode or enter key in your authenticator app (Google Authenticator, Aegis, 1Password, etc.):
             </p>
+
+            {/* QR Code display */}
+            {qrDataUrl && (
+              <div className="flex flex-col items-center justify-center p-3 rounded bg-[#11111a] border border-[#262738]">
+                <img
+                  src={qrDataUrl}
+                  alt="2FA QR Code"
+                  className="h-36 w-36 rounded bg-white p-1.5 shadow-md"
+                />
+                <span className="text-[10.5px] text-slate-400 mt-1.5">
+                  Scan with Authenticator app camera
+                </span>
+              </div>
+            )}
 
             {/* Secret key box */}
             {setupInfo && (

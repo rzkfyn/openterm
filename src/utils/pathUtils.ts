@@ -34,22 +34,30 @@ export function joinLocalPath(base: string, ...parts: string[]): string {
 
 /**
  * Joins a remote POSIX SFTP path with one or more child components using '/'.
+ * Normalizes all Windows backslashes to forward slashes.
  */
 export function joinRemotePath(base: string, ...parts: string[]): string {
-  if (!base || base === '.') {
-    const joined = parts.map((p) => p.replace(/^[/\\]+/, '').replace(/[/\\]+$/, '')).filter(Boolean).join('/');
+  const normBase = (base || '').replace(/\\/g, '/');
+  if (!normBase || normBase === '.') {
+    const joined = parts
+      .map((p) => p.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, ''))
+      .filter(Boolean)
+      .join('/');
     return joined || '.';
   }
 
-  let current = base.replace(/\/+$/, '');
+  let current = normBase === '/' ? '' : normBase.replace(/\/+$/, '');
   for (const part of parts) {
     if (!part) continue;
-    const cleanPart = part.replace(/^[/\\]+/, '').replace(/[/\\]+$/, '');
+    const cleanPart = part
+      .replace(/\\/g, '/')
+      .replace(/^\/+/, '')
+      .replace(/\/+$/, '');
     if (cleanPart) {
       current = `${current}/${cleanPart}`;
     }
   }
-  return current;
+  return current || '/';
 }
 
 /**

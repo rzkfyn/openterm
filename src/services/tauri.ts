@@ -49,9 +49,21 @@ export const tauriApi = {
   vaultSetPassword: async (
     newPassword: string,
     oldPassword?: string
-  ): Promise<void> => {
-    return await invoke<void>('vault_set_password', {
+  ): Promise<string> => {
+    return await invoke<string>('vault_set_password', {
       oldPassword: oldPassword || null,
+      newPassword,
+    });
+  },
+
+  vaultRecover: async (
+    recoveryKey: string,
+    newPassword: string,
+    totpCode?: string
+  ): Promise<string> => {
+    return await invoke<string>('vault_recover', {
+      recoveryKey,
+      totpCode: totpCode || null,
       newPassword,
     });
   },

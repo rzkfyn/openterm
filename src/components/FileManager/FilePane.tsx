@@ -312,6 +312,9 @@ export const FilePane: React.FC<FilePaneProps> = ({
     <div
       ref={paneContainerRef}
       tabIndex={0}
+      data-file-pane="true"
+      data-pane-is-remote={isRemote ? 'true' : 'false'}
+      data-pane-current-path={currentPath}
       onKeyDown={handleKeyDown}
       className={`relative flex flex-1 flex-col h-full bg-[#1e1e2d] overflow-hidden select-none outline-none transition-colors ${
         isPaneDragOver ? 'ring-2 ring-indigo-500/80 bg-[#252538]' : ''
