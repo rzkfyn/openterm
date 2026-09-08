@@ -307,11 +307,13 @@ pub fn connect_ssh(
                 }
                 Ok(n) => {
                     let chunk = String::from_utf8_lossy(&buf[..n]).to_string();
-                    eprintln!("[PTY Reader] Emitting {} bytes to {}", n, event_name);
                     let _ = app_reader.emit(&event_name, chunk);
                 }
                 Err(e) => {
-                    if e.kind() == std::io::ErrorKind::WouldBlock {
+                    if e.kind() == std::io::ErrorKind::WouldBlock
+                        || e.kind() == std::io::ErrorKind::Interrupted
+                        || e.kind() == std::io::ErrorKind::TimedOut
+                    {
                         thread::sleep(Duration::from_millis(15));
                     } else {
                         eprintln!("[OpenTerm] SSH read error: {}", e);
@@ -328,26 +330,29 @@ pub fn connect_ssh(
 
     // 6. Spawn PTY Writer Thread
     thread::spawn(move || {
-        eprintln!("[PTY Writer] Thread started for session");
         while is_alive_writer.load(Ordering::SeqCst) {
             if let Some(bytes) = write_rx.blocking_recv() {
-                eprintln!("[PTY Writer] Received {} bytes to write to channel", bytes.len());
+                let mut chunk = bytes;
+                // Coalesce any already-queued writes to minimize per-packet overhead during key repeats
+                while let Ok(more) = write_rx.try_recv() {
+                    chunk.extend_from_slice(&more);
+                }
+
                 let mut written = 0;
-                while written < bytes.len() && is_alive_writer.load(Ordering::SeqCst) {
+                while written < chunk.len() && is_alive_writer.load(Ordering::SeqCst) {
                     let write_res = {
                         let mut ch = channel_writer.lock();
-                        ch.write(&bytes[written..])
+                        ch.write(&chunk[written..])
                     };
                     match write_res {
                         Ok(n) if n > 0 => {
                             written += n;
-                            eprintln!("[PTY Writer] Successfully wrote {} bytes", n);
                         }
                         Ok(_) => {
-                            thread::sleep(Duration::from_millis(10));
+                            thread::sleep(Duration::from_millis(5));
                         }
                         Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                            thread::sleep(Duration::from_millis(10));
+                            thread::sleep(Duration::from_millis(5));
                         }
                         Err(e) => {
                             eprintln!("[PTY Writer] SSH write error: {}", e);
@@ -355,14 +360,14 @@ pub fn connect_ssh(
                         }
                     }
                 }
-                let mut ch = channel_writer.lock();
-                let _ = ch.flush();
+                // NOTE: Do NOT call ch.flush() here. In ssh2 / libssh2, channel.flush()
+                // invokes libssh2_channel_flush_ex, which discards incoming unread data
+                // packets and corrupts the receive window, causing remote drops during rapid input.
             } else {
                 break;
             }
         }
         is_alive_writer.store(false, Ordering::SeqCst);
-        eprintln!("[PTY Writer] Thread finished");
     });
 
     // 7. Spawn Keepalive Heartbeat Thread (15s interval)
