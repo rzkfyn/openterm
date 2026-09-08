@@ -70,7 +70,9 @@ jobs:
 
             // src/version.ts
             if (fs.existsSync('src/version.ts')) {
-              fs.writeFileSync('src/version.ts', "export const APP_VERSION = '" + version + "';\n");
+              let ver = fs.readFileSync('src/version.ts', 'utf8');
+              ver = ver.replace(/'.*'/, '\'' + version + '\'');
+              fs.writeFileSync('src/version.ts', ver);
               console.log('src/version.ts -> ' + version);
             }
           "
