@@ -13,13 +13,18 @@ import {
   Lock,
   Shield,
   Unlock,
+  Smartphone,
 } from 'lucide-react';
 import { VaultModal } from '../Modal/VaultModal';
+import { TotpModal } from '../Modal/TotpModal';
+import { TotpConfig } from '../../types';
+import { tauriApi } from '../../services/tauri';
 
 interface DashboardProps {
   onNewConnection: () => void;
   onConnect: (conn: SavedConnection) => void;
   onEdit: (conn: SavedConnection) => void;
+  onLockApp?: () => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -40,8 +45,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [search, setSearch] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [isVaultModalOpen, setIsVaultModalOpen] = useState(false);
+  const [isTotpModalOpen, setIsTotpModalOpen] = useState(false);
+  const [totpConfig, setTotpConfig] = useState<TotpConfig>({
+    enabled: false,
+    idleTimeoutMins: 15,
+    hasBackupCodes: false,
+  });
+
+  const loadTotp = () => {
+    tauriApi.totpGetConfig().then(setTotpConfig).catch(console.error);
+  };
 
   useEffect(() => {
+    loadTotp();
     checkVaultStatus().then((status) => {
       if (status.isUnlocked) {
         load();
@@ -84,6 +100,20 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsTotpModalOpen(true)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium cursor-pointer transition-colors ${
+                totpConfig.enabled
+                  ? 'bg-indigo-950/40 border-indigo-700/50 text-indigo-300 hover:bg-indigo-900/50'
+                  : 'bg-[#1e1e2d] border-[#2a2b38] text-slate-300 hover:text-white hover:bg-[#252538]'
+              }`}
+              title={totpConfig.enabled ? '2FA Active (Click to manage)' : 'Enable 2FA App Lock'}
+            >
+              <Smartphone className="h-3.5 w-3.5" />
+              <span>{totpConfig.enabled ? '2FA Active' : 'Enable 2FA'}</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setIsVaultModalOpen(true)}
@@ -312,6 +342,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
             load();
           }
         }}
+      />
+
+      <TotpModal
+        isOpen={isTotpModalOpen}
+        config={totpConfig}
+        onClose={() => setIsTotpModalOpen(false)}
+        onConfigChange={loadTotp}
       />
     </div>
   );

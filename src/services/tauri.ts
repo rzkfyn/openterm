@@ -7,6 +7,8 @@ import {
   SavedConnection,
   FileStatInfo,
   VaultStatus,
+  TotpConfig,
+  TotpSetupInfo,
 } from '../types';
 
 export const tauriApi = {
@@ -56,6 +58,31 @@ export const tauriApi = {
 
   vaultRemovePassword: async (currentPassword: string): Promise<void> => {
     return await invoke<void>('vault_remove_password', { currentPassword });
+  },
+
+  // --- TOTP 2FA & App Lock ---
+  totpGetConfig: async (): Promise<TotpConfig> => {
+    return await invoke<TotpConfig>('totp_get_config');
+  },
+
+  totpGenerateSecret: async (): Promise<TotpSetupInfo> => {
+    return await invoke<TotpSetupInfo>('totp_generate_secret');
+  },
+
+  totpUpdateIdleTimeout: async (mins: number): Promise<void> => {
+    return await invoke<void>('totp_update_idle_timeout', { mins });
+  },
+
+  totpEnable: async (secret: string, code: string): Promise<string[]> => {
+    return await invoke<string[]>('totp_enable', { secret, code });
+  },
+
+  totpDisable: async (codeOrBackup: string): Promise<void> => {
+    return await invoke<void>('totp_disable', { codeOrBackup });
+  },
+
+  totpValidateLogin: async (codeOrBackup: string): Promise<boolean> => {
+    return await invoke<boolean>('totp_validate_login', { codeOrBackup });
   },
 
   // --- SSH ---

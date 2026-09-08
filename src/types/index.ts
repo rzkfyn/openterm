@@ -75,3 +75,14 @@ export interface VaultStatus {
   isEncrypted: boolean;
   isUnlocked: boolean;
 }
+
+export interface TotpConfig {
+  enabled: boolean;
+  idleTimeoutMins: number;
+  hasBackupCodes: boolean;
+}
+
+export interface TotpSetupInfo {
+  secret: string;
+  uri: string;
+}

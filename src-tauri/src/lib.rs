@@ -4,12 +4,14 @@ pub mod session;
 pub mod sftp;
 pub mod ssh;
 pub mod storage;
+pub mod totp;
 pub mod vault;
 
 use models::{PaginatedEntries, SessionConfig};
 use session::SessionManager;
 use storage::SavedConnection;
 use tauri::{AppHandle, Manager, State};
+use totp::{TotpConfig, TotpSetupInfo};
 use vault::{VaultState, VaultStatus};
 
 #[tauri::command]
@@ -98,6 +100,36 @@ fn vault_remove_password(
     current_password: String,
 ) -> Result<(), String> {
     vault::remove_master_password(&vault_state, &current_password)
+}
+
+#[tauri::command]
+fn totp_get_config() -> TotpConfig {
+    totp::get_config()
+}
+
+#[tauri::command]
+fn totp_generate_secret() -> TotpSetupInfo {
+    totp::generate_new_totp_secret()
+}
+
+#[tauri::command]
+fn totp_update_idle_timeout(mins: u32) -> Result<(), String> {
+    totp::update_idle_timeout(mins)
+}
+
+#[tauri::command]
+fn totp_enable(secret: String, code: String) -> Result<Vec<String>, String> {
+    totp::enable_totp(&secret, &code)
+}
+
+#[tauri::command]
+fn totp_disable(code_or_backup: String) -> Result<(), String> {
+    totp::disable_totp(&code_or_backup)
+}
+
+#[tauri::command]
+fn totp_validate_login(code_or_backup: String) -> Result<bool, String> {
+    totp::validate_login_code(&code_or_backup)
 }
 
 #[tauri::command]
@@ -335,6 +367,12 @@ pub fn run() {
             vault_lock,
             vault_set_password,
             vault_remove_password,
+            totp_get_config,
+            totp_generate_secret,
+            totp_update_idle_timeout,
+            totp_enable,
+            totp_disable,
+            totp_validate_login,
             ssh_connect,
             ssh_disconnect,
             ssh_write,

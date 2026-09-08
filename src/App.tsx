@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useSessionStore } from './stores/sessionStore';
 import { useSavedConnectionStore } from './stores/savedConnectionStore';
 import { AppHeader } from './components/Layout/AppHeader';
@@ -9,14 +9,62 @@ import { TransferDrawer } from './components/FileManager/TransferDrawer';
 import { ResizableSplitter } from './components/Common/ResizableSplitter';
 import { NewConnectionModal, ModalMode } from './components/Modal/NewConnectionModal';
 import { ConnectModal } from './components/Modal/ConnectModal';
+import { AppLockOverlay } from './components/Modal/AppLockOverlay';
 import { Dashboard } from './components/Dashboard/Dashboard';
-import { SessionConfig, SavedConnection } from './types';
+import { SessionConfig, SavedConnection, TotpConfig } from './types';
+import { tauriApi } from './services/tauri';
 
 export default function App() {
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>('new');
   const [editingConnection, setEditingConnection] = useState<SavedConnection | null>(null);
   const [connectTarget, setConnectTarget] = useState<SavedConnection | null>(null);
+
+  // App Lock 2FA state
+  const [isAppLocked, setIsAppLocked] = useState(false);
+  const [totpConfig, setTotpConfig] = useState<TotpConfig | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
+
+  // Check 2FA config on launch
+  useEffect(() => {
+    tauriApi.totpGetConfig().then((cfg) => {
+      setTotpConfig(cfg);
+      if (cfg.enabled) {
+        setIsAppLocked(true);
+      }
+    });
+  }, []);
+
+  // Idle timeout tracking
+  useEffect(() => {
+    const handleActivity = () => {
+      lastActivityRef.current = Date.now();
+    };
+
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('mousedown', handleActivity);
+    window.addEventListener('wheel', handleActivity);
+
+    const interval = setInterval(() => {
+      if (!totpConfig?.enabled || isAppLocked) return;
+      const timeoutMins = totpConfig.idleTimeoutMins || 15;
+      if (timeoutMins <= 0) return; // 0 = disabled
+
+      const idleDuration = (Date.now() - lastActivityRef.current) / 1000 / 60;
+      if (idleDuration >= timeoutMins) {
+        setIsAppLocked(true);
+      }
+    }, 10_000);
+
+    return () => {
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('mousedown', handleActivity);
+      window.removeEventListener('wheel', handleActivity);
+      clearInterval(interval);
+    };
+  }, [totpConfig, isAppLocked]);
 
   // Terminal vs SFTP split percentage (persisted)
   const [terminalSplitPercent, setTerminalSplitPercent] = useState<number>(() => {
@@ -173,6 +221,15 @@ export default function App() {
         onConnect={handleConnect}
         isLoading={isConnecting}
         error={error}
+      />
+
+      {/* 2FA App Lock Shield */}
+      <AppLockOverlay
+        isOpen={isAppLocked}
+        onUnlock={() => {
+          setIsAppLocked(false);
+          lastActivityRef.current = Date.now();
+        }}
       />
     </div>
   );
