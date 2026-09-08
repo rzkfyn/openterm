@@ -8,7 +8,7 @@ export interface UpdateInfo {
 }
 
 const GITHUB_API_LATEST = 'https://api.github.com/repos/rzkfyn/openterm/releases/latest';
-const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
 export function parseSemver(v: string): [number, number, number] | null {
   const clean = v.trim().replace(/^v/i, '');

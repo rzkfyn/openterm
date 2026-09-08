@@ -23,8 +23,17 @@ const GithubIcon: React.FC<{ className?: string }> = ({ className = 'h-3.5 w-3.5
 );
 
 export const StatusBar: React.FC = () => {
-  const { activeSessions, currentSessionId, viewMode, setViewMode } = useSessionStore();
-  const { currentVersion, latestVersion, releaseUrl, hasUpdate, dismissed, dismissUpdate } = useUpdateStore();
+  const { currentSessionId, activeSessions, viewMode, setViewMode } = useSessionStore();
+  const {
+    currentVersion,
+    latestVersion,
+    releaseUrl,
+    hasUpdate,
+    isChecking,
+    dismissed,
+    dismissUpdate,
+    checkForUpdates,
+  } = useUpdateStore();
   const currentSession = activeSessions.find((s) => s.id === currentSessionId);
   const isConnected = currentSession && currentSession.status !== 'disconnected';
 
@@ -62,9 +71,21 @@ export const StatusBar: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={handleOpenReleases}
-            className="font-mono text-[10px] text-slate-500 hover:text-slate-300 transition-colors cursor-pointer"
-            title="View OpenTerm release history"
+            onClick={() => checkForUpdates(true)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              handleOpenReleases();
+            }}
+            className={`font-mono text-[10px] transition-colors cursor-pointer ${
+              isChecking
+                ? 'text-indigo-400 animate-pulse'
+                : 'text-slate-500 hover:text-slate-300'
+            }`}
+            title={
+              isChecking
+                ? 'Checking for updates...'
+                : 'v' + currentVersion + ' (Click to check updates, right-click for release history)'
+            }
           >
             v{currentVersion}
           </button>

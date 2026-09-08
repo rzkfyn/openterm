@@ -29,7 +29,7 @@ interface ImportExportModalProps {
   onClose: () => void;
   existingConnections: SavedConnection[];
   onImportComplete: (imported: SavedConnection[]) => void;
-  onSaveConnection: (conn: Omit<SavedConnection, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => Promise<any>;
+  onSaveConnection: (conn: SavedConnection) => Promise<SavedConnection>;
 }
 
 export const ImportExportModal: React.FC<ImportExportModalProps> = ({
@@ -142,17 +142,19 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
         currentExistingNames.push(nameToUse);
 
         const savedConn = await onSaveConnection({
-          id: idToUse,
+          id: idToUse || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)),
           name: nameToUse,
           host: item.host,
           port: item.port,
           username: item.username,
-          authType: item.authType,
+          authType: item.authType || 'password',
           password: item.password,
           passphrase: item.passphrase,
           privateKeyPath: item.privateKeyPath,
           folder: item.folder,
-          bookmarks: item.bookmarks,
+          bookmarks: item.bookmarks || [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
         });
         saved.push(savedConn);
       }

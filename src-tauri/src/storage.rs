@@ -13,24 +13,34 @@ pub struct ConnectionBookmark {
     pub remote_path: Option<String>,
 }
 
+fn generate_uuid() -> String {
+    uuid::Uuid::new_v4().to_string()
+}
+
 /// Saved connection profile — no password/passphrase stored.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SavedConnection {
+    #[serde(default = "generate_uuid")]
     pub id: String,
     pub name: String,
     pub host: String,
     pub port: u16,
     pub username: String,
     pub auth_type: crate::models::AuthType,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub private_key_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub password: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub passphrase: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub folder: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bookmarks: Vec<ConnectionBookmark>,
+    #[serde(default)]
     pub created_at: u64,
+    #[serde(default)]
     pub updated_at: u64,
 }
 
@@ -79,6 +89,9 @@ pub fn list() -> Result<Vec<SavedConnection>, String> {
 }
 
 pub fn save(mut conn: SavedConnection) -> Result<SavedConnection, String> {
+    if conn.id.trim().is_empty() {
+        conn.id = generate_uuid();
+    }
     let mut all = read_all()?;
     let now = now_millis();
 

@@ -464,6 +464,9 @@ pub fn list_vault_connections(state: &VaultState) -> Result<Vec<SavedConnection>
 }
 
 pub fn save_vault_connection(state: &VaultState, mut conn: SavedConnection) -> Result<SavedConnection, String> {
+    if conn.id.trim().is_empty() {
+        conn.id = uuid::Uuid::new_v4().to_string();
+    }
     let mut all = list_vault_connections(state)?;
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
