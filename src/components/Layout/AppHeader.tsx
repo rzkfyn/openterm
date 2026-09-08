@@ -16,6 +16,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenNewConnection }) => 
     disconnectOtherSessions,
     disconnectAllSessions,
     connectSession,
+    reconnectSession,
     viewMode,
     setViewMode,
   } = useSessionStore();
@@ -64,6 +65,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenNewConnection }) => 
           {activeSessions.map((session) => {
             const isActive = session.id === currentSessionId;
             const isDead = session.status === 'disconnected';
+            const isReconnecting = session.status === 'reconnecting';
             return (
               <div
                 key={session.id}
@@ -81,13 +83,21 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenNewConnection }) => 
                     ? 'bg-[#1e1e2d] text-white border-[#2a2b38] border-t-indigo-400 font-medium'
                     : 'bg-[#11111a] text-slate-400 border-transparent hover:bg-[#181824] hover:text-slate-200'
                 }`}
-                title={isDead ? 'Session disconnected' : `${session.username}@${session.host}:${session.port}`}
+                title={
+                  isDead
+                    ? 'Session disconnected'
+                    : isReconnecting
+                    ? 'Auto-reconnecting...'
+                    : `${session.username}@${session.host}:${session.port}`
+                }
               >
                 {/* Status Dot */}
                 <span
                   className={`h-1.5 w-1.5 rounded-full shrink-0 ${
                     isDead
                       ? 'bg-rose-500'
+                      : isReconnecting
+                      ? 'bg-amber-400 animate-ping'
                       : session.status === 'connecting'
                       ? 'bg-amber-400 animate-pulse'
                       : 'bg-emerald-400'
@@ -173,14 +183,19 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenNewConnection }) => 
           style={{ top: tabContextMenu.y + 4, left: tabContextMenu.x }}
           className="fixed z-50 min-w-[150px] rounded-md bg-[#181824] border border-[#2e2f42] p-1 shadow-2xl text-xs text-slate-300 font-sans select-none animate-in fade-in zoom-in-95 duration-75"
         >
-          {tabContextMenu.session.status === 'disconnected' && (
+          {(tabContextMenu.session.status === 'disconnected' ||
+            tabContextMenu.session.status === 'reconnecting') && (
             <button
               type="button"
               onClick={async () => {
                 const s = tabContextMenu.session;
                 setTabContextMenu(null);
                 try {
-                  await connectSession(s);
+                  if (s.id) {
+                    await reconnectSession(s.id);
+                  } else {
+                    await connectSession(s);
+                  }
                 } catch {
                   // error shown in session store
                 }

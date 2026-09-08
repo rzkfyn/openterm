@@ -1,5 +1,5 @@
 export type AuthType = 'password' | 'key';
-export type SessionConnectionStatus = 'connected' | 'disconnected';
+export type SessionConnectionStatus = 'connected' | 'reconnecting' | 'disconnected';
 
 export interface SessionConfig {
   id?: string;

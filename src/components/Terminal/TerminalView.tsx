@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTerminalSession } from './useTerminalSession';
 import { useSessionStore } from '../../stores/sessionStore';
-import { Terminal as TerminalIcon, Radio, AlertCircle } from 'lucide-react';
+import { Terminal as TerminalIcon, Radio, AlertCircle, RotateCw } from 'lucide-react';
 
 interface TerminalViewProps {
   sessionId: string | null;
@@ -11,8 +11,10 @@ interface TerminalViewProps {
 export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionName }) => {
   const { containerRef, terminal } = useTerminalSession(sessionId);
   const activeSessions = useSessionStore((s) => s.activeSessions);
+  const reconnectSession = useSessionStore((s) => s.reconnectSession);
   const currentSession = activeSessions.find((s) => s.id === sessionId);
   const isDisconnected = currentSession?.status === 'disconnected';
+  const isReconnecting = currentSession?.status === 'reconnecting';
 
   if (!sessionId) {
     return (
@@ -47,10 +49,36 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
 
         <div className="flex items-center gap-3 text-[10px] font-mono text-slate-400">
           {isDisconnected ? (
-            <span className="flex items-center gap-1 text-rose-400">
-              <AlertCircle className="h-3 w-3" />
-              <span>Closed</span>
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1 text-rose-400">
+                <AlertCircle className="h-3 w-3" />
+                <span>Disconnected</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => sessionId && reconnectSession(sessionId)}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-600/80 hover:bg-indigo-600 text-white font-sans text-[10px] transition-colors cursor-pointer"
+                title="Reconnect now"
+              >
+                <RotateCw className="h-2.5 w-2.5" />
+                <span>Reconnect</span>
+              </button>
+            </div>
+          ) : isReconnecting ? (
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1 text-amber-400 animate-pulse">
+                <RotateCw className="h-3 w-3 animate-spin" />
+                <span>Auto-reconnecting...</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => sessionId && reconnectSession(sessionId)}
+                className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-600/80 hover:bg-amber-600 text-white font-sans text-[10px] transition-colors cursor-pointer"
+                title="Retry now"
+              >
+                <span>Retry Now</span>
+              </button>
+            </div>
           ) : (
             <span className="flex items-center gap-1 text-emerald-400">
               <Radio className="h-2.5 w-2.5" />

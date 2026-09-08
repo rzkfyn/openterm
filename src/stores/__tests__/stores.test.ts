@@ -7,6 +7,7 @@ vi.mock('../../services/tauri', () => ({
     sshConnect: vi.fn().mockResolvedValue('test-sess-123'),
     sshDisconnect: vi.fn().mockResolvedValue(undefined),
     onSshData: vi.fn().mockResolvedValue(() => {}),
+    onSshClosed: vi.fn().mockResolvedValue(() => {}),
     onTransferProgress: vi.fn().mockResolvedValue(() => {}),
     sftpDownload: vi.fn().mockResolvedValue(undefined),
   },

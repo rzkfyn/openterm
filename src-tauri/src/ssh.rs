@@ -205,6 +205,9 @@ pub fn connect_ssh(
         .shell()
         .map_err(|e| format!("Failed to start shell: {}", e))?;
 
+    // Enable TCP/SSH keepalive: send probe every 15 seconds
+    sess.set_keepalive(true, 15);
+
     // Switch PTY channel to non-blocking so read() doesn't hang the thread/session
     sess.set_blocking(false);
 
@@ -306,6 +309,20 @@ pub fn connect_ssh(
         }
         is_alive_writer.store(false, Ordering::SeqCst);
         eprintln!("[PTY Writer] Thread finished");
+    });
+
+    // 7. Spawn Keepalive Heartbeat Thread (15s interval)
+    let sess_keepalive = sess_arc.clone();
+    let is_alive_keepalive = is_alive.clone();
+    thread::spawn(move || {
+        while is_alive_keepalive.load(Ordering::SeqCst) {
+            thread::sleep(Duration::from_secs(15));
+            if !is_alive_keepalive.load(Ordering::SeqCst) {
+                break;
+            }
+            let s = sess_keepalive.lock();
+            let _ = s.keepalive_send();
+        }
     });
 
     // Helper to connect an isolated SSH session for SFTP
