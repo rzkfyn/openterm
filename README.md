@@ -118,6 +118,18 @@ bun run tauri build
 
 ---
 
+### Reporting Issues & Feedback
+
+Encountered a bug or have an idea to make OpenTerm better? We welcome issues and contributions!
+
+- **[Report a Bug](https://github.com/rzkfyn/openterm/issues/new?template=bug_report.yml)**: Use this form if something is broken, crashing, or misbehaving.
+- **[Request a Feature](https://github.com/rzkfyn/openterm/issues/new?template=feature_request.yml)**: Suggest improvements, new tools, or UX enhancements.
+- **[GitHub Discussions](https://github.com/rzkfyn/openterm/discussions)**: Ask general questions, share configurations, and connect with other users.
+
+> **Privacy Notice**: When reporting issues or attaching logs/screenshots, **never include private keys, credentials, or sensitive server URLs**.
+
+---
+
 ## License
 
 MIT License. Designed and engineered for high-efficiency remote server administration.
