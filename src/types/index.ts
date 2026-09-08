@@ -84,6 +84,7 @@ export interface SavedConnection {
 export interface VaultStatus {
   isEncrypted: boolean;
   isUnlocked: boolean;
+  hasRecoveryEscrow?: boolean;
 }
 
 export interface TotpConfig {

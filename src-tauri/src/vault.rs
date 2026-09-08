@@ -24,14 +24,25 @@ const NONCE_LEN: usize = 12;
 pub struct VaultStatus {
     pub is_encrypted: bool,
     pub is_unlocked: bool,
+    #[serde(default)]
+    pub has_recovery_escrow: bool,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct RecoveryEscrow {
+    pub salt_hex: String,
+    pub nonce_hex: String,
+    pub ciphertext_hex: String,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct EncryptedVaultPayload {
     pub version: u32,
     pub salt_hex: String,
     pub nonce_hex: String,
     pub ciphertext_hex: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recovery_escrow: Option<RecoveryEscrow>,
 }
 
 #[derive(Default, Clone)]
@@ -123,6 +134,7 @@ pub fn encrypt_vault(data: &[u8], key: &[u8; 32]) -> Result<EncryptedVaultPayloa
         salt_hex: hex_encode(&salt),
         nonce_hex: hex_encode(&nonce_bytes),
         ciphertext_hex: hex_encode(&ciphertext),
+        recovery_escrow: None,
     })
 }
 
@@ -151,9 +163,20 @@ pub fn get_status(state: &VaultState) -> Result<VaultStatus, String> {
         true
     };
 
+    let has_recovery_escrow = if is_encrypted {
+        fs::read_to_string(&enc_path)
+            .ok()
+            .and_then(|s| serde_json::from_str::<EncryptedVaultPayload>(&s).ok())
+            .map(|p| p.recovery_escrow.is_some())
+            .unwrap_or(false)
+    } else {
+        false
+    };
+
     Ok(VaultStatus {
         is_encrypted,
         is_unlocked,
+        has_recovery_escrow,
     })
 }
 
@@ -183,11 +206,85 @@ pub fn lock_vault(state: &VaultState) -> Result<(), String> {
     Ok(())
 }
 
+pub fn generate_recovery_token() -> String {
+    let mut rng = rand::thread_rng();
+    let mut bytes = [0u8; 8];
+    rng.fill_bytes(&mut bytes);
+    let hex = hex_encode(&bytes).to_uppercase();
+    format!("OT-{}-{}-{}-{}", &hex[0..4], &hex[4..8], &hex[8..12], &hex[12..16])
+}
+
+pub fn derive_recovery_key(token: &str, salt: &[u8]) -> [u8; 32] {
+    let clean = token
+        .trim()
+        .to_uppercase()
+        .replace('-', "")
+        .replace(' ', "");
+    let clean = clean.strip_prefix("OT").unwrap_or(&clean);
+    derive_key(clean, salt, PBKDF2_ROUNDS)
+}
+
+pub fn create_recovery_escrow(
+    master_key: &[u8; 32],
+    recovery_token: &str,
+) -> Result<RecoveryEscrow, String> {
+    let mut rng = rand::thread_rng();
+    let mut salt = [0u8; SALT_LEN];
+    rng.fill_bytes(&mut salt);
+
+    let key = derive_recovery_key(recovery_token, &salt);
+
+    let mut nonce_bytes = [0u8; NONCE_LEN];
+    rng.fill_bytes(&mut nonce_bytes);
+
+    let cipher = Aes256Gcm::new_from_slice(&key).map_err(|e| format!("Cipher error: {e}"))?;
+    let nonce = Nonce::from_slice(&nonce_bytes);
+
+    let ciphertext = cipher
+        .encrypt(nonce, master_key.as_ref())
+        .map_err(|e| format!("Escrow encryption failed: {e}"))?;
+
+    Ok(RecoveryEscrow {
+        salt_hex: hex_encode(&salt),
+        nonce_hex: hex_encode(&nonce_bytes),
+        ciphertext_hex: hex_encode(&ciphertext),
+    })
+}
+
+pub fn recover_key_from_escrow(
+    escrow: &RecoveryEscrow,
+    recovery_token: &str,
+) -> Result<[u8; 32], String> {
+    let salt = hex_decode(&escrow.salt_hex).map_err(|e| format!("Salt decode error: {e}"))?;
+    let nonce_bytes = hex_decode(&escrow.nonce_hex).map_err(|e| format!("Nonce decode error: {e}"))?;
+    let ciphertext = hex_decode(&escrow.ciphertext_hex).map_err(|e| format!("Ciphertext decode error: {e}"))?;
+
+    if nonce_bytes.len() != NONCE_LEN {
+        return Err("Invalid nonce length in recovery escrow".to_string());
+    }
+
+    let key = derive_recovery_key(recovery_token, &salt);
+    let cipher = Aes256Gcm::new_from_slice(&key).map_err(|e| format!("Cipher error: {e}"))?;
+    let nonce = Nonce::from_slice(&nonce_bytes);
+
+    let decrypted = cipher
+        .decrypt(nonce, ciphertext.as_ref())
+        .map_err(|_| "Invalid recovery key or corrupted escrow".to_string())?;
+
+    if decrypted.len() != 32 {
+        return Err("Corrupted master key in escrow".to_string());
+    }
+
+    let mut master_key = [0u8; 32];
+    master_key.copy_from_slice(&decrypted);
+    Ok(master_key)
+}
+
 pub fn set_master_password(
     state: &VaultState,
     old_password: Option<&str>,
     new_password: &str,
-) -> Result<(), String> {
+) -> Result<String, String> {
     if new_password.trim().len() < 6 {
         return Err("Master password must be at least 6 characters".to_string());
     }
@@ -223,11 +320,15 @@ pub fn set_master_password(
     let ciphertext = cipher.encrypt(nonce, serialized.as_ref())
         .map_err(|e| format!("Encrypt error: {e}"))?;
 
+    let recovery_token = generate_recovery_token();
+    let escrow = create_recovery_escrow(&new_key, &recovery_token)?;
+
     let payload = EncryptedVaultPayload {
         version: 1,
         salt_hex: hex_encode(&salt),
         nonce_hex: hex_encode(&nonce_bytes),
         ciphertext_hex: hex_encode(&ciphertext),
+        recovery_escrow: Some(escrow),
     };
 
     let payload_json = serde_json::to_string_pretty(&payload)
@@ -242,7 +343,87 @@ pub fn set_master_password(
     }
 
     state.set_key(new_key);
-    Ok(())
+    Ok(recovery_token)
+}
+
+pub fn recover_vault(
+    state: &VaultState,
+    recovery_key: &str,
+    totp_code: Option<&str>,
+    new_password: &str,
+) -> Result<String, String> {
+    if new_password.trim().len() < 6 {
+        return Err("New master password must be at least 6 characters".to_string());
+    }
+
+    let totp_cfg = crate::totp::get_config();
+    if totp_cfg.enabled {
+        let code = totp_code
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| "Two-factor authentication code required for vault recovery".to_string())?;
+
+        let valid = crate::totp::validate_login_code(code)?;
+        if !valid {
+            return Err("Invalid two-factor authentication code".to_string());
+        }
+    }
+
+    let enc_path = vault_enc_path()?;
+    if !enc_path.exists() {
+        return Err("Vault is not encrypted".to_string());
+    }
+
+    let payload_str = fs::read_to_string(&enc_path).map_err(|e| format!("Read vault failed: {e}"))?;
+    let payload: EncryptedVaultPayload = serde_json::from_str(&payload_str)
+        .map_err(|e| format!("Parse vault metadata failed: {e}"))?;
+
+    let escrow = payload
+        .recovery_escrow
+        .as_ref()
+        .ok_or_else(|| "This vault does not have a recovery escrow configured.".to_string())?;
+
+    let old_master_key = recover_key_from_escrow(&escrow, recovery_key)?;
+
+    let decrypted_bytes = decrypt_vault(&payload, &old_master_key)?;
+    let connections: Vec<SavedConnection> = serde_json::from_slice(&decrypted_bytes)
+        .map_err(|e| format!("Parse decrypted profiles failed: {e}"))?;
+
+    let mut rng = rand::thread_rng();
+    let mut salt = [0u8; SALT_LEN];
+    rng.fill_bytes(&mut salt);
+
+    let new_key = derive_key(new_password, &salt, PBKDF2_ROUNDS);
+    let serialized = serde_json::to_vec_pretty(&connections)
+        .map_err(|e| format!("Serialize profiles failed: {e}"))?;
+
+    let mut nonce_bytes = [0u8; NONCE_LEN];
+    rng.fill_bytes(&mut nonce_bytes);
+
+    let cipher = Aes256Gcm::new_from_slice(&new_key).map_err(|e| format!("Cipher init error: {e}"))?;
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    let ciphertext = cipher
+        .encrypt(nonce, serialized.as_ref())
+        .map_err(|e| format!("Encrypt error: {e}"))?;
+
+    let new_recovery_token = generate_recovery_token();
+    let new_escrow = create_recovery_escrow(&new_key, &new_recovery_token)?;
+
+    let new_payload = EncryptedVaultPayload {
+        version: 1,
+        salt_hex: hex_encode(&salt),
+        nonce_hex: hex_encode(&nonce_bytes),
+        ciphertext_hex: hex_encode(&ciphertext),
+        recovery_escrow: Some(new_escrow),
+    };
+
+    let payload_json = serde_json::to_string_pretty(&new_payload)
+        .map_err(|e| format!("Serialize vault failed: {e}"))?;
+
+    fs::write(&enc_path, payload_json).map_err(|e| format!("Write vault.enc failed: {e}"))?;
+
+    state.set_key(new_key);
+    Ok(new_recovery_token)
 }
 
 pub fn remove_master_password(state: &VaultState, current_password: &str) -> Result<(), String> {
@@ -345,6 +526,7 @@ fn write_vault_connections(state: &VaultState, connections: &[SavedConnection]) 
         salt_hex: existing_payload.salt_hex,
         nonce_hex: hex_encode(&nonce_bytes),
         ciphertext_hex: hex_encode(&ciphertext),
+        recovery_escrow: existing_payload.recovery_escrow,
     };
 
     let payload_json = serde_json::to_string_pretty(&payload)
@@ -404,6 +586,28 @@ mod tests {
         let encrypted = encrypt_vault(original_data, &key).unwrap();
         let result = decrypt_vault(&encrypted, &wrong_key);
 
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_recovery_key_format_and_escrow() {
+        let raw_key = [7u8; 32];
+        let recovery_key = generate_recovery_token();
+        assert!(recovery_key.starts_with("OT-"));
+        assert_eq!(recovery_key.len(), 22); // OT-XXXX-XXXX-XXXX-XXXX
+
+        let escrow = create_recovery_escrow(&raw_key, &recovery_key).expect("create escrow");
+        let recovered = recover_key_from_escrow(&escrow, &recovery_key).expect("recover key");
+        assert_eq!(raw_key, recovered);
+
+        // Test with different casing and hyphens stripped
+        let stripped = recovery_key.replace('-', "").to_lowercase();
+        let recovered_stripped = recover_key_from_escrow(&escrow, &stripped).expect("recover stripped key");
+        assert_eq!(raw_key, recovered_stripped);
+
+        // Test with wrong recovery key fails
+        let wrong_key = generate_recovery_token();
+        let result = recover_key_from_escrow(&escrow, &wrong_key);
         assert!(result.is_err());
     }
 

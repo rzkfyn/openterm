@@ -92,10 +92,25 @@ fn vault_set_password(
     vault_state: State<VaultState>,
     old_password: Option<String>,
     new_password: String,
-) -> Result<(), String> {
+) -> Result<String, String> {
     vault::set_master_password(
         &vault_state,
         old_password.as_deref(),
+        &new_password,
+    )
+}
+
+#[tauri::command]
+fn vault_recover(
+    vault_state: State<VaultState>,
+    recovery_key: String,
+    totp_code: Option<String>,
+    new_password: String,
+) -> Result<String, String> {
+    vault::recover_vault(
+        &vault_state,
+        &recovery_key,
+        totp_code.as_deref(),
         &new_password,
     )
 }
@@ -372,6 +387,7 @@ pub fn run() {
             vault_unlock,
             vault_lock,
             vault_set_password,
+            vault_recover,
             vault_remove_password,
             totp_get_config,
             totp_generate_secret,
