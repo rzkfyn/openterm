@@ -1,6 +1,6 @@
 # Connection Folders, FileZilla Import/Export, and Vault Recovery Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Implement connection folders, SFTP directory bookmarks, FileZilla XML/JSON import-export with an interactive preview modal, offline 2FA QR codes, and emergency Vault Recovery keys with brute-force lockout protection.
 
@@ -32,7 +32,7 @@
 - Consumes: Existing `SavedConnection` definitions.
 - Produces: `ConnectionBookmark` and updated `SavedConnection` with `folder?: string` and `bookmarks?: ConnectionBookmark[]`.
 
-- [ ] **Step 1: Write test for bookmark and folder serialization in Rust**
+- [x] **Step 1: Write test for bookmark and folder serialization in Rust**
 
 Add tests verifying serialization and deserialization of `folder` and `bookmarks` in `src-tauri/tests/models_test.rs`:
 
@@ -73,12 +73,12 @@ fn test_saved_connection_with_folder_and_bookmarks() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cargo test --test models_test --manifest-path src-tauri/Cargo.toml`
 Expected: FAIL with missing fields `folder` and `bookmarks`
 
-- [ ] **Step 3: Update `src-tauri/src/storage.rs` and `src/types/index.ts`**
+- [x] **Step 3: Update `src-tauri/src/storage.rs` and `src/types/index.ts`**
 
 In `src-tauri/src/storage.rs`:
 ```rust
@@ -143,12 +143,12 @@ export interface SavedConnection {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cargo test --test models_test --manifest-path src-tauri/Cargo.toml`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/types/index.ts src-tauri/src/storage.rs src-tauri/tests/models_test.rs
@@ -171,7 +171,7 @@ git commit -m "feat: add folder and bookmarks to SavedConnection models"
 - Consumes: `tauriApi.totpGetConfig()`, `tauriApi.totpUpdateIdleTimeout()`
 - Produces: `useTotpStore` with reactive `config`, `loadConfig()`, `updateIdleTimeout()`
 
-- [ ] **Step 1: Write failing test for `useTotpStore` and timeout coalescing**
+- [x] **Step 1: Write failing test for `useTotpStore` and timeout coalescing**
 
 Create `src/stores/__tests__/totpStore.test.ts`:
 ```typescript
@@ -205,12 +205,12 @@ describe('useTotpStore', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm test src/stores/__tests__/totpStore.test.ts`
 Expected: FAIL with module not found
 
-- [ ] **Step 3: Implement `src/stores/totpStore.ts`**
+- [x] **Step 3: Implement `src/stores/totpStore.ts`**
 
 ```typescript
 import { create } from 'zustand';
@@ -253,7 +253,7 @@ export const useTotpStore = create<TotpState>((set) => ({
 }));
 ```
 
-- [ ] **Step 4: Update `App.tsx`, `Dashboard.tsx`, and `TotpModal.tsx` to use `useTotpStore` and `?? 15`**
+- [x] **Step 4: Update `App.tsx`, `Dashboard.tsx`, and `TotpModal.tsx` to use `useTotpStore` and `?? 15`**
 
 In `App.tsx`:
 Replace local `totpConfig` state with `const { config: totpConfig, loadConfig } = useTotpStore();`
@@ -265,12 +265,12 @@ const timeoutMins = totpConfig?.idleTimeoutMins ?? 15;
 In `TotpModal.tsx`:
 Update timeout select and change handler to use `useTotpStore.getState().updateIdleTimeout(mins)` and `selectedTimeout ?? 15`.
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `pnpm test`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/stores/totpStore.ts src/stores/__tests__/totpStore.test.ts src/App.tsx src/components/Dashboard/Dashboard.tsx src/components/Modal/TotpModal.tsx
@@ -290,7 +290,7 @@ git commit -m "fix: resolve 2FA idle timeout reset bug and centralize totpStore 
 - Consumes: FileZilla XML content, OpenTerm connection arrays.
 - Produces: `parseFileZillaXml(xmlString): ParsedImportResult`, `exportToOpenTermJson(connections)`, `exportToFileZillaXml(connections)`
 
-- [ ] **Step 1: Write failing unit test for `filezillaParser`**
+- [x] **Step 1: Write failing unit test for `filezillaParser`**
 
 Create `src/services/__tests__/filezillaParser.test.ts`:
 ```typescript
@@ -339,12 +339,12 @@ describe('filezillaParser', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm test src/services/__tests__/filezillaParser.test.ts`
 Expected: FAIL with module not found
 
-- [ ] **Step 3: Implement `filezillaParser.ts` and `connectionExporter.ts`**
+- [x] **Step 3: Implement `filezillaParser.ts` and `connectionExporter.ts`**
 
 Create `src/services/filezillaParser.ts`:
 ```typescript
@@ -475,12 +475,12 @@ ${passTag}${keyTag}\t\t\t<Name>${conn.name}</Name>
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `pnpm test src/services/__tests__/filezillaParser.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/services/filezillaParser.ts src/services/connectionExporter.ts src/services/__tests__/filezillaParser.test.ts
@@ -500,7 +500,7 @@ git commit -m "feat: add FileZilla XML and OpenTerm JSON import and export servi
 - Consumes: `parseFileZillaXml`, `exportToOpenTermJson`, `exportToFileZillaXml`, `useSavedConnectionStore`
 - Produces: `ImportExportModal` dialog supporting file drop, collision detection, and selective import.
 
-- [ ] **Step 1: Write test for duplicate detection logic**
+- [x] **Step 1: Write test for duplicate detection logic**
 
 Create `src/components/Modal/__tests__/importExportModal.test.ts`:
 ```typescript
@@ -523,25 +523,25 @@ describe('Import Collision Detection', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it passes**
+- [x] **Step 2: Run test to verify it passes**
 
 Run: `pnpm test src/components/Modal/__tests__/importExportModal.test.ts`
 Expected: PASS
 
-- [ ] **Step 3: Implement `src/components/Modal/ImportExportModal.tsx`**
+- [x] **Step 3: Implement `src/components/Modal/ImportExportModal.tsx`**
 
 Build modal with drag/drop area, file parsing, collision check table with checkboxes, strategy selector ("Keep both (rename duplicate)" / "Overwrite"), and "Import Selected" action.
 
-- [ ] **Step 4: Integrate "Import / Export" buttons in `Dashboard.tsx`**
+- [x] **Step 4: Integrate "Import / Export" buttons in `Dashboard.tsx`**
 
 Add "Import / Export" action buttons to the Dashboard header beside "New Connection".
 
-- [ ] **Step 5: Run tests to verify build integrity**
+- [x] **Step 5: Run tests to verify build integrity**
 
 Run: `pnpm test`
 Expected: PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/components/Modal/ImportExportModal.tsx src/components/Modal/__tests__/importExportModal.test.ts src/components/Dashboard/Dashboard.tsx
@@ -562,7 +562,7 @@ git commit -m "feat: add interactive Import/Export connections modal (closes #13
 - Consumes: `SavedConnection.folder`, `SavedConnection.bookmarks`
 - Produces: Collapsible folder groupings in Dashboard, folder autocomplete in NewConnectionModal, bookmark jump dropdown in DualPaneExplorer.
 
-- [ ] **Step 1: Write test for folder grouping utility**
+- [x] **Step 1: Write test for folder grouping utility**
 
 Create `src/components/Dashboard/__tests__/folderGrouping.test.ts`:
 ```typescript
@@ -591,29 +591,29 @@ describe('Folder Grouping', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it passes**
+- [x] **Step 2: Run test to verify it passes**
 
 Run: `pnpm test src/components/Dashboard/__tests__/folderGrouping.test.ts`
 Expected: PASS
 
-- [ ] **Step 3: Update `Dashboard.tsx` for folder sections and filter chips**
+- [x] **Step 3: Update `Dashboard.tsx` for folder sections and filter chips**
 
 Render folder accordion sections with Chevron icons and badge counts. Include filter chip bar at top.
 
-- [ ] **Step 4: Update `NewConnectionModal.tsx` with folder input and bookmark table**
+- [x] **Step 4: Update `NewConnectionModal.tsx` with folder input and bookmark table**
 
 Add `folder` input field with suggestions from existing folders. Add Bookmarks table allowing user to add Name, Local Path, and Remote Path pairs.
 
-- [ ] **Step 5: Update `DualPaneExplorer.tsx` with SFTP bookmark dropdown**
+- [x] **Step 5: Update `DualPaneExplorer.tsx` with SFTP bookmark dropdown**
 
 Add bookmark dropdown in toolbar. When clicked, navigates local pane (`setLocalPath`) and remote pane (`loadRemoteDir`) simultaneously.
 
-- [ ] **Step 6: Run tests to verify build integrity**
+- [x] **Step 6: Run tests to verify build integrity**
 
 Run: `pnpm test`
 Expected: PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/components/Dashboard/Dashboard.tsx src/components/Modal/NewConnectionModal.tsx src/components/FileManager/DualPaneExplorer.tsx src/components/Dashboard/__tests__/folderGrouping.test.ts
@@ -636,7 +636,7 @@ git commit -m "feat: add connection folders and SFTP directory bookmarks (closes
 - Consumes: PBKDF2 key derivation, 2FA validation (`totp::verify_totp_code`)
 - Produces: `vault_recover(recovery_key, totp_code, new_password)` command, recovery key creation, and 30s lockout on 5 failed attempts.
 
-- [ ] **Step 1: Write test for recovery key derivation and escrow in Rust**
+- [x] **Step 1: Write test for recovery key derivation and escrow in Rust**
 
 Add to `src-tauri/src/vault.rs`:
 ```rust
@@ -653,32 +653,32 @@ fn test_recovery_key_format_and_escrow() {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml test_recovery_key_format_and_escrow`
 Expected: FAIL with functions not found
 
-- [ ] **Step 3: Implement recovery key generation and recovery command in `vault.rs`**
+- [x] **Step 3: Implement recovery key generation and recovery command in `vault.rs`**
 
 Add `generate_recovery_token()`, `create_recovery_escrow()`, `recover_key_from_escrow()`, and `pub fn recover_vault(state: &VaultState, recovery_key: &str, totp_code: Option<&str>, new_password: &str) -> Result<(), String>`.
 
-- [ ] **Step 4: Expose `vault_recover` in `src-tauri/src/lib.rs` and `src/services/tauri.ts`**
+- [x] **Step 4: Expose `vault_recover` in `src-tauri/src/lib.rs` and `src/services/tauri.ts`**
 
 Register command in Tauri handlers.
 
-- [ ] **Step 5: Update `VaultModal.tsx` for recovery key display, forgot password flow, and 30s lockout**
+- [x] **Step 5: Update `VaultModal.tsx` for recovery key display, forgot password flow, and 30s lockout**
 
 - Show recovery key on initial vault setup for user to save.
 - Add "Forgot Password?" prompt allowing input of Recovery Key + 2FA code.
 - Add failed attempts state counter: after 5 consecutive incorrect attempts, disable unlock for 30 seconds with countdown timer.
 
-- [ ] **Step 6: Run Cargo tests and Vitest suite**
+- [x] **Step 6: Run Cargo tests and Vitest suite**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml`
 Run: `pnpm test`
 Expected: ALL PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src-tauri/src/vault.rs src-tauri/src/lib.rs src/services/tauri.ts src/components/Modal/VaultModal.tsx
