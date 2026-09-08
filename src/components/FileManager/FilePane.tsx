@@ -4,7 +4,7 @@ import { FileEntry } from '../../types';
 import { FileItemRow } from './FileItemRow';
 import { PathBreadcrumb } from './PathBreadcrumb';
 import { ContextMenu, ContextMenuPosition } from './ContextMenu';
-import { Loader2, ChevronUp, ChevronDown, ArrowDownToLine } from 'lucide-react';
+import { Loader2, ChevronUp, ChevronDown, ArrowDownToLine, Search, X } from 'lucide-react';
 
 type SortKey = 'name' | 'size' | 'modified';
 type SortDir = 'asc' | 'desc';
@@ -55,6 +55,10 @@ export const FilePane: React.FC<FilePaneProps> = ({
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [isPaneDragOver, setIsPaneDragOver] = useState(false);
+  const [searchFilter, setSearchFilter] = useState('');
+  const [isSearchVisible, setIsSearchVisible] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const paneContainerRef = useRef<HTMLDivElement>(null);
   const [contextMenu, setContextMenu] = useState<{
     position: ContextMenuPosition;
     targetEntry?: FileEntry | null;
@@ -69,8 +73,14 @@ export const FilePane: React.FC<FilePaneProps> = ({
     }
   };
 
+  const filteredEntries = useMemo(() => {
+    if (!searchFilter.trim()) return entries;
+    const q = searchFilter.toLowerCase().trim();
+    return entries.filter((e) => e.name.toLowerCase().includes(q));
+  }, [entries, searchFilter]);
+
   const sortedEntries = useMemo(() => {
-    const sorted = [...entries].sort((a, b) => {
+    const sorted = [...filteredEntries].sort((a, b) => {
       if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
       let cmp = 0;
       switch (sortKey) {
@@ -87,7 +97,7 @@ export const FilePane: React.FC<FilePaneProps> = ({
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return sorted;
-  }, [entries, sortKey, sortDir]);
+  }, [filteredEntries, sortKey, sortDir]);
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -97,6 +107,122 @@ export const FilePane: React.FC<FilePaneProps> = ({
     estimateSize: () => 24,
     overscan: 16,
   });
+
+  const handleParent = () => {
+    if (!currentPath || currentPath === '/' || currentPath === '\\') return;
+    const norm = currentPath.replace(/\\/g, '/');
+    if (/^[A-Za-z]:\/?$/.test(norm)) return;
+    const parentPath = norm.substring(0, norm.lastIndexOf('/')) || '/';
+    onNavigate(parentPath);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // If typing inside an input (like search filter or breadcrumb), allow normal typing unless Esc
+    const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+    const isInput = targetTag === 'input' || targetTag === 'textarea';
+
+    if (e.key === 'Escape') {
+      if (isSearchVisible) {
+        setIsSearchVisible(false);
+        setSearchFilter('');
+        paneContainerRef.current?.focus();
+        return;
+      }
+    }
+
+    if (isInput) return;
+
+    // Search Toggle (Ctrl+F / Cmd+F)
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+      e.preventDefault();
+      setIsSearchVisible((prev) => {
+        const next = !prev;
+        if (next) {
+          setTimeout(() => searchInputRef.current?.focus(), 50);
+        } else {
+          setSearchFilter('');
+        }
+        return next;
+      });
+      return;
+    }
+
+    // Refresh (F5 or Ctrl+R)
+    if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R'))) {
+      e.preventDefault();
+      onRefresh();
+      return;
+    }
+
+    // New File / Folder (Ctrl+N / Ctrl+Shift+N)
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'n' || e.key === 'N')) {
+      e.preventDefault();
+      if (e.shiftKey) {
+        onNewFolder?.();
+      } else {
+        onNewFile?.();
+      }
+      return;
+    }
+
+    // Get current single selected entry
+    const selectedEntry = sortedEntries.find((item) => selectedPaths.includes(item.path));
+
+    // Rename (F2)
+    if (e.key === 'F2') {
+      e.preventDefault();
+      if (selectedEntry) onRenameItem?.(selectedEntry);
+      return;
+    }
+
+    // Delete (Delete)
+    if (e.key === 'Delete') {
+      e.preventDefault();
+      if (selectedEntry) onDeleteItem?.(selectedEntry);
+      return;
+    }
+
+    // Arrow Navigation
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (sortedEntries.length === 0) return;
+      const currentIndex = sortedEntries.findIndex((item) => selectedPaths.includes(item.path));
+      const nextIndex = Math.min(sortedEntries.length - 1, currentIndex + 1);
+      onSelect([sortedEntries[nextIndex].path]);
+      rowVirtualizer.scrollToIndex(nextIndex);
+      return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (sortedEntries.length === 0) return;
+      const currentIndex = sortedEntries.findIndex((item) => selectedPaths.includes(item.path));
+      const prevIndex = Math.max(0, currentIndex <= 0 ? 0 : currentIndex - 1);
+      onSelect([sortedEntries[prevIndex].path]);
+      rowVirtualizer.scrollToIndex(prevIndex);
+      return;
+    }
+
+    // Enter to Open / Edit
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (selectedEntry) {
+        if (selectedEntry.isDir) {
+          onNavigate(selectedEntry.path);
+        } else if (onEditFile) {
+          onEditFile(selectedEntry);
+        }
+      }
+      return;
+    }
+
+    // Backspace to Parent Directory
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      handleParent();
+      return;
+    }
+  };
 
   const handleRowSelect = (entry: FileEntry, e: React.MouseEvent) => {
     if (e.metaKey || e.ctrlKey) {
@@ -184,7 +310,10 @@ export const FilePane: React.FC<FilePaneProps> = ({
 
   return (
     <div
-      className={`relative flex flex-1 flex-col h-full bg-[#1e1e2d] overflow-hidden select-none transition-colors ${
+      ref={paneContainerRef}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      className={`relative flex flex-1 flex-col h-full bg-[#1e1e2d] overflow-hidden select-none outline-none transition-colors ${
         isPaneDragOver ? 'ring-2 ring-indigo-500/80 bg-[#252538]' : ''
       }`}
       onDragOver={handlePaneDragOver}
@@ -207,10 +336,63 @@ export const FilePane: React.FC<FilePaneProps> = ({
           <div className={`h-1.5 w-1.5 rounded-full ${isRemote ? 'bg-sky-400' : 'bg-indigo-400'}`} />
           <span className="truncate">{title}</span>
         </div>
-        <span className="text-[10px] font-mono text-slate-500">
-          {entries.length}/{total}
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setIsSearchVisible((prev) => {
+                const next = !prev;
+                if (next) setTimeout(() => searchInputRef.current?.focus(), 50);
+                else setSearchFilter('');
+                return next;
+              });
+            }}
+            className={`p-1 rounded transition-colors ${
+              isSearchVisible || searchFilter
+                ? 'bg-indigo-600/30 text-indigo-300'
+                : 'text-slate-400 hover:text-white hover:bg-[#252636]'
+            }`}
+            title="Search & Filter Files (Ctrl+F)"
+          >
+            <Search className="h-3 w-3" />
+          </button>
+          <span className="text-[10px] font-mono text-slate-500">
+            {searchFilter ? `${filteredEntries.length}/` : ''}
+            {entries.length}/{total}
+          </span>
+        </div>
       </div>
+
+      {/* Quick Search & Filter Bar */}
+      {isSearchVisible && (
+        <div className="flex items-center gap-2 px-2.5 py-1.5 bg-[#141420] border-b border-[#2a2b38] text-xs">
+          <Search className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchFilter}
+            onChange={(e) => setSearchFilter(e.target.value)}
+            placeholder="Filter files by name... (Esc to dismiss)"
+            className="flex-1 bg-transparent text-xs text-white placeholder-slate-500 outline-none font-mono"
+          />
+          {searchFilter && (
+            <span className="text-[10px] font-mono text-indigo-400 px-1.5 py-0.5 rounded bg-indigo-950/40 border border-indigo-800/40 shrink-0">
+              {filteredEntries.length} found
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setIsSearchVisible(false);
+              setSearchFilter('');
+              paneContainerRef.current?.focus();
+            }}
+            className="p-0.5 text-slate-400 hover:text-white rounded hover:bg-[#252636] transition-colors"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       <PathBreadcrumb
         path={currentPath}

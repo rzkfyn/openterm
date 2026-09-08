@@ -47,7 +47,20 @@ export const PathBreadcrumb: React.FC<PathBreadcrumbProps> = ({
   };
 
   return (
-    <div className="flex h-[26px] items-center justify-between border-b border-[#2a2b38] bg-[#171724] px-2.5 text-xs text-slate-300 select-none">
+    <div
+      onKeyDown={(e) => {
+        if (!isEditing) {
+          if (((e.ctrlKey || e.metaKey) && (e.key === 'l' || e.key === 'L')) || (e.altKey && (e.key === 'd' || e.key === 'D'))) {
+            e.preventDefault();
+            startEditing();
+          } else if (e.altKey && e.key === 'ArrowUp') {
+            e.preventDefault();
+            handleParent();
+          }
+        }
+      }}
+      className="flex h-[26px] items-center justify-between border-b border-[#2a2b38] bg-[#171724] px-2.5 text-xs text-slate-300 select-none"
+    >
       {isEditing ? (
         <input
           ref={inputRef}
