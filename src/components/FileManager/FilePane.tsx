@@ -262,9 +262,20 @@ export const FilePane: React.FC<FilePaneProps> = ({
     });
   };
 
+  // Check if a drag event originates from an internal pane-to-pane drag
+  // (has our custom MIME type) vs an external OS drag (Finder/Explorer).
+  // During dragover, getData() is blocked by browser security but types is readable.
+  const isInternalDrag = (e: React.DragEvent) =>
+    e.dataTransfer.types.includes('application/x-openterm-transfer');
+
   const handlePaneDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'copy';
+    if (isInternalDrag(e)) {
+      // Internal pane-to-pane drag: accept the drop in HTML
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    }
+    // External OS drag (Finder/Desktop): do NOT preventDefault so that
+    // Tauri native onDragDropEvent can receive the drop event.
     if (!isPaneDragOver) setIsPaneDragOver(true);
   };
 
@@ -275,37 +286,27 @@ export const FilePane: React.FC<FilePaneProps> = ({
   };
 
   const handlePaneDrop = (e: React.DragEvent) => {
-    e.preventDefault();
     setIsPaneDragOver(false);
 
     if (!onDropTransfer) return;
 
-    // 1. Internal transfer payload
-    try {
-      const raw = e.dataTransfer.getData('application/x-openterm-transfer');
-      if (raw) {
-        const { source, paths } = JSON.parse(raw);
-        onDropTransfer(source, paths, currentPath);
-        return;
+    // Internal transfer payload (drag between panes)
+    if (isInternalDrag(e)) {
+      e.preventDefault();
+      try {
+        const raw = e.dataTransfer.getData('application/x-openterm-transfer');
+        if (raw) {
+          const { source, paths } = JSON.parse(raw);
+          onDropTransfer(source, paths, currentPath);
+        }
+      } catch (err) {
+        console.error('Failed to parse drag-and-drop payload:', err);
       }
-    } catch (err) {
-      console.error('Failed to parse drag-and-drop payload:', err);
+      return;
     }
 
-    // 2. External OS drop (e.g. Windows Explorer)
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const paths: string[] = [];
-      for (let i = 0; i < e.dataTransfer.files.length; i++) {
-        const f = e.dataTransfer.files[i];
-        const localPath = (f as any).path;
-        if (localPath) {
-          paths.push(localPath);
-        }
-      }
-      if (paths.length > 0) {
-        onDropTransfer('local', paths, currentPath);
-      }
-    }
+    // External OS drops (Finder/Explorer → app) are handled by the native
+    // Tauri onDragDropEvent listener in DualPaneExplorer.
   };
 
   return (

@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
 import {
   SessionConfig,
   PaginatedEntries,
@@ -238,14 +239,15 @@ export const tauriApi = {
     });
   },
 
-  onWindowDragDrop: async (
-    callback: (event: { paths: string[]; position: { x: number; y: number } }) => void
+  onDragDropEvent: async (
+    callback: (event: {
+      type: 'enter' | 'over' | 'drop' | 'leave';
+      paths?: string[];
+      position?: { x: number; y: number };
+    }) => void
   ): Promise<UnlistenFn> => {
-    return await listen<{ paths: string[]; position: { x: number; y: number } }>(
-      'tauri://drag-drop',
-      (event) => {
-        callback(event.payload);
-      }
-    );
+    return await getCurrentWebview().onDragDropEvent((event) => {
+      callback(event.payload);
+    });
   },
 };

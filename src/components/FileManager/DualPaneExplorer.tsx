@@ -262,19 +262,56 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
     [sessionId, executeTransferWithConflict]
   );
 
-  // Listen for native OS drag and drop from Windows Explorer / Desktop
+  // Store latest callback refs to avoid re-registering the Tauri listener
+  // every time handleDropTransfer or loadLocalDir change identity.
+  const handleDropTransferRef = useRef(handleDropTransfer);
+  const loadLocalDirRef = useRef(loadLocalDir);
+  const sessionIdRef = useRef(sessionId);
+  useEffect(() => { handleDropTransferRef.current = handleDropTransfer; }, [handleDropTransfer]);
+  useEffect(() => { loadLocalDirRef.current = loadLocalDir; }, [loadLocalDir]);
+  useEffect(() => { sessionIdRef.current = sessionId; }, [sessionId]);
+
+  // Listen for native OS drag and drop (Finder / Desktop → app)
+  // Uses Tauri 2 onDragDropEvent API which works reliably on macOS, Windows, and Linux.
+  // Registered ONCE — uses refs to always call the latest callbacks.
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    let lastDragPosition: { x: number; y: number } | null = null;
 
     tauriApi
-      .onWindowDragDrop((payload) => {
-        const { paths, position } = payload;
+      .onDragDropEvent((event) => {
+        if (cancelled) return;
+
+        if (event.type === 'over' && event.position) {
+          lastDragPosition = event.position;
+          return;
+        }
+        if (event.type === 'enter' && event.position) {
+          lastDragPosition = event.position;
+          return;
+        }
+        if (event.type === 'leave') {
+          lastDragPosition = null;
+          return;
+        }
+        if (event.type !== 'drop') return;
+
+        const paths = event.paths;
+        const position = event.position || lastDragPosition;
+        lastDragPosition = null;
+        const sid = sessionIdRef.current;
+
         if (!paths || paths.length === 0) return;
 
-        const dpr = window.devicePixelRatio || 1;
-        const targetEl =
-          document.elementFromPoint(position.x / dpr, position.y / dpr) ||
-          document.elementFromPoint(position.x, position.y);
+        // Resolve drop target element from physical position
+        let targetEl: Element | null = null;
+        if (position) {
+          const dpr = window.devicePixelRatio || 1;
+          const cssX = position.x / dpr;
+          const cssY = position.y / dpr;
+          targetEl = document.elementFromPoint(cssX, cssY);
+        }
 
         const folderRow = targetEl?.closest('[data-file-row][data-is-dir="true"]');
         const paneEl = targetEl?.closest('[data-file-pane]');
@@ -283,11 +320,11 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
           const targetFolder = folderRow.getAttribute('data-entry-path');
           const isRemoteFolder = folderRow.getAttribute('data-is-remote') === 'true';
           if (targetFolder) {
-            if (isRemoteFolder && sessionId) {
-              handleDropTransfer(true, 'local', paths, targetFolder);
+            if (isRemoteFolder && sid) {
+              handleDropTransferRef.current(true, 'local', paths, targetFolder);
             } else if (!isRemoteFolder) {
               if (paths.length === 1 && paths[0]) {
-                loadLocalDir(targetFolder);
+                loadLocalDirRef.current(targetFolder);
               }
             }
             return;
@@ -296,31 +333,38 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
 
         const isRemotePane = paneEl
           ? paneEl.getAttribute('data-pane-is-remote') === 'true'
-          : (sessionId ? (position.x / dpr) > window.innerWidth / 2 : false);
+          : (sid && position
+              ? (position.x / (window.devicePixelRatio || 1)) > window.innerWidth / 2
+              : false);
 
         const currentRemote = useFileManagerStore.getState().remote.currentPath;
 
-        if (isRemotePane && sessionId) {
+        if (isRemotePane && sid) {
           const targetDir = paneEl?.getAttribute('data-pane-current-path') || currentRemote;
-          handleDropTransfer(true, 'local', paths, targetDir);
+          handleDropTransferRef.current(true, 'local', paths, targetDir);
         } else {
-          // If single path dropped on local pane and is directory, navigate
           if (paths.length === 1) {
-            loadLocalDir(paths[0]);
+            loadLocalDirRef.current(paths[0]);
           }
         }
       })
       .then((fn) => {
-        unlisten = fn;
+        if (cancelled) {
+          // Effect already cleaned up before listener was ready — unlisten immediately
+          fn();
+        } else {
+          unlisten = fn;
+        }
       })
       .catch((err) => {
         console.warn('Native drag-drop listener not registered:', err);
       });
 
     return () => {
+      cancelled = true;
       if (unlisten) unlisten();
     };
-  }, [sessionId, handleDropTransfer, loadLocalDir]);
+  }, []); // Empty deps — register once, use refs for latest values
 
   // Context Menu CRUD Operations
   const handleRename = (entry: FileEntry, isRemote: boolean) => {
