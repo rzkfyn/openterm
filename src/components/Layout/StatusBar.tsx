@@ -2,7 +2,8 @@ import React from 'react';
 import { useSessionStore } from '../../stores/sessionStore';
 import { useUpdateStore } from '../../stores/updateStore';
 import { tauriApi } from '../../services/tauri';
-import { Terminal, Columns, FolderTree, Wifi, WifiOff, ArrowUpCircle, X } from 'lucide-react';
+import { Terminal, Columns, FolderTree, Wifi, WifiOff, ArrowUpCircle, X, Palette } from 'lucide-react';
+import { useThemeStore, THEME_PRESETS } from '../../stores/themeStore';
 
 const REPO_URL = 'https://github.com/rzkfyn/openterm';
 const RELEASES_URL = 'https://github.com/rzkfyn/openterm/releases';
@@ -24,6 +25,7 @@ const GithubIcon: React.FC<{ className?: string }> = ({ className = 'h-3.5 w-3.5
 
 export const StatusBar: React.FC = () => {
   const { currentSessionId, activeSessions, viewMode, setViewMode } = useSessionStore();
+  const { currentThemeId, setTheme } = useThemeStore();
   const {
     currentVersion,
     latestVersion,
@@ -192,6 +194,23 @@ export const StatusBar: React.FC = () => {
         )}
 
         <span className="ml-2 font-mono text-[10px] text-slate-500">UTF-8</span>
+
+        {/* Terminal Color Theme Picker */}
+        <div className="flex items-center gap-1 ml-2 pl-2 border-l border-[#2a2b38]">
+          <Palette className="h-3 w-3 text-slate-400 shrink-0" />
+          <select
+            value={currentThemeId}
+            onChange={(e) => setTheme(e.target.value)}
+            className="bg-transparent text-[10px] text-slate-400 hover:text-slate-200 border-none outline-none cursor-pointer pr-1"
+            title="Terminal color theme preset"
+          >
+            {THEME_PRESETS.map((preset) => (
+              <option key={preset.id} value={preset.id} className="bg-[#181824] text-slate-200">
+                {preset.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
     </footer>
   );

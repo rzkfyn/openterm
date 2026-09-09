@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ChevronRight, ChevronDown, Folder, FolderOpen, RefreshCw, Loader2 } from 'lucide-react';
 import { tauriApi } from '../../services/tauri';
-import { getBasename } from '../../utils/pathUtils';
 
 interface TreeNode {
   path: string;

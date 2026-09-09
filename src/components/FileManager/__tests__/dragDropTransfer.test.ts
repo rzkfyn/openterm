@@ -14,6 +14,8 @@ describe('Drag and drop path resolution and navigation preservation', () => {
         isLoading: false,
         error: null,
         selectedPaths: [],
+        history: ['C:\\Users\\tester\\Downloads'],
+        historyIndex: 0,
       },
       remote: {
         currentPath: '/home/ubuntu/app',
@@ -32,6 +34,8 @@ describe('Drag and drop path resolution and navigation preservation', () => {
         isLoading: false,
         error: null,
         selectedPaths: [],
+        history: ['/home/ubuntu/app'],
+        historyIndex: 0,
       },
     });
   });

@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { tauriApi } from '../../services/tauri';
+import { useThemeStore } from '../../stores/themeStore';
 import {
   useSessionStore,
   attachTerminalSubscriber,
@@ -13,38 +14,28 @@ export function useTerminalSession(sessionId: string | null) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const currentTheme = useThemeStore((s) => s.theme);
+
+  // Sync theme changes to live xterm instance
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.options.theme = currentTheme.xterm;
+    }
+    if (containerRef.current) {
+      containerRef.current.style.backgroundColor = currentTheme.xterm.background;
+    }
+  }, [currentTheme]);
 
   useEffect(() => {
     if (!sessionId || !containerRef.current) return;
 
-    // 1. Initialize xterm.js matching the custom dark midnight palette
+    // 1. Initialize xterm.js matching active theme preset
     const term = new Terminal({
       cursorBlink: true,
       fontFamily: 'Menlo, Monaco, "Courier New", "Cascadia Code", monospace',
       fontSize: 12.5,
       lineHeight: 1.25,
-      theme: {
-        background: '#13131d',
-        foreground: '#e2e8f0',
-        cursor: '#818cf8',
-        selectionBackground: 'rgba(99, 102, 241, 0.3)',
-        black: '#11111a',
-        red: '#f43f5e',
-        green: '#10b981',
-        yellow: '#f59e0b',
-        blue: '#6366f1',
-        magenta: '#a855f7',
-        cyan: '#06b6d4',
-        white: '#f8fafc',
-        brightBlack: '#475569',
-        brightRed: '#fb7185',
-        brightGreen: '#34d399',
-        brightYellow: '#fbbf24',
-        brightBlue: '#818cf8',
-        brightMagenta: '#c084fc',
-        brightCyan: '#22d3ee',
-        brightWhite: '#ffffff',
-      },
+      theme: currentTheme.xterm,
     });
 
     const fitAddon = new FitAddon();

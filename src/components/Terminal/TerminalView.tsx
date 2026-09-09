@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useTerminalSession } from './useTerminalSession';
 import { useSessionStore } from '../../stores/sessionStore';
+import { useThemeStore } from '../../stores/themeStore';
 import { TerminalContextMenu, TerminalContextMenuPosition } from './TerminalContextMenu';
 import { Terminal as TerminalIcon, Radio, AlertCircle, RotateCw } from 'lucide-react';
 
@@ -22,6 +23,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
   const [contextMenu, setContextMenu] = useState<TerminalContextMenuPosition | null>(null);
   const activeSessions = useSessionStore((s) => s.activeSessions);
   const reconnectSession = useSessionStore((s) => s.reconnectSession);
+  const currentTheme = useThemeStore((s) => s.theme);
   const currentSession = activeSessions.find((s) => s.id === sessionId);
   const isDisconnected = currentSession?.status === 'disconnected';
   const isReconnecting = currentSession?.status === 'reconnecting';
@@ -101,7 +103,8 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
 
       {/* Terminal Viewport */}
       <div
-        className="relative flex-1 min-h-0 w-full overflow-hidden bg-[#13131d] cursor-text p-1"
+        className="relative flex-1 min-h-0 w-full overflow-hidden cursor-text p-1"
+        style={{ backgroundColor: currentTheme.xterm.background }}
         ref={containerRef}
         onClick={() => terminal?.focus()}
         onContextMenu={(e) => {
