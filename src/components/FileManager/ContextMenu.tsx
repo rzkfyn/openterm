@@ -10,6 +10,7 @@ import {
   FolderPlus,
   RotateCw,
   Copy,
+  Bookmark,
 } from 'lucide-react';
 import { FileEntry } from '../../types';
 
@@ -28,6 +29,7 @@ interface ContextMenuProps {
   onRename?: (entry: FileEntry) => void;
   onChmod?: (entry: FileEntry) => void;
   onDelete?: (entry: FileEntry) => void;
+  onBookmarkFolder?: (entry: FileEntry) => void;
   onNewFile?: () => void;
   onNewFolder?: () => void;
   onRefresh?: () => void;
@@ -43,6 +45,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   onRename,
   onChmod,
   onDelete,
+  onBookmarkFolder,
   onNewFile,
   onNewFolder,
   onRefresh,
@@ -158,6 +161,20 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             >
               <Shield className="h-3.5 w-3.5 text-amber-400" />
               <span>Permissions</span>
+            </button>
+          )}
+
+          {targetEntry.isDir && onBookmarkFolder && (
+            <button
+              type="button"
+              onClick={() => {
+                onBookmarkFolder(targetEntry);
+                onClose();
+              }}
+              className="flex w-full items-center gap-2 px-2 py-1.5 rounded hover:bg-amber-600 hover:text-white transition-colors cursor-pointer text-left"
+            >
+              <Bookmark className="h-3.5 w-3.5 text-amber-400" />
+              <span>Bookmark Folder</span>
             </button>
           )}
 

@@ -18,6 +18,10 @@ interface FilePaneProps {
   isLoading: boolean;
   error: string | null;
   selectedPaths: string[];
+  canGoBack?: boolean;
+  canGoForward?: boolean;
+  onGoBack?: () => void;
+  onGoForward?: () => void;
   onSelect: (paths: string[]) => void;
   onNavigate: (path: string) => void;
   onRefresh: () => void;
@@ -27,6 +31,7 @@ interface FilePaneProps {
   onRenameItem?: (entry: FileEntry) => void;
   onChmodItem?: (entry: FileEntry) => void;
   onDeleteItem?: (entry: FileEntry) => void;
+  onBookmarkFolder?: (entry: FileEntry) => void;
   onNewFile?: () => void;
   onNewFolder?: () => void;
 }
@@ -40,6 +45,10 @@ export const FilePane: React.FC<FilePaneProps> = ({
   isLoading,
   error,
   selectedPaths,
+  canGoBack = false,
+  canGoForward = false,
+  onGoBack,
+  onGoForward,
   onSelect,
   onNavigate,
   onRefresh,
@@ -49,6 +58,7 @@ export const FilePane: React.FC<FilePaneProps> = ({
   onRenameItem,
   onChmodItem,
   onDeleteItem,
+  onBookmarkFolder,
   onNewFile,
   onNewFolder,
 }) => {
@@ -183,6 +193,18 @@ export const FilePane: React.FC<FilePaneProps> = ({
     }
 
     // Arrow Navigation
+    if (e.altKey && e.key === 'ArrowLeft') {
+      e.preventDefault();
+      if (canGoBack) onGoBack?.();
+      return;
+    }
+
+    if (e.altKey && e.key === 'ArrowRight') {
+      e.preventDefault();
+      if (canGoForward) onGoForward?.();
+      return;
+    }
+
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (sortedEntries.length === 0) return;
@@ -308,6 +330,18 @@ export const FilePane: React.FC<FilePaneProps> = ({
     }
   };
 
+  const handlePaneMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 3) {
+      // Mouse 4: Back
+      e.preventDefault();
+      if (canGoBack) onGoBack?.();
+    } else if (e.button === 4) {
+      // Mouse 5: Forward
+      e.preventDefault();
+      if (canGoForward) onGoForward?.();
+    }
+  };
+
   return (
     <div
       ref={paneContainerRef}
@@ -316,6 +350,7 @@ export const FilePane: React.FC<FilePaneProps> = ({
       data-pane-is-remote={isRemote ? 'true' : 'false'}
       data-pane-current-path={currentPath}
       onKeyDown={handleKeyDown}
+      onMouseDown={handlePaneMouseDown}
       className={`relative flex flex-1 flex-col h-full bg-[#1e1e2d] overflow-hidden select-none outline-none transition-colors ${
         isPaneDragOver ? 'ring-2 ring-indigo-500/80 bg-[#252538]' : ''
       }`}
@@ -402,6 +437,10 @@ export const FilePane: React.FC<FilePaneProps> = ({
         onNavigate={onNavigate}
         onRefresh={onRefresh}
         isRemote={isRemote}
+        canGoBack={canGoBack}
+        canGoForward={canGoForward}
+        onGoBack={onGoBack}
+        onGoForward={onGoForward}
       />
 
       {/* Column Headers */}
@@ -506,6 +545,7 @@ export const FilePane: React.FC<FilePaneProps> = ({
           onRename={onRenameItem}
           onChmod={onChmodItem}
           onDelete={onDeleteItem}
+          onBookmarkFolder={onBookmarkFolder}
           onNewFile={onNewFile}
           onNewFolder={onNewFolder}
           onRefresh={onRefresh}

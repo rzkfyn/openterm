@@ -11,7 +11,7 @@ import { FileEditorModal } from './FileEditorModal';
 import { TransferConflictModal, ConflictDetails } from './TransferConflictModal';
 import { ConflictAction, FileEntry } from '../../types';
 import { shouldTransferOnConflict, resolveDestinationPath } from '../../utils/conflictUtils';
-import { ArrowRight, ArrowLeft, CloudOff, Bookmark } from 'lucide-react';
+import { ArrowRight, ArrowLeft, CloudOff, Bookmark, Plus, X } from 'lucide-react';
 import { useSessionStore } from '../../stores/sessionStore';
 
 interface DualPaneExplorerProps {
@@ -26,10 +26,14 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
     setRemoteSelected,
     loadLocalDir,
     loadRemoteDir,
+    goBack,
+    goForward,
   } = useFileManagerStore();
 
   const { startDownload, startUpload } = useTransferStore();
   const session = useSessionStore((state) => state.activeSessions.find((s) => s.id === sessionId));
+  const addSessionBookmark = useSessionStore((state) => state.addSessionBookmark);
+  const removeSessionBookmark = useSessionStore((state) => state.removeSessionBookmark);
   const bookmarks = session?.bookmarks || [];
   const [showBookmarkMenu, setShowBookmarkMenu] = useState(false);
 
@@ -60,6 +64,47 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
   });
 
   // File Editor Modal state
+  const handleBookmarkCurrentLocations = () => {
+    if (!sessionId) return;
+    const defaultName = `${getBasename(local.currentPath) || 'Local'} ↔ ${getBasename(remote.currentPath) || 'Remote'}`;
+    setPromptState({
+      isOpen: true,
+      title: 'Bookmark Current Locations',
+      message: 'Enter a display label for this bookmark pair:',
+      initialValue: defaultName,
+      confirmLabel: 'Save Bookmark',
+      onConfirm: (label) => {
+        const trimmed = label.trim() || defaultName;
+        addSessionBookmark(sessionId, {
+          id: crypto.randomUUID(),
+          name: trimmed,
+          localPath: local.currentPath,
+          remotePath: remote.currentPath,
+        });
+        setShowBookmarkMenu(false);
+      },
+    });
+  };
+
+  const handleBookmarkFolder = (entry: FileEntry, isRemote: boolean) => {
+    if (!sessionId) return;
+    setPromptState({
+      isOpen: true,
+      title: `Bookmark ${isRemote ? 'Remote' : 'Local'} Folder`,
+      message: 'Enter a display label for this bookmark:',
+      initialValue: entry.name,
+      confirmLabel: 'Save Bookmark',
+      onConfirm: (label) => {
+        const trimmed = label.trim() || entry.name;
+        addSessionBookmark(sessionId, {
+          id: crypto.randomUUID(),
+          name: trimmed,
+          localPath: isRemote ? undefined : entry.path,
+          remotePath: isRemote ? entry.path : undefined,
+        });
+      },
+    });
+  };
   const [editorState, setEditorState] = useState<{
     isOpen: boolean;
     filePath: string;
@@ -475,6 +520,10 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
           isLoading={local.isLoading}
           error={local.error}
           selectedPaths={local.selectedPaths}
+          canGoBack={local.historyIndex > 0}
+          canGoForward={local.historyIndex < local.history.length - 1}
+          onGoBack={() => goBack(false)}
+          onGoForward={() => goForward(false)}
           onSelect={setLocalSelected}
           onNavigate={(p) => loadLocalDir(p)}
           onRefresh={() => loadLocalDir(local.currentPath)}
@@ -482,6 +531,7 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
           onTransferItem={(entry) => handleTransferSingle(entry, false)}
           onRenameItem={(entry) => handleRename(entry, false)}
           onDeleteItem={(entry) => handleDelete(entry, false)}
+          onBookmarkFolder={(entry) => handleBookmarkFolder(entry, false)}
           onNewFile={() => handleNewFile(false)}
           onNewFolder={() => handleNewFolder(false)}
         />
@@ -509,43 +559,91 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
             <ArrowLeft className="h-3.5 w-3.5" />
           </button>
 
-          {bookmarks.length > 0 && (
-            <div className="relative mt-2 pt-2 border-t border-[#2a2b38]">
-              <button
-                type="button"
-                onClick={() => setShowBookmarkMenu(!showBookmarkMenu)}
-                className="flex h-7 w-7 items-center justify-center rounded-md bg-[#1e1e2d] border border-[#2a2b38] text-amber-400 hover:text-white hover:bg-amber-600 hover:border-amber-600 cursor-pointer transition-colors"
-                title="Jump to SFTP Bookmark"
-              >
-                <Bookmark className="h-3.5 w-3.5" />
-              </button>
-              {showBookmarkMenu && (
-                <div className="absolute left-9 top-0 z-50 w-52 rounded-md bg-[#181824] border border-[#2a2b38] shadow-xl py-1 text-xs">
-                  <div className="px-2.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-b border-[#2a2b38]">
-                    SFTP Bookmarks
-                  </div>
-                  {bookmarks.map((bm) => (
-                    <button
-                      key={bm.id}
-                      type="button"
-                      onClick={() => {
-                        if (bm.localPath) loadLocalDir(bm.localPath);
-                        if (sessionId && bm.remotePath) loadRemoteDir(sessionId, bm.remotePath);
-                        setShowBookmarkMenu(false);
-                      }}
-                      className="w-full text-left px-2.5 py-1.5 hover:bg-[#252538] text-slate-200 cursor-pointer block truncate"
-                      title={`${bm.name}\nLocal: ${bm.localPath || 'N/A'}\nRemote: ${bm.remotePath || 'N/A'}`}
-                    >
-                      <div className="font-medium text-xs text-white truncate">{bm.name}</div>
-                      <div className="text-[10px] text-slate-400 font-mono truncate">
-                        {bm.remotePath ? `Remote: ${bm.remotePath}` : `Local: ${bm.localPath}`}
-                      </div>
-                    </button>
-                  ))}
+          <div className="relative mt-2 pt-2 border-t border-[#2a2b38]">
+            <button
+              type="button"
+              onClick={() => setShowBookmarkMenu(!showBookmarkMenu)}
+              className={`flex h-7 w-7 items-center justify-center rounded-md bg-[#1e1e2d] border border-[#2a2b38] transition-colors cursor-pointer ${
+                showBookmarkMenu
+                  ? 'text-amber-300 border-amber-500/50 bg-amber-950/20'
+                  : 'text-amber-400 hover:text-white hover:bg-amber-600 hover:border-amber-600'
+              }`}
+              title="SFTP Bookmarks"
+            >
+              <Bookmark className="h-3.5 w-3.5" />
+            </button>
+            {showBookmarkMenu && (
+              <div className="absolute left-9 top-0 z-50 w-60 rounded-md bg-[#181824] border border-[#2a2b38] shadow-2xl py-1 text-xs">
+                <div className="flex items-center justify-between px-2.5 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-b border-[#2a2b38]">
+                  <span>SFTP Bookmarks</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowBookmarkMenu(false)}
+                    className="text-slate-500 hover:text-slate-300 cursor-pointer"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
                 </div>
-              )}
-            </div>
-          )}
+
+                {/* Bookmark current locations action */}
+                <button
+                  type="button"
+                  disabled={!sessionId}
+                  onClick={handleBookmarkCurrentLocations}
+                  className="flex w-full items-center gap-2 px-2.5 py-1.5 hover:bg-indigo-600/30 text-indigo-300 border-b border-[#2a2b38]/60 cursor-pointer text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Plus className="h-3.5 w-3.5 text-indigo-400" />
+                  <span className="font-medium text-[11px]">Bookmark Current Locations</span>
+                </button>
+
+                <div className="max-h-56 overflow-y-auto">
+                  {bookmarks.length === 0 ? (
+                    <div className="px-3 py-3 text-center text-[11px] text-slate-500 italic">
+                      No bookmarks saved for this host yet
+                    </div>
+                  ) : (
+                    bookmarks.map((bm) => (
+                      <div
+                        key={bm.id}
+                        className="flex items-center justify-between group px-2 py-1.5 hover:bg-[#252538] text-slate-200 transition-colors"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (bm.localPath) loadLocalDir(bm.localPath);
+                            if (sessionId && bm.remotePath) loadRemoteDir(sessionId, bm.remotePath);
+                            setShowBookmarkMenu(false);
+                          }}
+                          className="flex-1 text-left min-w-0 pr-1 cursor-pointer"
+                          title={`${bm.name}\nLocal: ${bm.localPath || 'N/A'}\nRemote: ${bm.remotePath || 'N/A'}`}
+                        >
+                          <div className="font-medium text-xs text-white truncate">{bm.name}</div>
+                          <div className="text-[10px] text-slate-400 font-mono truncate">
+                            {bm.remotePath && bm.localPath
+                              ? `${bm.localPath} ↔ ${bm.remotePath}`
+                              : bm.remotePath
+                              ? `Remote: ${bm.remotePath}`
+                              : `Local: ${bm.localPath}`}
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (sessionId) removeSessionBookmark(sessionId, bm.id);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-rose-500/20 hover:text-rose-400 text-slate-500 transition-all cursor-pointer shrink-0"
+                          title="Delete bookmark"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
         <ResizableSplitter onResize={handleDualPaneResize} />
       </div>
@@ -562,6 +660,10 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
             isLoading={remote.isLoading}
             error={remote.error}
             selectedPaths={remote.selectedPaths}
+            canGoBack={remote.historyIndex > 0}
+            canGoForward={remote.historyIndex < remote.history.length - 1}
+            onGoBack={() => sessionId && goBack(true, sessionId)}
+            onGoForward={() => sessionId && goForward(true, sessionId)}
             onSelect={setRemoteSelected}
             onNavigate={(p) => loadRemoteDir(sessionId, p)}
             onRefresh={() => loadRemoteDir(sessionId, remote.currentPath)}
@@ -571,6 +673,7 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
             onRenameItem={(entry) => handleRename(entry, true)}
             onChmodItem={(entry) => setChmodState({ isOpen: true, entry })}
             onDeleteItem={(entry) => handleDelete(entry, true)}
+            onBookmarkFolder={(entry) => handleBookmarkFolder(entry, true)}
             onNewFile={() => handleNewFile(true)}
             onNewFolder={() => handleNewFolder(true)}
           />

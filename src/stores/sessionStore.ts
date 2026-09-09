@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import { SessionConfig, ViewMode } from '../types';
+import { SessionConfig, ViewMode, ConnectionBookmark } from '../types';
 import { tauriApi } from '../services/tauri';
 import { useFileManagerStore } from './fileManagerStore';
+import { useSavedConnectionStore } from './savedConnectionStore';
 
 // Global session stream registry:
 // Tauri listener stays alive for the entire duration of the session
@@ -113,6 +114,8 @@ interface SessionState {
   disconnectSession: (id: string) => Promise<void>;
   disconnectOtherSessions: (keepId: string) => Promise<void>;
   disconnectAllSessions: () => Promise<void>;
+  addSessionBookmark: (sessionId: string, bookmark: ConnectionBookmark) => Promise<void>;
+  removeSessionBookmark: (sessionId: string, bookmarkId: string) => Promise<void>;
   clearError: () => void;
 }
 
@@ -309,6 +312,56 @@ export const useSessionStore = create<SessionState>((set) => ({
     for (const session of activeSessions) {
       if (session.id) {
         await disconnectSession(session.id);
+      }
+    }
+  },
+
+  addSessionBookmark: async (sessionId, bookmark) => {
+    set((state) => {
+      const nextSessions = state.activeSessions.map((s) => {
+        if (s.id === sessionId) {
+          const currentBookmarks = s.bookmarks || [];
+          return { ...s, bookmarks: [...currentBookmarks, bookmark] };
+        }
+        return s;
+      });
+      return { activeSessions: nextSessions };
+    });
+
+    const session = useSessionStore.getState().activeSessions.find((s) => s.id === sessionId);
+    if (session) {
+      const { connections, save } = useSavedConnectionStore.getState();
+      const matched = connections.find(
+        (c) => c.id === session.id || (c.host === session.host && c.username === session.username)
+      );
+      if (matched) {
+        const existing = matched.bookmarks || [];
+        await save({ ...matched, bookmarks: [...existing, bookmark] });
+      }
+    }
+  },
+
+  removeSessionBookmark: async (sessionId, bookmarkId) => {
+    set((state) => {
+      const nextSessions = state.activeSessions.map((s) => {
+        if (s.id === sessionId) {
+          const currentBookmarks = s.bookmarks || [];
+          return { ...s, bookmarks: currentBookmarks.filter((b) => b.id !== bookmarkId) };
+        }
+        return s;
+      });
+      return { activeSessions: nextSessions };
+    });
+
+    const session = useSessionStore.getState().activeSessions.find((s) => s.id === sessionId);
+    if (session) {
+      const { connections, save } = useSavedConnectionStore.getState();
+      const matched = connections.find(
+        (c) => c.id === session.id || (c.host === session.host && c.username === session.username)
+      );
+      if (matched) {
+        const existing = matched.bookmarks || [];
+        await save({ ...matched, bookmarks: existing.filter((b) => b.id !== bookmarkId) });
       }
     }
   },
