@@ -7,7 +7,6 @@ import { AppHeader } from './components/Layout/AppHeader';
 import { StatusBar } from './components/Layout/StatusBar';
 import { TerminalView } from './components/Terminal/TerminalView';
 import { DualPaneExplorer } from './components/FileManager/DualPaneExplorer';
-import { TransferDrawer } from './components/FileManager/TransferDrawer';
 import { ResizableSplitter } from './components/Common/ResizableSplitter';
 import { ErrorBoundary } from './components/Common/ErrorBoundary';
 import { NewConnectionModal, ModalMode } from './components/Modal/NewConnectionModal';
@@ -197,7 +196,6 @@ export default function App() {
               </>
             )}
           </main>
-          <TransferDrawer />
         </>
       )}
 

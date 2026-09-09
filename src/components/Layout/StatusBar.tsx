@@ -2,7 +2,8 @@ import React from 'react';
 import { useSessionStore } from '../../stores/sessionStore';
 import { useUpdateStore } from '../../stores/updateStore';
 import { tauriApi } from '../../services/tauri';
-import { Terminal, Columns, FolderTree, Wifi, WifiOff, ArrowUpCircle, X } from 'lucide-react';
+import { Terminal, Columns, FolderTree, Wifi, WifiOff, ArrowUpCircle, X, Palette } from 'lucide-react';
+import { useThemeStore, THEME_PRESETS } from '../../stores/themeStore';
 
 const REPO_URL = 'https://github.com/rzkfyn/openterm';
 const RELEASES_URL = 'https://github.com/rzkfyn/openterm/releases';
@@ -24,6 +25,7 @@ const GithubIcon: React.FC<{ className?: string }> = ({ className = 'h-3.5 w-3.5
 
 export const StatusBar: React.FC = () => {
   const { currentSessionId, activeSessions, viewMode, setViewMode } = useSessionStore();
+  const { currentThemeId, setTheme } = useThemeStore();
   const {
     currentVersion,
     latestVersion,
@@ -31,6 +33,7 @@ export const StatusBar: React.FC = () => {
     hasUpdate,
     isChecking,
     dismissed,
+    checkStatus,
     dismissUpdate,
     checkForUpdates,
   } = useUpdateStore();
@@ -76,18 +79,28 @@ export const StatusBar: React.FC = () => {
               e.preventDefault();
               handleOpenReleases();
             }}
-            className={`font-mono text-[10px] transition-colors cursor-pointer ${
+            className={`flex items-center gap-1 font-mono text-[10px] transition-colors cursor-pointer px-1 py-0.5 rounded hover:bg-[#1e1e2d] ${
               isChecking
                 ? 'text-indigo-400 animate-pulse'
+                : checkStatus === 'up-to-date'
+                ? 'text-emerald-400 font-medium'
+                : checkStatus === 'error'
+                ? 'text-rose-400'
                 : 'text-slate-500 hover:text-slate-300'
             }`}
             title={
               isChecking
                 ? 'Checking for updates...'
+                : checkStatus === 'up-to-date'
+                ? 'OpenTerm is up to date!'
+                : checkStatus === 'error'
+                ? 'Failed to check updates (click to retry)'
                 : 'v' + currentVersion + ' (Click to check updates, right-click for release history)'
             }
           >
-            v{currentVersion}
+            <span>v{currentVersion}</span>
+            {checkStatus === 'up-to-date' && <span className="text-[9px] text-emerald-400">✓ Up to date</span>}
+            {checkStatus === 'error' && <span className="text-[9px] text-rose-400">✗ Check failed</span>}
           </button>
         </div>
 
@@ -181,6 +194,23 @@ export const StatusBar: React.FC = () => {
         )}
 
         <span className="ml-2 font-mono text-[10px] text-slate-500">UTF-8</span>
+
+        {/* Terminal Color Theme Picker */}
+        <div className="flex items-center gap-1 ml-2 pl-2 border-l border-[#2a2b38]">
+          <Palette className="h-3 w-3 text-slate-400 shrink-0" />
+          <select
+            value={currentThemeId}
+            onChange={(e) => setTheme(e.target.value)}
+            className="bg-transparent text-[10px] text-slate-400 hover:text-slate-200 border-none outline-none cursor-pointer pr-1"
+            title="Terminal color theme preset"
+          >
+            {THEME_PRESETS.map((preset) => (
+              <option key={preset.id} value={preset.id} className="bg-[#181824] text-slate-200">
+                {preset.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
     </footer>
   );

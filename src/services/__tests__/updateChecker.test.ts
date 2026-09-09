@@ -106,5 +106,29 @@ describe('updateChecker', () => {
       const res = await checkLatestRelease(true, '0.5.1');
       expect(res).toBeNull();
     });
+
+    it('invalidates stale cache when current app version changes', async () => {
+      localStorage.setItem('openterm_last_update_check', Date.now().toString());
+      localStorage.setItem('openterm_cached_update_info', JSON.stringify({
+        hasUpdate: true,
+        currentVersion: '0.5.0',
+        latestVersion: '0.5.1',
+        releaseUrl: 'https://github.com/rzkfyn/openterm/releases/tag/v0.5.1',
+      }));
+
+      const mockResponse = {
+        tag_name: 'v0.5.1',
+        html_url: 'https://github.com/rzkfyn/openterm/releases/tag/v0.5.1',
+      };
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockResponse,
+      } as Response);
+
+      const res = await checkLatestRelease(false, '0.5.1');
+      expect(res).not.toBeNull();
+      expect(res?.hasUpdate).toBe(false);
+      expect(res?.currentVersion).toBe('0.5.1');
+    });
   });
 });

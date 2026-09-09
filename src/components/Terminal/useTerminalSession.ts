@@ -3,6 +3,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { tauriApi } from '../../services/tauri';
+import { useThemeStore } from '../../stores/themeStore';
 import {
   useSessionStore,
   attachTerminalSubscriber,
@@ -13,38 +14,28 @@ export function useTerminalSession(sessionId: string | null) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const currentTheme = useThemeStore((s) => s.theme);
+
+  // Sync theme changes to live xterm instance
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.options.theme = currentTheme.xterm;
+    }
+    if (containerRef.current) {
+      containerRef.current.style.backgroundColor = currentTheme.xterm.background;
+    }
+  }, [currentTheme]);
 
   useEffect(() => {
     if (!sessionId || !containerRef.current) return;
 
-    // 1. Initialize xterm.js matching the custom dark midnight palette
+    // 1. Initialize xterm.js matching active theme preset
     const term = new Terminal({
       cursorBlink: true,
       fontFamily: 'Menlo, Monaco, "Courier New", "Cascadia Code", monospace',
       fontSize: 12.5,
       lineHeight: 1.25,
-      theme: {
-        background: '#13131d',
-        foreground: '#e2e8f0',
-        cursor: '#818cf8',
-        selectionBackground: 'rgba(99, 102, 241, 0.3)',
-        black: '#11111a',
-        red: '#f43f5e',
-        green: '#10b981',
-        yellow: '#f59e0b',
-        blue: '#6366f1',
-        magenta: '#a855f7',
-        cyan: '#06b6d4',
-        white: '#f8fafc',
-        brightBlack: '#475569',
-        brightRed: '#fb7185',
-        brightGreen: '#34d399',
-        brightYellow: '#fbbf24',
-        brightBlue: '#818cf8',
-        brightMagenta: '#c084fc',
-        brightCyan: '#22d3ee',
-        brightWhite: '#ffffff',
-      },
+      theme: currentTheme.xterm,
     });
 
     const fitAddon = new FitAddon();
@@ -53,12 +44,58 @@ export function useTerminalSession(sessionId: string | null) {
     term.loadAddon(fitAddon);
     term.loadAddon(webLinksAddon);
 
+    // Attach custom keyboard handler for copy / paste / select all
+    term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+      const isCtrlOrCmd = event.ctrlKey || event.metaKey;
+
+      // Copy: Ctrl+Shift+C or Ctrl+C when text is selected
+      if (event.type === 'keydown' && isCtrlOrCmd && (event.key === 'c' || event.key === 'C')) {
+        if (event.shiftKey || term.hasSelection()) {
+          const selection = term.getSelection();
+          if (selection) {
+            navigator.clipboard.writeText(selection).catch(() => {});
+            return false;
+          }
+        }
+      }
+
+      // Paste: Ctrl+V (or Ctrl+Shift+V)
+      if (event.type === 'keydown' && isCtrlOrCmd && (event.key === 'v' || event.key === 'V')) {
+        navigator.clipboard
+          .readText()
+          .then((clipText) => {
+            if (clipText && sessionId) {
+              tauriApi.sshWrite(sessionId, clipText).catch(() => {});
+            }
+          })
+          .catch(() => {});
+        return false;
+      }
+
+      // Select All: Ctrl+Shift+A
+      if (event.type === 'keydown' && isCtrlOrCmd && event.shiftKey && (event.key === 'a' || event.key === 'A')) {
+        term.selectAll();
+        return false;
+      }
+
+      return true;
+    });
+
     term.open(containerRef.current);
     fitAddon.fit();
     term.focus();
 
     terminalRef.current = term;
     fitAddonRef.current = fitAddon;
+
+    // Suppress middle-click paste that causes accidental paste artifacts
+    const handleAuxClick = (e: MouseEvent) => {
+      if (e.button === 1) {
+        e.preventDefault();
+      }
+    };
+    const el = containerRef.current;
+    el.addEventListener('auxclick', handleAuxClick);
 
     term.writeln(`\x1b[38;5;105m[OpenTerm]\x1b[0m Connected to session \x1b[38;5;222m${sessionId}\x1b[0m\r\n`);
 
@@ -111,24 +148,45 @@ export function useTerminalSession(sessionId: string | null) {
     // 4. Resize handling — notify SSH server of actual terminal size
     const sendResize = () => {
       try {
+        if (!containerRef.current || !terminalRef.current || !fitAddonRef.current) return;
         fitAddon.fit();
         const { cols, rows } = term;
         if (cols > 0 && rows > 0) {
           tauriApi.sshResizePty(sessionId, cols, rows).catch(() => {});
         }
-        term.focus();
       } catch (e) {
         // Suppress layout race condition warnings during unmount
       }
     };
 
-    const resizeObserver = new ResizeObserver(() => sendResize());
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedResize = () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        sendResize();
+      }, 30);
+    };
+
+    const resizeObserver = new ResizeObserver(() => debouncedResize());
     resizeObserver.observe(containerRef.current);
 
-    // Initial fit + resize after rendering
-    requestAnimationFrame(() => sendResize());
+    // Initial fit + resize after layout and fonts settle
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        sendResize();
+        term.focus();
+      });
+    });
+
+    if (typeof document !== 'undefined' && document.fonts) {
+      document.fonts.ready.then(() => {
+        sendResize();
+      });
+    }
 
     return () => {
+      el.removeEventListener('auxclick', handleAuxClick);
+      if (resizeTimer) clearTimeout(resizeTimer);
       resizeObserver.disconnect();
       onDataDisposable.dispose();
       detachTerminalSubscriber(sessionId);
@@ -152,5 +210,49 @@ export function useTerminalSession(sessionId: string | null) {
     }
   }, [viewMode]);
 
-  return { containerRef, terminal: terminalRef.current };
+  const copySelection = () => {
+    if (terminalRef.current?.hasSelection()) {
+      const text = terminalRef.current.getSelection();
+      if (text) navigator.clipboard.writeText(text).catch(() => {});
+    }
+  };
+
+  const pasteFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && sessionId) {
+        await tauriApi.sshWrite(sessionId, text);
+      }
+    } catch (err) {
+      console.error('Failed to paste from clipboard:', err);
+    }
+  };
+
+  const selectAll = () => {
+    terminalRef.current?.selectAll();
+  };
+
+  const clearTerminal = () => {
+    terminalRef.current?.clear();
+  };
+
+  const resetTerminal = () => {
+    if (terminalRef.current) {
+      terminalRef.current.reset();
+    }
+    if (sessionId) {
+      // Clear DECSET mouse tracking modes (1000, 1002, 1003, 1006), reset text attributes, and clear screen
+      tauriApi.sshWrite(sessionId, '\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[0m\x0c').catch(() => {});
+    }
+  };
+
+  return {
+    containerRef,
+    terminal: terminalRef.current,
+    copySelection,
+    pasteFromClipboard,
+    selectAll,
+    clearTerminal,
+    resetTerminal,
+  };
 }

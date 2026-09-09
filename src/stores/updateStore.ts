@@ -9,9 +9,12 @@ interface UpdateState {
   hasUpdate: boolean;
   isChecking: boolean;
   dismissed: boolean;
+  checkStatus: 'idle' | 'checking' | 'up-to-date' | 'update-available' | 'error';
   checkForUpdates: (force?: boolean) => Promise<void>;
   dismissUpdate: () => void;
 }
+
+let statusTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const useUpdateStore = create<UpdateState>((set) => ({
   currentVersion: APP_VERSION,
@@ -20,23 +23,43 @@ export const useUpdateStore = create<UpdateState>((set) => ({
   hasUpdate: false,
   isChecking: false,
   dismissed: false,
+  checkStatus: 'idle',
 
   checkForUpdates: async (force = false) => {
-    set({ isChecking: true });
+    if (statusTimer) clearTimeout(statusTimer);
+    set({ isChecking: true, checkStatus: 'checking' });
     try {
       const info = await checkLatestRelease(force, APP_VERSION);
       if (info) {
+        const nextStatus = info.hasUpdate ? 'update-available' : 'up-to-date';
         set({
           latestVersion: info.latestVersion,
           releaseUrl: info.releaseUrl,
           hasUpdate: info.hasUpdate,
           isChecking: false,
+          checkStatus: nextStatus,
         });
+
+        if (!info.hasUpdate) {
+          statusTimer = setTimeout(() => {
+            set({ checkStatus: 'idle' });
+          }, 3500);
+        }
       } else {
-        set({ isChecking: false });
+        set({ isChecking: false, checkStatus: force ? 'error' : 'idle' });
+        if (force) {
+          statusTimer = setTimeout(() => {
+            set({ checkStatus: 'idle' });
+          }, 3500);
+        }
       }
     } catch {
-      set({ isChecking: false });
+      set({ isChecking: false, checkStatus: force ? 'error' : 'idle' });
+      if (force) {
+        statusTimer = setTimeout(() => {
+          set({ checkStatus: 'idle' });
+        }, 3500);
+      }
     }
   },
 
