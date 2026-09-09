@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTerminalSession } from './useTerminalSession';
 import { useSessionStore } from '../../stores/sessionStore';
+import { TerminalContextMenu, TerminalContextMenuPosition } from './TerminalContextMenu';
 import { Terminal as TerminalIcon, Radio, AlertCircle, RotateCw } from 'lucide-react';
 
 interface TerminalViewProps {
@@ -9,7 +10,16 @@ interface TerminalViewProps {
 }
 
 export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionName }) => {
-  const { containerRef, terminal } = useTerminalSession(sessionId);
+  const {
+    containerRef,
+    terminal,
+    copySelection,
+    pasteFromClipboard,
+    selectAll,
+    clearTerminal,
+    resetTerminal,
+  } = useTerminalSession(sessionId);
+  const [contextMenu, setContextMenu] = useState<TerminalContextMenuPosition | null>(null);
   const activeSessions = useSessionStore((s) => s.activeSessions);
   const reconnectSession = useSessionStore((s) => s.reconnectSession);
   const currentSession = activeSessions.find((s) => s.id === sessionId);
@@ -94,7 +104,24 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
         className="relative flex-1 min-h-0 w-full overflow-hidden bg-[#13131d] cursor-text p-1"
         ref={containerRef}
         onClick={() => terminal?.focus()}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setContextMenu({ x: e.clientX, y: e.clientY });
+        }}
       />
+
+      {contextMenu && (
+        <TerminalContextMenu
+          position={contextMenu}
+          hasSelection={Boolean(terminal?.hasSelection())}
+          onCopy={copySelection}
+          onPaste={pasteFromClipboard}
+          onSelectAll={selectAll}
+          onClear={clearTerminal}
+          onReset={resetTerminal}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 };

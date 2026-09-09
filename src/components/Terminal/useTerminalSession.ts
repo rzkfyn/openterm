@@ -53,12 +53,58 @@ export function useTerminalSession(sessionId: string | null) {
     term.loadAddon(fitAddon);
     term.loadAddon(webLinksAddon);
 
+    // Attach custom keyboard handler for copy / paste / select all
+    term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+      const isCtrlOrCmd = event.ctrlKey || event.metaKey;
+
+      // Copy: Ctrl+Shift+C or Ctrl+C when text is selected
+      if (event.type === 'keydown' && isCtrlOrCmd && (event.key === 'c' || event.key === 'C')) {
+        if (event.shiftKey || term.hasSelection()) {
+          const selection = term.getSelection();
+          if (selection) {
+            navigator.clipboard.writeText(selection).catch(() => {});
+            return false;
+          }
+        }
+      }
+
+      // Paste: Ctrl+V (or Ctrl+Shift+V)
+      if (event.type === 'keydown' && isCtrlOrCmd && (event.key === 'v' || event.key === 'V')) {
+        navigator.clipboard
+          .readText()
+          .then((clipText) => {
+            if (clipText && sessionId) {
+              tauriApi.sshWrite(sessionId, clipText).catch(() => {});
+            }
+          })
+          .catch(() => {});
+        return false;
+      }
+
+      // Select All: Ctrl+Shift+A
+      if (event.type === 'keydown' && isCtrlOrCmd && event.shiftKey && (event.key === 'a' || event.key === 'A')) {
+        term.selectAll();
+        return false;
+      }
+
+      return true;
+    });
+
     term.open(containerRef.current);
     fitAddon.fit();
     term.focus();
 
     terminalRef.current = term;
     fitAddonRef.current = fitAddon;
+
+    // Suppress middle-click paste that causes accidental paste artifacts
+    const handleAuxClick = (e: MouseEvent) => {
+      if (e.button === 1) {
+        e.preventDefault();
+      }
+    };
+    const el = containerRef.current;
+    el.addEventListener('auxclick', handleAuxClick);
 
     term.writeln(`\x1b[38;5;105m[OpenTerm]\x1b[0m Connected to session \x1b[38;5;222m${sessionId}\x1b[0m\r\n`);
 
@@ -148,6 +194,7 @@ export function useTerminalSession(sessionId: string | null) {
     }
 
     return () => {
+      el.removeEventListener('auxclick', handleAuxClick);
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeObserver.disconnect();
       onDataDisposable.dispose();
@@ -172,5 +219,49 @@ export function useTerminalSession(sessionId: string | null) {
     }
   }, [viewMode]);
 
-  return { containerRef, terminal: terminalRef.current };
+  const copySelection = () => {
+    if (terminalRef.current?.hasSelection()) {
+      const text = terminalRef.current.getSelection();
+      if (text) navigator.clipboard.writeText(text).catch(() => {});
+    }
+  };
+
+  const pasteFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && sessionId) {
+        await tauriApi.sshWrite(sessionId, text);
+      }
+    } catch (err) {
+      console.error('Failed to paste from clipboard:', err);
+    }
+  };
+
+  const selectAll = () => {
+    terminalRef.current?.selectAll();
+  };
+
+  const clearTerminal = () => {
+    terminalRef.current?.clear();
+  };
+
+  const resetTerminal = () => {
+    if (terminalRef.current) {
+      terminalRef.current.reset();
+    }
+    if (sessionId) {
+      // Clear DECSET mouse tracking modes (1000, 1002, 1003, 1006), reset text attributes, and clear screen
+      tauriApi.sshWrite(sessionId, '\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[0m\x0c').catch(() => {});
+    }
+  };
+
+  return {
+    containerRef,
+    terminal: terminalRef.current,
+    copySelection,
+    pasteFromClipboard,
+    selectAll,
+    clearTerminal,
+    resetTerminal,
+  };
 }
