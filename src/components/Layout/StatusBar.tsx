@@ -31,6 +31,7 @@ export const StatusBar: React.FC = () => {
     hasUpdate,
     isChecking,
     dismissed,
+    checkStatus,
     dismissUpdate,
     checkForUpdates,
   } = useUpdateStore();
@@ -76,18 +77,28 @@ export const StatusBar: React.FC = () => {
               e.preventDefault();
               handleOpenReleases();
             }}
-            className={`font-mono text-[10px] transition-colors cursor-pointer ${
+            className={`flex items-center gap-1 font-mono text-[10px] transition-colors cursor-pointer px-1 py-0.5 rounded hover:bg-[#1e1e2d] ${
               isChecking
                 ? 'text-indigo-400 animate-pulse'
+                : checkStatus === 'up-to-date'
+                ? 'text-emerald-400 font-medium'
+                : checkStatus === 'error'
+                ? 'text-rose-400'
                 : 'text-slate-500 hover:text-slate-300'
             }`}
             title={
               isChecking
                 ? 'Checking for updates...'
+                : checkStatus === 'up-to-date'
+                ? 'OpenTerm is up to date!'
+                : checkStatus === 'error'
+                ? 'Failed to check updates (click to retry)'
                 : 'v' + currentVersion + ' (Click to check updates, right-click for release history)'
             }
           >
-            v{currentVersion}
+            <span>v{currentVersion}</span>
+            {checkStatus === 'up-to-date' && <span className="text-[9px] text-emerald-400">✓ Up to date</span>}
+            {checkStatus === 'error' && <span className="text-[9px] text-rose-400">✗ Check failed</span>}
           </button>
         </div>
 

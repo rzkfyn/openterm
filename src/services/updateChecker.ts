@@ -41,7 +41,16 @@ export async function checkLatestRelease(
       const cached = localStorage.getItem('openterm_cached_update_info');
       if (cached) {
         try {
-          return JSON.parse(cached) as UpdateInfo;
+          const parsed = JSON.parse(cached) as UpdateInfo;
+          // Invalidate cache if current app version changed
+          if (parsed.currentVersion !== currentVersion) {
+            localStorage.removeItem('openterm_cached_update_info');
+            localStorage.removeItem('openterm_last_update_check');
+          } else {
+            // Re-verify hasUpdate strictly against currentVersion
+            parsed.hasUpdate = isNewerVersion(parsed.latestVersion, currentVersion);
+            return parsed;
+          }
         } catch {
           // ignore cache parse error
         }
@@ -64,7 +73,7 @@ export async function checkLatestRelease(
     if (!res.ok) return null;
 
     const data = await res.json();
-    const latestVersion = (data.tag_name || '').replace(/^v/i, '');
+    const latestVersion = (data.tag_name || '').trim().replace(/^v/i, '');
     const releaseUrl = data.html_url || 'https://github.com/rzkfyn/openterm/releases';
 
     const hasUpdate = isNewerVersion(latestVersion, currentVersion);
