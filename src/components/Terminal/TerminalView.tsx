@@ -35,7 +35,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
   }
 
   return (
-    <div className="flex h-full w-full flex-col bg-[#1e1e2d]">
+    <div className="flex h-full w-full min-h-0 flex-col bg-[#1e1e2d] overflow-hidden">
       {/* Subheader bar */}
       <div className="flex h-[28px] items-center justify-between border-b border-[#2a2b38] bg-[#11111a] px-3.5 text-xs select-none shrink-0">
         <div className="flex items-center gap-2">
@@ -91,7 +91,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
 
       {/* Terminal Viewport */}
       <div
-        className="relative flex-1 w-full p-2.5 overflow-hidden bg-[#13131d] cursor-text"
+        className="relative flex-1 min-h-0 w-full overflow-hidden bg-[#13131d] cursor-text p-1"
         ref={containerRef}
         onClick={() => terminal?.focus()}
       />

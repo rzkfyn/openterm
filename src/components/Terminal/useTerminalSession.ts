@@ -111,24 +111,44 @@ export function useTerminalSession(sessionId: string | null) {
     // 4. Resize handling — notify SSH server of actual terminal size
     const sendResize = () => {
       try {
+        if (!containerRef.current || !terminalRef.current || !fitAddonRef.current) return;
         fitAddon.fit();
         const { cols, rows } = term;
         if (cols > 0 && rows > 0) {
           tauriApi.sshResizePty(sessionId, cols, rows).catch(() => {});
         }
-        term.focus();
       } catch (e) {
         // Suppress layout race condition warnings during unmount
       }
     };
 
-    const resizeObserver = new ResizeObserver(() => sendResize());
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedResize = () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        sendResize();
+      }, 30);
+    };
+
+    const resizeObserver = new ResizeObserver(() => debouncedResize());
     resizeObserver.observe(containerRef.current);
 
-    // Initial fit + resize after rendering
-    requestAnimationFrame(() => sendResize());
+    // Initial fit + resize after layout and fonts settle
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        sendResize();
+        term.focus();
+      });
+    });
+
+    if (typeof document !== 'undefined' && document.fonts) {
+      document.fonts.ready.then(() => {
+        sendResize();
+      });
+    }
 
     return () => {
+      if (resizeTimer) clearTimeout(resizeTimer);
       resizeObserver.disconnect();
       onDataDisposable.dispose();
       detachTerminalSubscriber(sessionId);
