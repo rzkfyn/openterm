@@ -105,25 +105,22 @@ export const StatusBar: React.FC = () => {
         </div>
 
         {hasUpdate && !dismissed && latestVersion && (
-          <div className="flex items-center gap-1">
+          <div className="inline-flex items-center rounded bg-[#1e1e2d] border border-[#2a2b38] hover:border-indigo-500/40 divide-x divide-[#2a2b38] text-[10px] overflow-hidden transition-colors">
             <button
               type="button"
               onClick={handleOpenLatestRelease}
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25 border border-emerald-500/30 transition-colors cursor-pointer text-[10px] font-medium"
-              title={`New version v${latestVersion} available! Click to view release.`}
+              className="flex items-center gap-1.5 px-2 py-0.5 text-slate-300 hover:text-white hover:bg-[#25263a] transition-colors cursor-pointer"
+              title={`New version v${latestVersion} available! Click to view release notes.`}
             >
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
-              </span>
-              <ArrowUpCircle className="h-3 w-3 text-emerald-400" />
-              <span>Update v{latestVersion}</span>
+              <ArrowUpCircle className="h-3 w-3 text-indigo-400 shrink-0" />
+              <span className="text-slate-400">Update</span>
+              <span className="font-mono text-indigo-300 font-medium">v{latestVersion}</span>
             </button>
             <button
               type="button"
               onClick={dismissUpdate}
-              className="p-0.5 text-slate-500 hover:text-slate-300 rounded hover:bg-[#1e1e2d] transition-colors cursor-pointer"
-              title="Dismiss update badge"
+              className="px-1.5 py-0.5 text-slate-500 hover:text-slate-300 hover:bg-[#25263a] transition-colors cursor-pointer flex items-center justify-center"
+              title="Dismiss update notification"
             >
               <X className="h-2.5 w-2.5" />
             </button>
