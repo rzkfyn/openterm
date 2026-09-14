@@ -113,7 +113,7 @@ export const QuickCommandsDropdown: React.FC<QuickCommandsDropdownProps> = ({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-1.5 w-64 rounded-md bg-[#141420] border border-[#2a2b38] shadow-2xl z-50 overflow-hidden text-xs">
+        <div className="absolute left-0 mt-1.5 w-64 rounded-md bg-[#141420] border border-[#2a2b38] shadow-2xl z-50 overflow-hidden text-xs">
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-[#2a2b38] bg-[#11111a]">
             <span className="font-semibold text-slate-300 flex items-center gap-1.5 text-[11px]">
               <Zap className="h-3 w-3 text-amber-400" />
