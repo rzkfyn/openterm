@@ -366,13 +366,21 @@ fn sftp_write_text_file(
 }
 
 #[tauri::command]
-fn biometric_is_available() -> Result<bool, String> {
-    biometrics::check_biometric_available()
+async fn biometric_is_available() -> Result<bool, String> {
+    tokio::task::spawn_blocking(|| {
+        biometrics::check_biometric_available()
+    })
+    .await
+    .map_err(|e| format!("Task execution failed: {e}"))?
 }
 
 #[tauri::command]
-fn biometric_authenticate(reason: String) -> Result<bool, String> {
-    biometrics::request_biometric_verification(&reason)
+async fn biometric_authenticate(reason: String) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || {
+        biometrics::request_biometric_verification(&reason)
+    })
+    .await
+    .map_err(|e| format!("Task execution failed: {e}"))?
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

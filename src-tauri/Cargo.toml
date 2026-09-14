@@ -35,5 +35,9 @@ version = "0.58"
 features = [
     "Security_Credentials_UI",
     "Foundation",
+    "Win32_System_WinRT",
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Com",
 ]
 
