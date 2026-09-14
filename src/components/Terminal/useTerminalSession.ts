@@ -9,6 +9,7 @@ import {
   attachTerminalSubscriber,
   detachTerminalSubscriber,
 } from '../../stores/sessionStore';
+import { shouldProcessPaste } from './pasteTracker';
 
 export function useTerminalSession(sessionId: string | null) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -61,11 +62,13 @@ export function useTerminalSession(sessionId: string | null) {
 
       // Paste: Ctrl+V (or Ctrl+Shift+V)
       if (event.type === 'keydown' && isCtrlOrCmd && (event.key === 'v' || event.key === 'V')) {
+        event.preventDefault();
+        event.stopPropagation();
         navigator.clipboard
           .readText()
           .then((clipText) => {
-            if (clipText && sessionId) {
-              tauriApi.sshWrite(sessionId, clipText).catch(() => {});
+            if (clipText && sessionId && shouldProcessPaste(clipText)) {
+              term.paste(clipText);
             }
           })
           .catch(() => {});
@@ -215,30 +218,40 @@ export function useTerminalSession(sessionId: string | null) {
       const text = terminalRef.current.getSelection();
       if (text) navigator.clipboard.writeText(text).catch(() => {});
     }
+    terminalRef.current?.focus();
   };
 
   const pasteFromClipboard = async () => {
     try {
       const text = await navigator.clipboard.readText();
-      if (text && sessionId) {
-        await tauriApi.sshWrite(sessionId, text);
+      if (text && sessionId && shouldProcessPaste(text)) {
+        if (terminalRef.current) {
+          terminalRef.current.paste(text);
+        } else {
+          await tauriApi.sshWrite(sessionId, text);
+        }
       }
     } catch (err) {
       console.error('Failed to paste from clipboard:', err);
+    } finally {
+      terminalRef.current?.focus();
     }
   };
 
   const selectAll = () => {
     terminalRef.current?.selectAll();
+    terminalRef.current?.focus();
   };
 
   const clearTerminal = () => {
     terminalRef.current?.clear();
+    terminalRef.current?.focus();
   };
 
   const resetTerminal = () => {
     if (terminalRef.current) {
       terminalRef.current.reset();
+      terminalRef.current.focus();
     }
     if (sessionId) {
       // Clear DECSET mouse tracking modes (1000, 1002, 1003, 1006), reset text attributes, and clear screen

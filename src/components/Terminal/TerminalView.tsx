@@ -117,12 +117,30 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
         <TerminalContextMenu
           position={contextMenu}
           hasSelection={Boolean(terminal?.hasSelection())}
-          onCopy={copySelection}
-          onPaste={pasteFromClipboard}
-          onSelectAll={selectAll}
-          onClear={clearTerminal}
-          onReset={resetTerminal}
-          onClose={() => setContextMenu(null)}
+          onCopy={() => {
+            copySelection();
+            terminal?.focus();
+          }}
+          onPaste={() => {
+            pasteFromClipboard();
+            terminal?.focus();
+          }}
+          onSelectAll={() => {
+            selectAll();
+            terminal?.focus();
+          }}
+          onClear={() => {
+            clearTerminal();
+            terminal?.focus();
+          }}
+          onReset={() => {
+            resetTerminal();
+            terminal?.focus();
+          }}
+          onClose={() => {
+            setContextMenu(null);
+            terminal?.focus();
+          }}
         />
       )}
     </div>
