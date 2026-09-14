@@ -22,35 +22,6 @@ export const AppLockOverlay: React.FC<AppLockOverlayProps> = ({ isOpen, onUnlock
     }
   }, [isOpen, checkAvailability]);
 
-  // Prompt biometric on open if available and enabled
-  useEffect(() => {
-    let active = true;
-    if (isOpen && isAvailable && isEnabled) {
-      const timer = setTimeout(() => {
-        setIsBiometricLoading(true);
-        authenticate('Unlock OpenTerm')
-          .then((verified) => {
-            if (active && verified) {
-              setCode('');
-              setError(null);
-              onUnlock();
-            }
-          })
-          .catch(() => {})
-          .finally(() => {
-            if (active) setIsBiometricLoading(false);
-          });
-      }, 200);
-
-      return () => {
-        active = false;
-        clearTimeout(timer);
-      };
-    }
-    return () => {
-      active = false;
-    };
-  }, [isOpen, isAvailable, isEnabled, authenticate, onUnlock]);
 
   if (!isOpen) return null;
 

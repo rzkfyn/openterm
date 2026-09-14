@@ -38,6 +38,12 @@ export const SecurityOnboardingModal: React.FC<SecurityOnboardingModalProps> = (
   if (!isOpen) return null;
 
   const handleEnableBiometric = async () => {
+    if (!isAvailable) {
+      setError(
+        'Biometric authentication not configured in OS. Set up Windows Hello PIN / Fingerprint in Windows Settings, or Touch ID in macOS System Settings.'
+      );
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
@@ -159,31 +165,47 @@ export const SecurityOnboardingModal: React.FC<SecurityOnboardingModalProps> = (
 
             <div className="space-y-3">
               {/* Option A: Biometrics (Windows Hello / Passkey) */}
-              {isAvailable && (
-                <button
-                  type="button"
-                  onClick={handleEnableBiometric}
-                  disabled={isLoading}
-                  className="w-full p-3 rounded-lg bg-gradient-to-r from-emerald-950/40 to-[#181824] border border-emerald-700/50 hover:border-emerald-500 text-left transition-all cursor-pointer group flex items-start gap-3"
+              <button
+                type="button"
+                onClick={handleEnableBiometric}
+                disabled={isLoading}
+                className={`w-full p-3 rounded-lg text-left transition-all cursor-pointer group flex items-start gap-3 ${
+                  isAvailable
+                    ? 'bg-gradient-to-r from-emerald-950/40 to-[#181824] border border-emerald-700/50 hover:border-emerald-500'
+                    : 'bg-[#14151f] border border-[#2e2f42] hover:border-slate-500 opacity-85'
+                }`}
+              >
+                <div
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg border shrink-0 group-hover:scale-105 transition-transform ${
+                    isAvailable
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      : 'bg-slate-800/40 text-slate-400 border-slate-700/40'
+                  }`}
                 >
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0 group-hover:scale-105 transition-transform">
-                    <Fingerprint className="h-5 w-5" />
+                  <Fingerprint className="h-5 w-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span className={`text-xs font-semibold ${isAvailable ? 'text-emerald-300' : 'text-slate-300'}`}>
+                      Windows Hello / Passkey
+                    </span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                        isAvailable
+                          ? 'bg-emerald-500/20 text-emerald-300'
+                          : 'bg-slate-700/50 text-slate-400'
+                      }`}
+                    >
+                      {isAvailable ? 'Fastest' : 'Requires OS Setup'}
+                    </span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-emerald-300">
-                        Windows Hello / Passkey
-                      </span>
-                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-medium">
-                        Fastest
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Unlock instantly using fingerprint, face, or device PIN.
-                    </p>
-                  </div>
-                </button>
-              )}
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {isAvailable
+                      ? 'Unlock instantly using Windows Hello PIN, facial recognition, or fingerprint.'
+                      : 'Not configured. Click for instructions to set up Windows Hello or Touch ID.'}
+                  </p>
+                </div>
+              </button>
 
               {/* Option B: TOTP Authenticator */}
               <button

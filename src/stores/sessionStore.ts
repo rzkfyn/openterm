@@ -14,6 +14,7 @@ const sessionOutputHistory = new Map<string, string[]>();
 const intentionalDisconnects = new Set<string>();
 const reconnectAttemptsMap = new Map<string, number>();
 const reconnectTimerMap = new Map<string, any>();
+const inFlightConnections = new Map<string, Promise<string>>();
 
 function emitTerminalNotice(sessionId: string, message: string) {
   const history = sessionOutputHistory.get(sessionId);
@@ -139,50 +140,63 @@ export const useSessionStore = create<SessionState>((set) => ({
   },
 
   connectSession: async (config) => {
-    set({ isConnecting: true, error: null });
-    try {
-      const sessionId = config.id || crypto.randomUUID();
-      intentionalDisconnects.delete(sessionId);
-      reconnectAttemptsMap.delete(sessionId);
-
-      // Initialize buffer for this session
-      if (!sessionOutputHistory.has(sessionId)) {
-        sessionOutputHistory.set(sessionId, []);
-      }
-
-      // Register persistent Tauri listener BEFORE connecting
-      const unlisten = await tauriApi.onSshData(sessionId, (chunk) => {
-        const history = sessionOutputHistory.get(sessionId);
-        if (history) {
-          history.push(chunk);
-          if (history.length > 1000) history.shift();
-        }
-        const liveCb = sessionLiveCallbacks.get(sessionId);
-        if (liveCb) {
-          liveCb(chunk);
-        }
-      });
-      sessionListeners.set(sessionId, unlisten);
-
-      const unlistenClosed = await tauriApi.onSshClosed(sessionId, () => {
-        attemptAutoReconnect(sessionId);
-      });
-      sessionClosedListeners.set(sessionId, unlistenClosed);
-
-      await tauriApi.sshConnect({ ...config, id: sessionId });
-
-      const sessionWithId: SessionConfig = { ...config, id: sessionId, status: 'connected' };
-      set((state) => ({
-        activeSessions: [...state.activeSessions.filter((s) => s.id !== sessionId), sessionWithId],
-        currentSessionId: sessionId,
-        isConnecting: false,
-      }));
-      return sessionId;
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      set({ isConnecting: false, error: errMsg });
-      throw err;
+    const targetKey = config.id || `${config.username}@${config.host}:${config.port}`;
+    const existing = inFlightConnections.get(targetKey);
+    if (existing) {
+      return existing;
     }
+
+    const connectPromise = (async () => {
+      set({ isConnecting: true, error: null });
+      try {
+        const sessionId = config.id || crypto.randomUUID();
+        intentionalDisconnects.delete(sessionId);
+        reconnectAttemptsMap.delete(sessionId);
+
+        // Initialize buffer for this session
+        if (!sessionOutputHistory.has(sessionId)) {
+          sessionOutputHistory.set(sessionId, []);
+        }
+
+        // Register persistent Tauri listener BEFORE connecting
+        const unlisten = await tauriApi.onSshData(sessionId, (chunk) => {
+          const history = sessionOutputHistory.get(sessionId);
+          if (history) {
+            history.push(chunk);
+            if (history.length > 1000) history.shift();
+          }
+          const liveCb = sessionLiveCallbacks.get(sessionId);
+          if (liveCb) {
+            liveCb(chunk);
+          }
+        });
+        sessionListeners.set(sessionId, unlisten);
+
+        const unlistenClosed = await tauriApi.onSshClosed(sessionId, () => {
+          attemptAutoReconnect(sessionId);
+        });
+        sessionClosedListeners.set(sessionId, unlistenClosed);
+
+        await tauriApi.sshConnect({ ...config, id: sessionId });
+
+        const sessionWithId: SessionConfig = { ...config, id: sessionId, status: 'connected' };
+        set((state) => ({
+          activeSessions: [...state.activeSessions.filter((s) => s.id !== sessionId), sessionWithId],
+          currentSessionId: sessionId,
+          isConnecting: false,
+        }));
+        return sessionId;
+      } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : String(err);
+        set({ isConnecting: false, error: errMsg });
+        throw err;
+      } finally {
+        inFlightConnections.delete(targetKey);
+      }
+    })();
+
+    inFlightConnections.set(targetKey, connectPromise);
+    return connectPromise;
   },
 
   reconnectSession: async (id) => {

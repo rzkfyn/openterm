@@ -22,7 +22,9 @@ import {
   ShieldAlert,
   X,
   KeyRound,
+  Fingerprint,
 } from 'lucide-react';
+import { useSessionStore } from '../../stores/sessionStore';
 import { VaultModal } from '../Modal/VaultModal';
 import { ImportExportModal } from '../Modal/ImportExportModal';
 import { useTotpStore } from '../../stores/totpStore';
@@ -59,7 +61,33 @@ export const Dashboard: React.FC<DashboardProps> = ({
       ? localStorage.getItem('openterm_vault_banner_dismissed') === 'true'
       : false
   );
-  const { isEnabled: isBiometricEnabled } = useBiometricStore();
+  const {
+    isAvailable: isBiometricAvailable,
+    isEnabled: isBiometricEnabled,
+    setEnabled: setBiometricEnabled,
+    authenticate: authenticateBiometric,
+  } = useBiometricStore();
+  const isConnecting = useSessionStore((state) => state.isConnecting);
+
+  const handleTogglePasskey = async () => {
+    if (!isBiometricAvailable && !isBiometricEnabled) {
+      alert('Biometric authentication not configured. Set up Windows Hello PIN / Fingerprint in Windows Settings, or Touch ID in macOS System Settings.');
+      return;
+    }
+    try {
+      if (!isBiometricEnabled) {
+        const verified = await authenticateBiometric('Enable Windows Hello / Passkey for OpenTerm');
+        if (verified) {
+          setBiometricEnabled(true);
+        }
+      } else {
+        const verified = await authenticateBiometric('Verify identity to disable Passkey');
+        if (verified) {
+          setBiometricEnabled(false);
+        }
+      }
+    } catch {}
+  };
   const [isRecoveryBannerDismissed, setIsRecoveryBannerDismissed] = useState(() =>
     typeof localStorage !== 'undefined'
       ? localStorage.getItem('openterm_recovery_banner_dismissed') === 'true'
@@ -157,6 +185,33 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleTogglePasskey}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium cursor-pointer transition-colors ${
+                isBiometricEnabled
+                  ? 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300 hover:bg-emerald-900/50'
+                  : isBiometricAvailable
+                  ? 'bg-[#1e1e2d] border-[#2a2b38] text-slate-300 hover:text-white hover:bg-[#252538]'
+                  : 'bg-[#1e1e2d]/60 border-[#2a2b38]/60 text-slate-400 hover:text-slate-200 hover:bg-[#252538]'
+              }`}
+              title={
+                isBiometricEnabled
+                  ? 'Passkey Active (Click to disable)'
+                  : isBiometricAvailable
+                  ? 'Enable Windows Hello / Passkey'
+                  : 'Passkey not configured in OS (Windows Hello / Touch ID)'
+              }
+            >
+              <Fingerprint className="h-3.5 w-3.5" />
+              <span>
+                {isBiometricEnabled
+                  ? 'Passkey Active'
+                  : isBiometricAvailable
+                  ? 'Enable Passkey'
+                  : 'Passkey (Setup in OS)'}
+              </span>
+            </button>
             <button
               type="button"
               onClick={openTotpModal}
@@ -450,7 +505,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         <div
                           key={conn.id}
                           className="group flex items-center justify-between px-4 py-3 hover:bg-[#252538] transition-colors cursor-pointer"
-                          onClick={() => onConnect(conn)}
+                          onClick={() => !isConnecting && onConnect(conn)}
                         >
                           {/* Left info */}
                           <div className="flex items-center gap-3.5 min-w-0 pr-4">
@@ -507,11 +562,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
                             <button
                               type="button"
+                              disabled={isConnecting}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onConnect(conn);
+                                if (!isConnecting) onConnect(conn);
                               }}
-                              className="flex items-center gap-1.5 px-3 py-1 bg-indigo-500/15 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-md text-xs font-medium cursor-pointer transition-colors"
+                              className="flex items-center gap-1.5 px-3 py-1 bg-indigo-500/15 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-md text-xs font-medium cursor-pointer transition-colors disabled:opacity-40"
                               title="Connect session"
                             >
                               <span>Connect</span>
