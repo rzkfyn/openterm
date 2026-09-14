@@ -15,6 +15,8 @@ Users currently unlock OpenTerm with a 6-digit TOTP code (or recovery code). Whi
 
 ### Goals
 - **Either / Or Unlock**: App unlocks if *either* biometric verification succeeds *or* valid 6-digit TOTP / recovery code is entered.
+- **Mandatory Protection Gate for Saved Credentials**: If a user saves credentials (password or encrypted key passphrase to disk), the app requires at least one protection method (Windows Hello / Passkey OR TOTP). New users are prompted to set up either method before credentials persist to disk.
+- **Unsaved Connections Allowed**: Users can connect transiently without saving credentials without triggering the security gate (zero friction for quick one-off tasks).
 - **Native OS Biometrics**: Use Windows Hello (`UserConsentVerifier`) on Windows and platform-native fallbacks, zero remote network dependencies.
 - **Graceful Fallback**: If biometric verification is cancelled, fails, or is unsupported, user remains on the TOTP lock screen without interruption.
 - **Opt-in Setting**: User can enable/disable Biometric / Passkey unlock in Security Settings.
@@ -61,6 +63,16 @@ Users currently unlock OpenTerm with a 6-digit TOTP code (or recovery code). Whi
 - `SecuritySettings`:
   - Show toggle: **"Enable Windows Hello / OS Passkey Unlock"**.
   - Disable toggle if device reports no biometric/PIN hardware available.
+
+### 3.3 Mandatory Protection Gate for Saved Credentials
+- When user clicks **Save** or **Save & Connect** with stored credentials (`remember password/passphrase` checked):
+  - Check if either **TOTP** or **Biometrics** is active.
+  - If neither is active:
+    - Display **"Setup App Protection"** onboarding modal before saving to disk.
+    - Option A: **1-Click Windows Hello / Passkey** (fast path, tests biometric verification immediately).
+    - Option B: **Setup Authenticator 2FA** (QR code + TOTP).
+  - Once either method is activated, the profile save completes.
+- When user connects without saving (or saves with credentials omitted), the connection proceeds immediately with no gate.
 
 ---
 

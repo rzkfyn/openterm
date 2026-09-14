@@ -25,13 +25,20 @@
 - If biometric succeeds, immediately call `onUnlock()`.
 - If cancelled or failed, keep TOTP input ready with zero interruption.
 
-### 4. Security Settings (`src/components/Modal/SettingsModal.tsx` or 2FA section)
-- Add toggle for "Windows Hello / OS Biometric Passkey" unlock.
+### 4. Security Settings & Config
+- Add toggle for "Windows Hello / OS Biometric Passkey" unlock in Security settings.
 - Automatically disabled if system lacks biometric/PIN support.
+
+### 5. Mandatory Protection Gate for Saved Credentials
+- Create `src/components/Modal/SecurityOnboardingModal.tsx`:
+  - Shown when user clicks "Save" / "Save & Connect" with remembered credentials, but neither TOTP nor Biometrics is enabled.
+  - Allows 1-click Windows Hello setup or 2FA Authenticator setup.
+  - Allows temporary unsaved connection without gating.
+- Wire gate in `NewConnectionModal.tsx` and `App.tsx`.
 
 ---
 
 ## Verification Plan
-1. `npm test`: Run existing and new unit tests for AppLockOverlay and biometric fallbacks.
+1. `npm test`: Run existing and new unit tests for AppLockOverlay, SecurityOnboardingModal, and biometric fallbacks.
 2. `npm run build`: Verify TypeScript compilation and Vite packaging.
-3. Live test: Open locked app, verify biometric prompt pops up and unlocks cleanly into app without typing TOTP, and verify 6-digit TOTP still works as side-by-side alternative.
+3. Live test: Open locked app, verify biometric prompt pops up and unlocks cleanly into app without typing TOTP, and verify 6-digit TOTP still works as side-by-side alternative. Verify new user cannot save credentials without setting up at least one method, while unsaved connection still works without friction.
