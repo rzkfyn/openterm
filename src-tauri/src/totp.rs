@@ -243,6 +243,26 @@ pub fn enable_totp(secret: &str, initial_code: &str) -> Result<Vec<String>, Stri
     Ok(backup_codes)
 }
 
+pub fn generate_emergency_recovery_codes() -> Result<Vec<String>, String> {
+    let mut rng = rand::thread_rng();
+    let mut backup_codes = Vec::new();
+    let mut backup_hashes = Vec::new();
+
+    for _ in 0..8 {
+        let mut bytes = [0u8; 5];
+        rng.fill_bytes(&mut bytes);
+        let code = base32_encode(&bytes);
+        let formatted = format!("{}-{}", &code[0..4], &code[4..8]);
+        backup_hashes.push(hash_code(&formatted));
+        backup_codes.push(formatted);
+    }
+
+    let mut data = read_totp_data();
+    data.backup_code_hashes = backup_hashes;
+    write_totp_data(&data)?;
+    Ok(backup_codes)
+}
+
 pub fn disable_totp(code_or_backup: &str) -> Result<(), String> {
     let mut data = read_totp_data();
     if !data.enabled {
@@ -271,7 +291,7 @@ pub fn disable_totp(code_or_backup: &str) -> Result<(), String> {
 
 pub fn validate_login_code(code_or_backup: &str) -> Result<bool, String> {
     let mut data = read_totp_data();
-    if !data.enabled {
+    if !data.enabled && data.backup_code_hashes.is_empty() {
         return Ok(true);
     }
 
@@ -280,7 +300,7 @@ pub fn validate_login_code(code_or_backup: &str) -> Result<bool, String> {
         .unwrap_or_default()
         .as_secs();
 
-    if verify_totp_code(&data.secret, code_or_backup, now) {
+    if data.enabled && verify_totp_code(&data.secret, code_or_backup, now) {
         return Ok(true);
     }
 

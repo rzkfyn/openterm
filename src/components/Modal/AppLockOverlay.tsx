@@ -63,9 +63,11 @@ export const AppLockOverlay: React.FC<AppLockOverlayProps> = ({ isOpen, onUnlock
         setCode('');
         setError(null);
         onUnlock();
+      } else {
+        setError('Windows Hello verification cancelled or failed.');
       }
     } catch (err: any) {
-      setError(err?.message || 'Biometric verification failed');
+      setError(err?.message || 'Biometric hardware unavailable. Enter backup code below.');
     } finally {
       setIsBiometricLoading(false);
     }
@@ -113,6 +115,8 @@ export const AppLockOverlay: React.FC<AppLockOverlayProps> = ({ isOpen, onUnlock
     const clean = val.replace(/[\s-]/g, '');
     if (clean.length === 6 && /^\d{6}$/.test(clean)) {
       validateCode(clean, true);
+    } else if (clean.length === 8 && /^[A-Za-z0-9]{8}$/.test(clean)) {
+      validateCode(val.trim(), true);
     }
   };
 

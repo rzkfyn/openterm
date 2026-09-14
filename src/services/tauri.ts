@@ -93,6 +93,10 @@ export const tauriApi = {
     return await invoke<void>('totp_disable', { codeOrBackup });
   },
 
+  totpGenerateEmergencyRecoveryCodes: async (): Promise<string[]> => {
+    return await invoke<string[]>('totp_generate_emergency_recovery_codes');
+  },
+
   totpValidateLogin: async (codeOrBackup: string): Promise<boolean> => {
     return await invoke<boolean>('totp_validate_login', { codeOrBackup });
   },

@@ -150,6 +150,11 @@ fn totp_disable(code_or_backup: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn totp_generate_emergency_recovery_codes() -> Result<Vec<String>, String> {
+    totp::generate_emergency_recovery_codes()
+}
+
+#[tauri::command]
 fn totp_validate_login(code_or_backup: String) -> Result<bool, String> {
     totp::validate_login_code(&code_or_backup)
 }
@@ -412,6 +417,7 @@ pub fn run() {
             totp_update_idle_timeout,
             totp_enable,
             totp_disable,
+            totp_generate_emergency_recovery_codes,
             totp_validate_login,
             ssh_connect,
             ssh_disconnect,
