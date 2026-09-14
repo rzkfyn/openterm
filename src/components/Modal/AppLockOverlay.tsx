@@ -14,24 +14,48 @@ export const AppLockOverlay: React.FC<AppLockOverlayProps> = ({ isOpen, onUnlock
 
   if (!isOpen) return null;
 
-  const handleUnlock = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!code) return;
+  const validateCode = async (inputCode: string, isAutoSubmit = false) => {
+    const trimmed = inputCode.trim();
+    if (!trimmed) return;
 
-    setIsLoading(true);
-    setError(null);
+    if (!isAutoSubmit) {
+      setIsLoading(true);
+      setError(null);
+    }
+
     try {
-      const valid = await tauriApi.totpValidateLogin(code);
+      const valid = await tauriApi.totpValidateLogin(trimmed);
       if (valid) {
         setCode('');
+        setError(null);
         onUnlock();
-      } else {
+      } else if (!isAutoSubmit) {
         setError('Invalid authentication code or backup recovery code.');
       }
     } catch (err: any) {
-      setError(err?.message || 'Validation failed');
+      if (!isAutoSubmit) {
+        setError(err?.message || 'Validation failed');
+      }
     } finally {
-      setIsLoading(false);
+      if (!isAutoSubmit) {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const handleUnlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await validateCode(code, false);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setCode(val);
+    if (error) setError(null);
+
+    const clean = val.replace(/[\s-]/g, '');
+    if (clean.length === 6 && /^\d{6}$/.test(clean)) {
+      validateCode(clean, true);
     }
   };
 
@@ -53,7 +77,7 @@ export const AppLockOverlay: React.FC<AppLockOverlayProps> = ({ isOpen, onUnlock
           <input
             type="text"
             value={code}
-            onChange={(e) => setCode(e.target.value)}
+            onChange={handleChange}
             placeholder="123456 or XXXX-XXXX"
             autoFocus
             className="w-full tracking-widest text-center text-sm font-mono rounded-lg bg-[#11111a] border border-[#2e2f42] px-3 py-2.5 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
