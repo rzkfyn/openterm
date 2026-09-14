@@ -60,7 +60,10 @@ export const QuickCommandsDropdown: React.FC<QuickCommandsDropdownProps> = ({
     // Send command with carriage return to execute immediately
     tauriApi.sshWrite(sessionId, `${cmd}\r`).catch(() => {});
     setIsOpen(false);
-    onCommandExecuted?.();
+    // Focus terminal after dropdown unmounts
+    setTimeout(() => {
+      onCommandExecuted?.();
+    }, 50);
   };
 
   const handleAddCommand = async (e: React.FormEvent) => {
@@ -166,6 +169,7 @@ export const QuickCommandsDropdown: React.FC<QuickCommandsDropdownProps> = ({
                 {activeCustomList.map((cmd) => (
                   <div
                     key={cmd.id}
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => executeCommand(cmd.command)}
                     className="flex items-center justify-between px-3 py-1.5 hover:bg-amber-500/15 cursor-pointer group transition-colors"
                   >
@@ -199,6 +203,7 @@ export const QuickCommandsDropdown: React.FC<QuickCommandsDropdownProps> = ({
               {DEFAULT_COMMANDS.map((cmd) => (
                 <div
                   key={cmd.label}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => executeCommand(cmd.command)}
                   className="flex items-center justify-between px-3 py-1.5 hover:bg-[#1e1e2d] cursor-pointer group transition-colors"
                 >
