@@ -148,6 +148,7 @@ export default function App() {
           privateKeyPath: conn.authType === 'key' ? conn.privateKeyPath : undefined,
           passphrase: conn.authType === 'key' ? conn.passphrase : undefined,
           bookmarks: conn.bookmarks,
+          quickCommands: conn.quickCommands,
         });
         return;
       } catch {

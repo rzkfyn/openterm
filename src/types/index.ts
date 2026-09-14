@@ -12,6 +12,7 @@ export interface SessionConfig {
   privateKeyPath?: string;
   passphrase?: string;
   bookmarks?: ConnectionBookmark[];
+  quickCommands?: QuickCommand[];
   status?: SessionConnectionStatus;
 }
 
@@ -57,6 +58,12 @@ export interface TransferProgress {
 
 export type ViewMode = 'terminal' | 'sftp' | 'split';
 
+export interface QuickCommand {
+  id: string;
+  label: string;
+  command: string;
+}
+
 export interface ConnectionBookmark {
   id: string;
   name: string;
@@ -77,6 +84,7 @@ export interface SavedConnection {
   passphrase?: string;
   folder?: string;
   bookmarks?: ConnectionBookmark[];
+  quickCommands?: QuickCommand[];
   createdAt: number;
   updatedAt: number;
 }

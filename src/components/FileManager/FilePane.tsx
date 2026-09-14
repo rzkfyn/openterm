@@ -1,4 +1,4 @@
-import React, { useRef, useState, useMemo } from 'react';
+import React, { useRef, useState, useMemo, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { FileEntry } from '../../types';
 import { FileItemRow } from './FileItemRow';
@@ -83,10 +83,18 @@ export const FilePane: React.FC<FilePaneProps> = ({
     }
   };
 
+  useEffect(() => {
+    setSearchFilter('');
+    setIsSearchVisible(false);
+  }, [currentPath]);
+
   const filteredEntries = useMemo(() => {
     if (!searchFilter.trim()) return entries;
-    const q = searchFilter.toLowerCase().trim();
-    return entries.filter((e) => e.name.toLowerCase().includes(q));
+    const tokens = searchFilter.toLowerCase().trim().split(/\s+/);
+    return entries.filter((e) => {
+      const name = e.name.toLowerCase();
+      return tokens.every((t) => name.includes(t));
+    });
   }, [entries, searchFilter]);
 
   const sortedEntries = useMemo(() => {
@@ -127,6 +135,17 @@ export const FilePane: React.FC<FilePaneProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Intercept Ctrl+F / Cmd+F anywhere inside pane (including inside input) to suppress browser/OS search
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+      e.preventDefault();
+      setIsSearchVisible(true);
+      setTimeout(() => {
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      }, 30);
+      return;
+    }
+
     // If typing inside an input (like search filter or breadcrumb), allow normal typing unless Esc
     const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
     const isInput = targetTag === 'input' || targetTag === 'textarea';
@@ -141,21 +160,6 @@ export const FilePane: React.FC<FilePaneProps> = ({
     }
 
     if (isInput) return;
-
-    // Search Toggle (Ctrl+F / Cmd+F)
-    if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
-      e.preventDefault();
-      setIsSearchVisible((prev) => {
-        const next = !prev;
-        if (next) {
-          setTimeout(() => searchInputRef.current?.focus(), 50);
-        } else {
-          setSearchFilter('');
-        }
-        return next;
-      });
-      return;
-    }
 
     // Refresh (F5 or Ctrl+R)
     if (e.key === 'F5' || ((e.ctrlKey || e.metaKey) && (e.key === 'r' || e.key === 'R'))) {
@@ -410,6 +414,28 @@ export const FilePane: React.FC<FilePaneProps> = ({
             type="text"
             value={searchFilter}
             onChange={(e) => setSearchFilter(e.target.value)}
+            onKeyDown={(e) => {
+              if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+                e.preventDefault();
+                searchInputRef.current?.select();
+                return;
+              }
+              if (e.key === 'ArrowDown' || e.key === 'Enter') {
+                e.preventDefault();
+                if (sortedEntries.length > 0) {
+                  onSelect([sortedEntries[0].path]);
+                  if (e.key === 'Enter') {
+                    if (sortedEntries[0].isDir) {
+                      onNavigate(sortedEntries[0].path);
+                    } else if (onEditFile) {
+                      onEditFile(sortedEntries[0]);
+                    }
+                  } else {
+                    paneContainerRef.current?.focus();
+                  }
+                }
+              }
+            }}
             placeholder="Filter files by name... (Esc to dismiss)"
             className="flex-1 bg-transparent text-xs text-white placeholder-slate-500 outline-none font-mono"
           />

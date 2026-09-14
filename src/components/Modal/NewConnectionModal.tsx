@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { SessionConfig, AuthType, SavedConnection, ConnectionBookmark } from '../../types';
-import { X, Key, Lock, ArrowRight, Save, FolderOpen, Bookmark, Plus, Trash2 } from 'lucide-react';
+import { SessionConfig, AuthType, SavedConnection, ConnectionBookmark, QuickCommand } from '../../types';
+import { X, Key, Lock, ArrowRight, Save, FolderOpen, Bookmark, Plus, Trash2, Zap } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 
 export type ModalMode = 'new' | 'edit';
@@ -38,6 +38,8 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
   const [folder, setFolder] = useState('');
   const [bookmarks, setBookmarks] = useState<ConnectionBookmark[]>([]);
   const [showBookmarks, setShowBookmarks] = useState(false);
+  const [quickCommands, setQuickCommands] = useState<QuickCommand[]>([]);
+  const [showQuickCommands, setShowQuickCommands] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -54,6 +56,8 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
       setFolder(editingConnection.folder || '');
       setBookmarks(editingConnection.bookmarks || []);
       setShowBookmarks(Boolean(editingConnection.bookmarks && editingConnection.bookmarks.length > 0));
+      setQuickCommands(editingConnection.quickCommands || []);
+      setShowQuickCommands(Boolean(editingConnection.quickCommands && editingConnection.quickCommands.length > 0));
     } else {
       setName('');
       setHost('');
@@ -67,6 +71,8 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
       setFolder('');
       setBookmarks([]);
       setShowBookmarks(false);
+      setQuickCommands([]);
+      setShowQuickCommands(false);
     }
   }, [isOpen, mode, editingConnection]);
 
@@ -86,6 +92,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
     passphrase: authType === 'key' && savePassword && passphrase ? passphrase : undefined,
     folder: folder.trim() || undefined,
     bookmarks: bookmarks.length > 0 ? bookmarks : undefined,
+    quickCommands: quickCommands.length > 0 ? quickCommands : undefined,
     createdAt: editingConnection?.createdAt || 0,
     updatedAt: 0,
   });
@@ -100,6 +107,7 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
     privateKeyPath: authType === 'key' ? privateKeyPath : undefined,
     passphrase: authType === 'key' && passphrase ? passphrase : undefined,
     bookmarks: bookmarks.length > 0 ? bookmarks : undefined,
+    quickCommands: quickCommands.length > 0 ? quickCommands : undefined,
   });
 
   const handleSaveOnly = async (e: React.FormEvent) => {
@@ -399,6 +407,80 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
                           setBookmarks(updated);
                         }}
                         className="bg-[#1e1e2d] border border-[#2a2b38] rounded px-2 py-1 text-[11px] text-slate-300 font-mono"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Quick Commands */}
+          <div className="pt-2 border-t border-[#2a2b38]">
+            <div className="flex items-center justify-between mb-2">
+              <button
+                type="button"
+                onClick={() => setShowQuickCommands(!showQuickCommands)}
+                className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white cursor-pointer"
+              >
+                <Zap className="h-3.5 w-3.5 text-amber-400" />
+                <span>Quick Commands ({quickCommands.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowQuickCommands(true);
+                  setQuickCommands([
+                    ...quickCommands,
+                    {
+                      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2),
+                      label: `Command ${quickCommands.length + 1}`,
+                      command: '',
+                    },
+                  ]);
+                }}
+                className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="h-3 w-3" />
+                <span>Add Command</span>
+              </button>
+            </div>
+
+            {showQuickCommands && quickCommands.length > 0 && (
+              <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                {quickCommands.map((qc, idx) => (
+                  <div key={qc.id} className="p-2 rounded bg-[#11111a] border border-[#2a2b38] space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <input
+                        type="text"
+                        placeholder="Label (e.g. Docker Status)"
+                        value={qc.label}
+                        onChange={(e) => {
+                          const updated = [...quickCommands];
+                          updated[idx] = { ...qc, label: e.target.value };
+                          setQuickCommands(updated);
+                        }}
+                        className="flex-1 bg-[#1e1e2d] border border-[#2a2b38] rounded px-2 py-1 text-xs text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setQuickCommands(quickCommands.filter((_, i) => i !== idx))}
+                        className="text-slate-500 hover:text-rose-400 p-1 cursor-pointer"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <div>
+                      <input
+                        type="text"
+                        placeholder="Command to run (e.g. docker compose ps)"
+                        value={qc.command}
+                        onChange={(e) => {
+                          const updated = [...quickCommands];
+                          updated[idx] = { ...qc, command: e.target.value };
+                          setQuickCommands(updated);
+                        }}
+                        className="w-full bg-[#1e1e2d] border border-[#2a2b38] rounded px-2 py-1 text-[11px] text-amber-300 font-mono"
                       />
                     </div>
                   </div>

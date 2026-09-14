@@ -17,6 +17,15 @@ fn generate_uuid() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuickCommand {
+    #[serde(default = "generate_uuid")]
+    pub id: String,
+    pub label: String,
+    pub command: String,
+}
+
 /// Saved connection profile — no password/passphrase stored.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -38,6 +47,8 @@ pub struct SavedConnection {
     pub folder: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub bookmarks: Vec<ConnectionBookmark>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub quick_commands: Vec<QuickCommand>,
     #[serde(default)]
     pub created_at: u64,
     #[serde(default)]

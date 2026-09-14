@@ -43,6 +43,7 @@ export const ConnectModal: React.FC<ConnectModalProps> = ({
       privateKeyPath: connection.authType === 'key' ? connection.privateKeyPath : undefined,
       passphrase: connection.authType === 'key' && passphrase ? passphrase : undefined,
       bookmarks: connection.bookmarks,
+      quickCommands: connection.quickCommands,
     });
   };
 
