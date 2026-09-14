@@ -1,3 +1,4 @@
+pub mod biometrics;
 pub mod local_fs;
 pub mod models;
 pub mod session;
@@ -364,6 +365,16 @@ fn sftp_write_text_file(
     sftp::write_sftp_text_file(&manager, &session_id, &path, &content)
 }
 
+#[tauri::command]
+fn biometric_is_available() -> Result<bool, String> {
+    biometrics::check_biometric_available()
+}
+
+#[tauri::command]
+fn biometric_authenticate(reason: String) -> Result<bool, String> {
+    biometrics::request_biometric_verification(&reason)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let session_manager = SessionManager::new();
@@ -416,6 +427,8 @@ pub fn run() {
             sftp_chmod,
             sftp_read_text_file,
             sftp_write_text_file,
+            biometric_is_available,
+            biometric_authenticate,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

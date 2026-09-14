@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, X, Copy, Check, AlertCircle, Smartphone } from 'lucide-react';
+import { ShieldCheck, X, Copy, Check, AlertCircle, Smartphone, Fingerprint } from 'lucide-react';
 import QRCode from 'qrcode';
 import { tauriApi } from '../../services/tauri';
 import { TotpConfig, TotpSetupInfo } from '../../types';
 import { useTotpStore } from '../../stores/totpStore';
+import { useBiometricStore } from '../../stores/biometricStore';
 
 interface TotpModalProps {
   isOpen: boolean;
@@ -27,6 +28,42 @@ export const TotpModal: React.FC<TotpModalProps> = ({
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState(false);
+
+  const {
+    isAvailable: isBiometricAvailable,
+    isEnabled: isBiometricEnabled,
+    checkAvailability: checkBiometricAvailability,
+    setEnabled: setBiometricEnabled,
+    authenticate: authenticateBiometric,
+  } = useBiometricStore();
+
+  useEffect(() => {
+    if (isOpen) {
+      checkBiometricAvailability();
+    }
+  }, [isOpen, checkBiometricAvailability]);
+
+  const handleToggleBiometric = async () => {
+    if (isBiometricEnabled) {
+      setBiometricEnabled(false);
+    } else {
+      setBiometricLoading(true);
+      setError(null);
+      try {
+        const verified = await authenticateBiometric('Enable Windows Hello / Passkey for OpenTerm');
+        if (verified) {
+          setBiometricEnabled(true);
+        } else {
+          setError('Biometric verification cancelled or failed.');
+        }
+      } catch (err: any) {
+        setError(err?.message || 'Biometric verification failed.');
+      } finally {
+        setBiometricLoading(false);
+      }
+    }
+  };
 
   useEffect(() => {
     if (!isOpen) {
@@ -129,17 +166,50 @@ export const TotpModal: React.FC<TotpModalProps> = ({
           <div className="flex items-center gap-2">
             <Smartphone className="h-4 w-4 text-indigo-400" />
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-200">
-              Two-Factor Authentication (2FA)
+              App Security & 2FA
             </h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-slate-400 hover:text-white hover:bg-[#252636] transition-colors"
+            className="rounded p-1 text-slate-400 hover:text-white hover:bg-[#252636] transition-colors cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {/* Biometric Passkey Section */}
+        {isBiometricAvailable && (
+          <div className="mt-4 p-3 rounded-lg bg-[#141420] border border-[#2e2f42] flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                <Fingerprint className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-200">Windows Hello / Passkey</p>
+                <p className="text-[11px] text-slate-400">
+                  Unlock using fingerprint, face, or PIN alongside 2FA
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleToggleBiometric}
+              disabled={biometricLoading}
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer shrink-0 ${
+                isBiometricEnabled
+                  ? 'bg-emerald-600/30 text-emerald-300 hover:bg-emerald-600/40 border border-emerald-600/40'
+                  : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+              }`}
+            >
+              {biometricLoading
+                ? 'Verifying...'
+                : isBiometricEnabled
+                ? 'Enabled'
+                : 'Enable'}
+            </button>
+          </div>
+        )}
 
         {/* Enabled State Management */}
         {config.enabled && !backupCodes ? (

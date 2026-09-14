@@ -21,7 +21,6 @@ import {
   Bookmark,
 } from 'lucide-react';
 import { VaultModal } from '../Modal/VaultModal';
-import { TotpModal } from '../Modal/TotpModal';
 import { ImportExportModal } from '../Modal/ImportExportModal';
 import { useTotpStore } from '../../stores/totpStore';
 
@@ -51,11 +50,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [search, setSearch] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [isVaultModalOpen, setIsVaultModalOpen] = useState(false);
-  const [isTotpModalOpen, setIsTotpModalOpen] = useState(false);
   const [isImportExportOpen, setIsImportExportOpen] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState<string>('All');
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
-  const { config: totpConfig, loadConfig: loadTotp } = useTotpStore();
+  const {
+    config: totpConfig,
+    loadConfig: loadTotp,
+    openModal: openTotpModal,
+  } = useTotpStore();
 
   useEffect(() => {
     loadTotp();
@@ -142,7 +144,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setIsTotpModalOpen(true)}
+              onClick={openTotpModal}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium cursor-pointer transition-colors ${
                 totpConfig.enabled
                   ? 'bg-indigo-950/40 border-indigo-700/50 text-indigo-300 hover:bg-indigo-900/50'
@@ -489,13 +491,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
             load();
           }
         }}
-      />
-
-      <TotpModal
-        isOpen={isTotpModalOpen}
-        config={totpConfig}
-        onClose={() => setIsTotpModalOpen(false)}
-        onConfigChange={loadTotp}
       />
 
       <ImportExportModal

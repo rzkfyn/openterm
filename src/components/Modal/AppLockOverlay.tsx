@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Lock, ArrowRight, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Lock, ArrowRight, AlertCircle, Fingerprint } from 'lucide-react';
 import { tauriApi } from '../../services/tauri';
+import { useBiometricStore } from '../../stores/biometricStore';
 
 interface AppLockOverlayProps {
   isOpen: boolean;
@@ -11,8 +12,57 @@ export const AppLockOverlay: React.FC<AppLockOverlayProps> = ({ isOpen, onUnlock
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isBiometricLoading, setIsBiometricLoading] = useState(false);
+
+  const { isAvailable, isEnabled, checkAvailability, authenticate } = useBiometricStore();
+
+  useEffect(() => {
+    if (isOpen) {
+      checkAvailability();
+    }
+  }, [isOpen, checkAvailability]);
+
+  // Prompt biometric on open if available and enabled
+  useEffect(() => {
+    let active = true;
+    if (isOpen && isAvailable && isEnabled) {
+      setIsBiometricLoading(true);
+      authenticate('Unlock OpenTerm')
+        .then((verified) => {
+          if (active && verified) {
+            setCode('');
+            setError(null);
+            onUnlock();
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (active) setIsBiometricLoading(false);
+        });
+    }
+    return () => {
+      active = false;
+    };
+  }, [isOpen, isAvailable, isEnabled, authenticate, onUnlock]);
 
   if (!isOpen) return null;
+
+  const handleBiometricUnlock = async () => {
+    setIsBiometricLoading(true);
+    setError(null);
+    try {
+      const verified = await authenticate('Unlock OpenTerm');
+      if (verified) {
+        setCode('');
+        setError(null);
+        onUnlock();
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Biometric verification failed');
+    } finally {
+      setIsBiometricLoading(false);
+    }
+  };
 
   const validateCode = async (inputCode: string, isAutoSubmit = false) => {
     const trimmed = inputCode.trim();
@@ -69,11 +119,33 @@ export const AppLockOverlay: React.FC<AppLockOverlayProps> = ({ isOpen, onUnlock
         <div>
           <h2 className="text-base font-semibold text-white">OpenTerm Locked</h2>
           <p className="text-xs text-slate-400 mt-1">
-            Enter your 6-digit authenticator code or an 8-character backup recovery code to unlock.
+            {isAvailable && isEnabled
+              ? 'Unlock with Windows Hello / Passkey or enter your 6-digit authenticator code.'
+              : 'Enter your 6-digit authenticator code or an 8-character backup recovery code to unlock.'}
           </p>
         </div>
 
-        <form onSubmit={handleUnlock} className="space-y-3 pt-2">
+        {isAvailable && isEnabled && (
+          <div className="space-y-3 pt-1">
+            <button
+              type="button"
+              onClick={handleBiometricUnlock}
+              disabled={isBiometricLoading}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold tracking-wide cursor-pointer transition-colors shadow-sm disabled:opacity-50"
+            >
+              <Fingerprint className="h-4 w-4" />
+              <span>{isBiometricLoading ? 'Verifying...' : 'Unlock with Windows Hello / Passkey'}</span>
+            </button>
+
+            <div className="flex items-center gap-2 text-[10px] text-slate-500 uppercase tracking-wider">
+              <div className="flex-1 h-px bg-[#2e2f42]" />
+              <span>Or enter code</span>
+              <div className="flex-1 h-px bg-[#2e2f42]" />
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleUnlock} className="space-y-3 pt-1">
           <input
             type="text"
             value={code}

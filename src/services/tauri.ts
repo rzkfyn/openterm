@@ -248,4 +248,20 @@ export const tauriApi = {
       }
     );
   },
+
+  biometricIsAvailable: async (): Promise<boolean> => {
+    try {
+      return await invoke<boolean>('biometric_is_available');
+    } catch {
+      return false;
+    }
+  },
+
+  biometricAuthenticate: async (reason: string): Promise<boolean> => {
+    try {
+      return await invoke<boolean>('biometric_authenticate', { reason });
+    } catch {
+      return false;
+    }
+  },
 };
