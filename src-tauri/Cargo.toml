@@ -29,3 +29,15 @@ sha2 = "0.10"
 sha1 = "0.10"
 hmac = "0.12"
 rand = "0.8"
+
+[target.'cfg(target_os = "windows")'.dependencies.windows]
+version = "0.58"
+features = [
+    "Security_Credentials_UI",
+    "Foundation",
+    "Win32_System_WinRT",
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_Com",
+]
+

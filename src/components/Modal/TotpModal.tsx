@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, X, Copy, Check, AlertCircle, Smartphone } from 'lucide-react';
+import { ShieldCheck, X, Copy, Check, AlertCircle, Smartphone, Fingerprint, KeyRound } from 'lucide-react';
 import QRCode from 'qrcode';
 import { tauriApi } from '../../services/tauri';
 import { TotpConfig, TotpSetupInfo } from '../../types';
 import { useTotpStore } from '../../stores/totpStore';
+import { useBiometricStore } from '../../stores/biometricStore';
 
 interface TotpModalProps {
   isOpen: boolean;
@@ -27,6 +28,42 @@ export const TotpModal: React.FC<TotpModalProps> = ({
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [biometricLoading, setBiometricLoading] = useState(false);
+
+  const {
+    isAvailable: isBiometricAvailable,
+    isEnabled: isBiometricEnabled,
+    checkAvailability: checkBiometricAvailability,
+    setEnabled: setBiometricEnabled,
+    authenticate: authenticateBiometric,
+  } = useBiometricStore();
+
+  useEffect(() => {
+    if (isOpen) {
+      checkBiometricAvailability();
+    }
+  }, [isOpen, checkBiometricAvailability]);
+
+  const handleToggleBiometric = async () => {
+    if (isBiometricEnabled) {
+      setBiometricEnabled(false);
+    } else {
+      setBiometricLoading(true);
+      setError(null);
+      try {
+        const verified = await authenticateBiometric('Enable Windows Hello / Passkey for OpenTerm');
+        if (verified) {
+          setBiometricEnabled(true);
+        } else {
+          setError('Biometric verification cancelled or failed.');
+        }
+      } catch (err: any) {
+        setError(err?.message || 'Biometric verification failed.');
+      } finally {
+        setBiometricLoading(false);
+      }
+    }
+  };
 
   useEffect(() => {
     if (!isOpen) {
@@ -121,6 +158,27 @@ export const TotpModal: React.FC<TotpModalProps> = ({
     }
   };
 
+  const handleGenerateRecoveryCodes = async () => {
+    setBiometricLoading(true);
+    setError(null);
+    try {
+      const verified = await authenticateBiometric(
+        'Verify identity with Windows Hello to generate emergency recovery codes'
+      );
+      if (verified) {
+        const codes = await tauriApi.totpGenerateEmergencyRecoveryCodes();
+        setBackupCodes(codes);
+        onConfigChange();
+      } else {
+        setError('Verification cancelled or failed. Recovery codes were not generated.');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Failed to generate recovery codes');
+    } finally {
+      setBiometricLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs animate-in fade-in duration-150 p-4">
       <div className="w-full max-w-md rounded-lg bg-[#181824] border border-[#2e2f42] p-5 shadow-2xl text-slate-200">
@@ -129,17 +187,89 @@ export const TotpModal: React.FC<TotpModalProps> = ({
           <div className="flex items-center gap-2">
             <Smartphone className="h-4 w-4 text-indigo-400" />
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-200">
-              Two-Factor Authentication (2FA)
+              App Security & 2FA
             </h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-slate-400 hover:text-white hover:bg-[#252636] transition-colors"
+            className="rounded p-1 text-slate-400 hover:text-white hover:bg-[#252636] transition-colors cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {/* Biometric Passkey Section */}
+        {isBiometricAvailable && (
+          <div className="mt-4 p-3 rounded-lg bg-[#141420] border border-[#2e2f42] flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                <Fingerprint className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-200">Windows Hello / Passkey</p>
+                <p className="text-[11px] text-slate-400">
+                  Unlock using fingerprint, face, or PIN alongside 2FA
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleToggleBiometric}
+              disabled={biometricLoading}
+              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer shrink-0 ${
+                isBiometricEnabled
+                  ? 'bg-emerald-600/30 text-emerald-300 hover:bg-emerald-600/40 border border-emerald-600/40'
+                  : 'bg-indigo-600 hover:bg-indigo-500 text-white'
+              }`}
+            >
+              {biometricLoading
+                ? 'Verifying...'
+                : isBiometricEnabled
+                ? 'Enabled'
+                : 'Enable'}
+            </button>
+          </div>
+        )}
+
+        {/* Protected Emergency Recovery Codes for Biometric Users */}
+        {isBiometricEnabled && !backupCodes && (
+          <div className="mt-3 p-3 rounded-lg bg-[#141420] border border-[#2e2f42] space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <KeyRound className="h-4 w-4 text-emerald-400" />
+                <span className="text-xs font-semibold text-white">Emergency Recovery Kit</span>
+              </div>
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                  config.hasBackupCodes
+                    ? 'bg-emerald-500/20 text-emerald-300'
+                    : 'bg-amber-500/20 text-amber-300'
+                }`}
+              >
+                {config.hasBackupCodes ? 'Codes Configured' : 'Missing Backup Codes'}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              {config.hasBackupCodes
+                ? 'Generate a new set of 8 emergency recovery codes. Old codes will be invalidated.'
+                : 'Protect against TPM corruption or BIOS updates locking you out. Generate 8 emergency recovery codes.'}
+            </p>
+            <button
+              type="button"
+              onClick={handleGenerateRecoveryCodes}
+              disabled={biometricLoading}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded bg-[#252636] hover:bg-[#2e3046] text-slate-200 text-xs font-medium transition-colors cursor-pointer"
+            >
+              <ShieldCheck className="h-3.5 w-3.5 text-indigo-400" />
+              <span>
+                {biometricLoading
+                  ? 'Verifying with Windows Hello...'
+                  : 'Verify with Passkey & Generate Codes'}
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Enabled State Management */}
         {config.enabled && !backupCodes ? (

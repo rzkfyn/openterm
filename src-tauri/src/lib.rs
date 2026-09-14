@@ -1,3 +1,4 @@
+pub mod biometrics;
 pub mod local_fs;
 pub mod models;
 pub mod session;
@@ -146,6 +147,11 @@ fn totp_enable(secret: String, code: String) -> Result<Vec<String>, String> {
 #[tauri::command]
 fn totp_disable(code_or_backup: String) -> Result<(), String> {
     totp::disable_totp(&code_or_backup)
+}
+
+#[tauri::command]
+fn totp_generate_emergency_recovery_codes() -> Result<Vec<String>, String> {
+    totp::generate_emergency_recovery_codes()
 }
 
 #[tauri::command]
@@ -364,6 +370,24 @@ fn sftp_write_text_file(
     sftp::write_sftp_text_file(&manager, &session_id, &path, &content)
 }
 
+#[tauri::command]
+async fn biometric_is_available() -> Result<bool, String> {
+    tokio::task::spawn_blocking(|| {
+        biometrics::check_biometric_available()
+    })
+    .await
+    .map_err(|e| format!("Task execution failed: {e}"))?
+}
+
+#[tauri::command]
+async fn biometric_authenticate(reason: String) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || {
+        biometrics::request_biometric_verification(&reason)
+    })
+    .await
+    .map_err(|e| format!("Task execution failed: {e}"))?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let session_manager = SessionManager::new();
@@ -393,6 +417,7 @@ pub fn run() {
             totp_update_idle_timeout,
             totp_enable,
             totp_disable,
+            totp_generate_emergency_recovery_codes,
             totp_validate_login,
             ssh_connect,
             ssh_disconnect,
@@ -416,6 +441,8 @@ pub fn run() {
             sftp_chmod,
             sftp_read_text_file,
             sftp_write_text_file,
+            biometric_is_available,
+            biometric_authenticate,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

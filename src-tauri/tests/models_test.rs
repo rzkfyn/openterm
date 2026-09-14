@@ -56,6 +56,7 @@ fn test_saved_connection_with_folder_and_bookmarks() {
                 remote_path: Some("/var/log/nginx".into()),
             }
         ],
+        quick_commands: vec![],
         created_at: 1000,
         updated_at: 2000,
     };

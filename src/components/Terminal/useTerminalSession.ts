@@ -9,6 +9,14 @@ import {
   attachTerminalSubscriber,
   detachTerminalSubscriber,
 } from '../../stores/sessionStore';
+import { useFileManagerStore } from '../../stores/fileManagerStore';
+import { parseOsc7Path, syncCoordinator } from '../../utils/syncUtils';
+import { shouldProcessPaste } from './pasteTracker';
+import {
+  applyShiftArrowSelection,
+  clearKeyboardSelection,
+  KeyboardSelectionState,
+} from './terminalSelection';
 
 export function useTerminalSession(sessionId: string | null) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -44,9 +52,53 @@ export function useTerminalSession(sessionId: string | null) {
     term.loadAddon(fitAddon);
     term.loadAddon(webLinksAddon);
 
+    // Register OSC 7 parser for Terminal -> SFTP directory synchronization
+    const osc7Disposable = term.parser.registerOscHandler(7, (data: string) => {
+      const parsed = parseOsc7Path(data);
+      if (parsed && sessionId) {
+        const autoSync = localStorage.getItem('openterm_sftp_auto_sync') !== 'false';
+        if (autoSync && syncCoordinator.shouldSync(parsed, 'terminal')) {
+          const currentRemote = useFileManagerStore.getState().remote.currentPath;
+          if (currentRemote !== parsed) {
+            useFileManagerStore.getState().loadRemoteDir(sessionId, parsed);
+          }
+        }
+      }
+      return true;
+    });
+
+    const keyboardSelectionRef = { current: null as KeyboardSelectionState | null };
+
     // Attach custom keyboard handler for copy / paste / select all
     term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
       const isCtrlOrCmd = event.ctrlKey || event.metaKey;
+
+      // Shift + Arrow keys: Block/select text without sending VT escape sequences (which leak A, B, C, D)
+      if (
+        event.type === 'keydown' &&
+        event.shiftKey &&
+        (event.key === 'ArrowLeft' ||
+          event.key === 'ArrowRight' ||
+          event.key === 'ArrowUp' ||
+          event.key === 'ArrowDown')
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        applyShiftArrowSelection(term, event.key, keyboardSelectionRef);
+        return false;
+      }
+
+      // Normal arrow keys without Shift: clear keyboard selection and let shell move cursor
+      if (
+        event.type === 'keydown' &&
+        !event.shiftKey &&
+        (event.key === 'ArrowLeft' ||
+          event.key === 'ArrowRight' ||
+          event.key === 'ArrowUp' ||
+          event.key === 'ArrowDown')
+      ) {
+        clearKeyboardSelection(term, keyboardSelectionRef);
+      }
 
       // Copy: Ctrl+Shift+C or Ctrl+C when text is selected
       if (event.type === 'keydown' && isCtrlOrCmd && (event.key === 'c' || event.key === 'C')) {
@@ -61,11 +113,13 @@ export function useTerminalSession(sessionId: string | null) {
 
       // Paste: Ctrl+V (or Ctrl+Shift+V)
       if (event.type === 'keydown' && isCtrlOrCmd && (event.key === 'v' || event.key === 'V')) {
+        event.preventDefault();
+        event.stopPropagation();
         navigator.clipboard
           .readText()
           .then((clipText) => {
-            if (clipText && sessionId) {
-              tauriApi.sshWrite(sessionId, clipText).catch(() => {});
+            if (clipText && sessionId && shouldProcessPaste(clipText)) {
+              term.paste(clipText);
             }
           })
           .catch(() => {});
@@ -185,6 +239,7 @@ export function useTerminalSession(sessionId: string | null) {
     }
 
     return () => {
+      osc7Disposable.dispose();
       el.removeEventListener('auxclick', handleAuxClick);
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeObserver.disconnect();
@@ -215,30 +270,40 @@ export function useTerminalSession(sessionId: string | null) {
       const text = terminalRef.current.getSelection();
       if (text) navigator.clipboard.writeText(text).catch(() => {});
     }
+    terminalRef.current?.focus();
   };
 
   const pasteFromClipboard = async () => {
     try {
       const text = await navigator.clipboard.readText();
-      if (text && sessionId) {
-        await tauriApi.sshWrite(sessionId, text);
+      if (text && sessionId && shouldProcessPaste(text)) {
+        if (terminalRef.current) {
+          terminalRef.current.paste(text);
+        } else {
+          await tauriApi.sshWrite(sessionId, text);
+        }
       }
     } catch (err) {
       console.error('Failed to paste from clipboard:', err);
+    } finally {
+      terminalRef.current?.focus();
     }
   };
 
   const selectAll = () => {
     terminalRef.current?.selectAll();
+    terminalRef.current?.focus();
   };
 
   const clearTerminal = () => {
     terminalRef.current?.clear();
+    terminalRef.current?.focus();
   };
 
   const resetTerminal = () => {
     if (terminalRef.current) {
       terminalRef.current.reset();
+      terminalRef.current.focus();
     }
     if (sessionId) {
       // Clear DECSET mouse tracking modes (1000, 1002, 1003, 1006), reset text attributes, and clear screen

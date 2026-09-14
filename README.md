@@ -37,10 +37,13 @@
 - [x] **In-App Remote File Editor**: Edit remote and local config, text, or script files with syntax highlighting and direct disk-to-socket saving.
 - [x] **Visual Permissions Manager (chmod)**: Inspect and edit Unix octal permissions (`0755`, `0644`) and user/group/other bit flags.
 - [x] **Transfer Conflict Resolution**: Side-by-side comparison modal with 5 resolution actions (Overwrite, Overwrite Newer, Overwrite if Size Differs, Auto-Rename `(n)`, Skip) and batch application.
-- [x] **Encrypted Profile Vault**: Master password security encrypting saved host credentials using PBKDF2-HMAC-SHA256 (100k rounds) and AES-256-GCM (`vault.enc`).
-- [x] **Two-Factor Authentication (2FA) & App Lock**: RFC 6238 TOTP authenticator protection with 8 single-use emergency backup recovery codes and configurable idle auto-lock.
+- [x] **Two-Factor Authentication (2FA) & Dual Biometric Passkey**: RFC 6238 TOTP authenticator protection alongside native OS biometrics (Windows Hello fingerprint, face, PIN). Includes auto-submit on 6th digit without error flicker, 8 emergency backup codes, and configurable idle auto-lock.
+- [x] **Mandatory App Protection Onboarding Gate**: Requiring at least one protection method (Windows Hello or 2FA) before saving passwords or private key passphrases to disk, while leaving transient quick connections friction-free.
+- [x] **Bi-Directional PTY <-> SFTP Directory Sync**: Automatic synchronization between terminal working directory and remote SFTP file explorer with navigation loop guards and quick toggle.
+- [x] **Quick Commands (Snippets)**: Pre-configured and host-customizable snippet runner (`Commands` dropdown) with instant execution and automatic terminal focus restoration.
+- [x] **Encrypted Profile Vault & Reminder**: Master password security encrypting saved host credentials using PBKDF2-HMAC-SHA256 (100k rounds) and AES-256-GCM (`vault.enc`), with an unobtrusive dashboard reminder for unencrypted credentials.
 - [x] **Connection Resilience & Auto-Reconnect**: TCP keepalive probes (15s) and automatic exponential backoff reconnection worker (1s, 2s, 4s, 8s, 16s) that preserves terminal buffers and directory locations.
-- [x] **SFTP Quick Search & Filter Bar (`Ctrl+F`)**: Real-time substring filter on directory contents with matching items counter.
+- [x] **SFTP Quick Search & Multi-Token Filter (`Ctrl+F`)**: Real-time tokenized search across directory contents with matching items counter, folder-change auto-reset, and OS search shortcut interception.
 - [x] **FileZilla-Style Drag-and-Drop Transfers**: Drag files between local and remote panes, into target folders, or directly from OS file explorer.
 - [x] **Keyboard Shortcuts**:
   - `F5` / `Ctrl+R`: Refresh directory

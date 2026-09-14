@@ -5,6 +5,9 @@ import { tauriApi } from '../services/tauri';
 interface TotpState {
   config: TotpConfig;
   isLoading: boolean;
+  isModalOpen: boolean;
+  openModal: () => void;
+  closeModal: () => void;
   loadConfig: () => Promise<TotpConfig>;
   updateIdleTimeout: (mins: number) => Promise<void>;
   setConfig: (config: TotpConfig) => void;
@@ -17,6 +20,10 @@ export const useTotpStore = create<TotpState>((set) => ({
     hasBackupCodes: false,
   },
   isLoading: false,
+  isModalOpen: false,
+
+  openModal: () => set({ isModalOpen: true }),
+  closeModal: () => set({ isModalOpen: false }),
 
   loadConfig: async () => {
     set({ isLoading: true });

@@ -3,6 +3,7 @@ import { useTerminalSession } from './useTerminalSession';
 import { useSessionStore } from '../../stores/sessionStore';
 import { useThemeStore } from '../../stores/themeStore';
 import { TerminalContextMenu, TerminalContextMenuPosition } from './TerminalContextMenu';
+import { QuickCommandsDropdown } from './QuickCommandsDropdown';
 import { Terminal as TerminalIcon, Radio, AlertCircle, RotateCw } from 'lucide-react';
 
 interface TerminalViewProps {
@@ -57,6 +58,12 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
           <span className="text-[10px] font-mono text-slate-500">
             #{sessionId.slice(0, 8)}
           </span>
+          <QuickCommandsDropdown
+            sessionId={sessionId}
+            hostName={sessionName}
+            customCommands={currentSession?.quickCommands}
+            onCommandExecuted={() => terminal?.focus()}
+          />
         </div>
 
         <div className="flex items-center gap-3 text-[10px] font-mono text-slate-400">
@@ -117,12 +124,30 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
         <TerminalContextMenu
           position={contextMenu}
           hasSelection={Boolean(terminal?.hasSelection())}
-          onCopy={copySelection}
-          onPaste={pasteFromClipboard}
-          onSelectAll={selectAll}
-          onClear={clearTerminal}
-          onReset={resetTerminal}
-          onClose={() => setContextMenu(null)}
+          onCopy={() => {
+            copySelection();
+            terminal?.focus();
+          }}
+          onPaste={() => {
+            pasteFromClipboard();
+            terminal?.focus();
+          }}
+          onSelectAll={() => {
+            selectAll();
+            terminal?.focus();
+          }}
+          onClear={() => {
+            clearTerminal();
+            terminal?.focus();
+          }}
+          onReset={() => {
+            resetTerminal();
+            terminal?.focus();
+          }}
+          onClose={() => {
+            setContextMenu(null);
+            terminal?.focus();
+          }}
         />
       )}
     </div>

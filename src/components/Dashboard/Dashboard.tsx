@@ -19,11 +19,16 @@ import {
   ChevronRight,
   Folder,
   Bookmark,
+  ShieldAlert,
+  X,
+  KeyRound,
+  Fingerprint,
 } from 'lucide-react';
+import { useSessionStore } from '../../stores/sessionStore';
 import { VaultModal } from '../Modal/VaultModal';
-import { TotpModal } from '../Modal/TotpModal';
 import { ImportExportModal } from '../Modal/ImportExportModal';
 import { useTotpStore } from '../../stores/totpStore';
+import { useBiometricStore } from '../../stores/biometricStore';
 
 interface DashboardProps {
   onNewConnection: () => void;
@@ -51,11 +56,51 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [search, setSearch] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [isVaultModalOpen, setIsVaultModalOpen] = useState(false);
-  const [isTotpModalOpen, setIsTotpModalOpen] = useState(false);
+  const [isVaultBannerDismissed, setIsVaultBannerDismissed] = useState(() =>
+    typeof localStorage !== 'undefined'
+      ? localStorage.getItem('openterm_vault_banner_dismissed') === 'true'
+      : false
+  );
+  const {
+    isAvailable: isBiometricAvailable,
+    isEnabled: isBiometricEnabled,
+    setEnabled: setBiometricEnabled,
+    authenticate: authenticateBiometric,
+  } = useBiometricStore();
+  const isConnecting = useSessionStore((state) => state.isConnecting);
+
+  const handleTogglePasskey = async () => {
+    if (!isBiometricAvailable && !isBiometricEnabled) {
+      alert('Biometric authentication not configured. Set up Windows Hello PIN / Fingerprint in Windows Settings, or Touch ID in macOS System Settings.');
+      return;
+    }
+    try {
+      if (!isBiometricEnabled) {
+        const verified = await authenticateBiometric('Enable Windows Hello / Passkey for OpenTerm');
+        if (verified) {
+          setBiometricEnabled(true);
+        }
+      } else {
+        const verified = await authenticateBiometric('Verify identity to disable Passkey');
+        if (verified) {
+          setBiometricEnabled(false);
+        }
+      }
+    } catch {}
+  };
+  const [isRecoveryBannerDismissed, setIsRecoveryBannerDismissed] = useState(() =>
+    typeof localStorage !== 'undefined'
+      ? localStorage.getItem('openterm_recovery_banner_dismissed') === 'true'
+      : false
+  );
   const [isImportExportOpen, setIsImportExportOpen] = useState(false);
   const [selectedFolder, setSelectedFolder] = useState<string>('All');
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
-  const { config: totpConfig, loadConfig: loadTotp } = useTotpStore();
+  const {
+    config: totpConfig,
+    loadConfig: loadTotp,
+    openModal: openTotpModal,
+  } = useTotpStore();
 
   useEffect(() => {
     loadTotp();
@@ -142,7 +187,34 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setIsTotpModalOpen(true)}
+              onClick={handleTogglePasskey}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium cursor-pointer transition-colors ${
+                isBiometricEnabled
+                  ? 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300 hover:bg-emerald-900/50'
+                  : isBiometricAvailable
+                  ? 'bg-[#1e1e2d] border-[#2a2b38] text-slate-300 hover:text-white hover:bg-[#252538]'
+                  : 'bg-[#1e1e2d]/60 border-[#2a2b38]/60 text-slate-400 hover:text-slate-200 hover:bg-[#252538]'
+              }`}
+              title={
+                isBiometricEnabled
+                  ? 'Passkey Active (Click to disable)'
+                  : isBiometricAvailable
+                  ? 'Enable Windows Hello / Passkey'
+                  : 'Passkey not configured in OS (Windows Hello / Touch ID)'
+              }
+            >
+              <Fingerprint className="h-3.5 w-3.5" />
+              <span>
+                {isBiometricEnabled
+                  ? 'Passkey Active'
+                  : isBiometricAvailable
+                  ? 'Enable Passkey'
+                  : 'Passkey (Setup in OS)'}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={openTotpModal}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium cursor-pointer transition-colors ${
                 totpConfig.enabled
                   ? 'bg-indigo-950/40 border-indigo-700/50 text-indigo-300 hover:bg-indigo-900/50'
@@ -220,6 +292,90 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Vault Encryption Reminder Banner */}
+        {!vaultStatus.isEncrypted && !isVaultBannerDismissed && connections.some((c) => Boolean(c.password || c.passphrase)) && (
+          <div className="mb-4 p-3 rounded-lg bg-amber-950/20 border border-amber-800/40 flex items-center justify-between gap-4 text-xs animate-in fade-in duration-150">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/20 shrink-0">
+                <ShieldAlert className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="font-medium text-amber-200">
+                  Protect Saved Passwords with Disk Encryption
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  You have saved SSH credentials. Set an AES-256 Master Password to encrypt connection profiles at rest.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsVaultModalOpen(true)}
+                className="px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-medium cursor-pointer transition-colors"
+              >
+                Set Master Password
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsVaultBannerDismissed(true);
+                  if (typeof localStorage !== 'undefined') {
+                    localStorage.setItem('openterm_vault_banner_dismissed', 'true');
+                  }
+                }}
+                className="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-white/5 cursor-pointer transition-colors"
+                title="Dismiss reminder"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Biometric Emergency Recovery Reminder Banner */}
+        {isBiometricEnabled && !totpConfig.hasBackupCodes && !isRecoveryBannerDismissed && (
+          <div className="mb-4 p-3 rounded-lg bg-indigo-950/20 border border-indigo-800/40 flex items-center justify-between gap-4 text-xs animate-in fade-in duration-150">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shrink-0">
+                <KeyRound className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="font-medium text-indigo-200">
+                  Generate Emergency Recovery Kit
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Windows Hello is enabled without emergency codes. Generate 8 backup codes to prevent lockout if your TPM or BIOS resets.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={openTotpModal}
+                className="px-2.5 py-1 rounded bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 text-[11px] font-medium cursor-pointer transition-colors"
+              >
+                Generate Codes
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRecoveryBannerDismissed(true);
+                  if (typeof localStorage !== 'undefined') {
+                    localStorage.setItem('openterm_recovery_banner_dismissed', 'true');
+                  }
+                }}
+                className="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-white/5 cursor-pointer transition-colors"
+                title="Dismiss reminder"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Search & Filter Bar */}
         <div className="flex items-center justify-between gap-4 mb-4">
@@ -349,7 +505,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         <div
                           key={conn.id}
                           className="group flex items-center justify-between px-4 py-3 hover:bg-[#252538] transition-colors cursor-pointer"
-                          onClick={() => onConnect(conn)}
+                          onClick={() => !isConnecting && onConnect(conn)}
                         >
                           {/* Left info */}
                           <div className="flex items-center gap-3.5 min-w-0 pr-4">
@@ -406,11 +562,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
                             <button
                               type="button"
+                              disabled={isConnecting}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onConnect(conn);
+                                if (!isConnecting) onConnect(conn);
                               }}
-                              className="flex items-center gap-1.5 px-3 py-1 bg-indigo-500/15 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-md text-xs font-medium cursor-pointer transition-colors"
+                              className="flex items-center gap-1.5 px-3 py-1 bg-indigo-500/15 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 rounded-md text-xs font-medium cursor-pointer transition-colors disabled:opacity-40"
                               title="Connect session"
                             >
                               <span>Connect</span>
@@ -489,13 +646,6 @@ export const Dashboard: React.FC<DashboardProps> = ({
             load();
           }
         }}
-      />
-
-      <TotpModal
-        isOpen={isTotpModalOpen}
-        config={totpConfig}
-        onClose={() => setIsTotpModalOpen(false)}
-        onConfigChange={loadTotp}
       />
 
       <ImportExportModal

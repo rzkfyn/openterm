@@ -12,8 +12,11 @@ describe('FilePane Search & Filter Logic', () => {
 
   const filterFiles = (entries: FileEntry[], query: string) => {
     if (!query.trim()) return entries;
-    const q = query.toLowerCase().trim();
-    return entries.filter((e) => e.name.toLowerCase().includes(q));
+    const tokens = query.toLowerCase().trim().split(/\s+/);
+    return entries.filter((e) => {
+      const name = e.name.toLowerCase();
+      return tokens.every((t) => name.includes(t));
+    });
   };
 
   it('returns all entries when search query is empty', () => {
@@ -34,6 +37,16 @@ describe('FilePane Search & Filter Logic', () => {
   it('matches multiple items by extension or common substring', () => {
     const results = filterFiles(mockEntries, '.');
     expect(results).toHaveLength(4); // config.json, server.ts, README.md, docker-compose.yml
+  });
+
+  it('matches multi-word token queries regardless of order', () => {
+    const results = filterFiles(mockEntries, 'compose docker');
+    expect(results).toHaveLength(1);
+    expect(results[0].name).toBe('docker-compose.yml');
+
+    const multi = filterFiles(mockEntries, 'yml dock');
+    expect(multi).toHaveLength(1);
+    expect(multi[0].name).toBe('docker-compose.yml');
   });
 
   it('preserves directory precedence when sorting filtered entries', () => {

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Lock, ArrowRight, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Lock, ArrowRight, AlertCircle, Fingerprint } from 'lucide-react';
 import { tauriApi } from '../../services/tauri';
+import { useBiometricStore } from '../../stores/biometricStore';
 
 interface AppLockOverlayProps {
   isOpen: boolean;
@@ -11,27 +12,82 @@ export const AppLockOverlay: React.FC<AppLockOverlayProps> = ({ isOpen, onUnlock
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isBiometricLoading, setIsBiometricLoading] = useState(false);
+
+  const { isAvailable, isEnabled, checkAvailability, authenticate } = useBiometricStore();
+
+  useEffect(() => {
+    if (isOpen) {
+      checkAvailability();
+    }
+  }, [isOpen, checkAvailability]);
+
 
   if (!isOpen) return null;
 
-  const handleUnlock = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!code) return;
-
-    setIsLoading(true);
+  const handleBiometricUnlock = async () => {
+    setIsBiometricLoading(true);
     setError(null);
     try {
-      const valid = await tauriApi.totpValidateLogin(code);
-      if (valid) {
+      const verified = await authenticate('Unlock OpenTerm');
+      if (verified) {
         setCode('');
+        setError(null);
         onUnlock();
       } else {
+        setError('Windows Hello verification cancelled or failed.');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Biometric hardware unavailable. Enter backup code below.');
+    } finally {
+      setIsBiometricLoading(false);
+    }
+  };
+
+  const validateCode = async (inputCode: string, isAutoSubmit = false) => {
+    const trimmed = inputCode.trim();
+    if (!trimmed) return;
+
+    if (!isAutoSubmit) {
+      setIsLoading(true);
+      setError(null);
+    }
+
+    try {
+      const valid = await tauriApi.totpValidateLogin(trimmed);
+      if (valid) {
+        setCode('');
+        setError(null);
+        onUnlock();
+      } else if (!isAutoSubmit) {
         setError('Invalid authentication code or backup recovery code.');
       }
     } catch (err: any) {
-      setError(err?.message || 'Validation failed');
+      if (!isAutoSubmit) {
+        setError(err?.message || 'Validation failed');
+      }
     } finally {
-      setIsLoading(false);
+      if (!isAutoSubmit) {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  const handleUnlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await validateCode(code, false);
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setCode(val);
+    if (error) setError(null);
+
+    const clean = val.replace(/[\s-]/g, '');
+    if (clean.length === 6 && /^\d{6}$/.test(clean)) {
+      validateCode(clean, true);
+    } else if (clean.length === 8 && /^[A-Za-z0-9]{8}$/.test(clean)) {
+      validateCode(val.trim(), true);
     }
   };
 
@@ -45,15 +101,37 @@ export const AppLockOverlay: React.FC<AppLockOverlayProps> = ({ isOpen, onUnlock
         <div>
           <h2 className="text-base font-semibold text-white">OpenTerm Locked</h2>
           <p className="text-xs text-slate-400 mt-1">
-            Enter your 6-digit authenticator code or an 8-character backup recovery code to unlock.
+            {isAvailable && isEnabled
+              ? 'Unlock with Windows Hello / Passkey or enter your 6-digit authenticator code.'
+              : 'Enter your 6-digit authenticator code or an 8-character backup recovery code to unlock.'}
           </p>
         </div>
 
-        <form onSubmit={handleUnlock} className="space-y-3 pt-2">
+        {isAvailable && isEnabled && (
+          <div className="space-y-3 pt-1">
+            <button
+              type="button"
+              onClick={handleBiometricUnlock}
+              disabled={isBiometricLoading}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold tracking-wide cursor-pointer transition-colors shadow-sm disabled:opacity-50"
+            >
+              <Fingerprint className="h-4 w-4" />
+              <span>{isBiometricLoading ? 'Verifying...' : 'Unlock with Windows Hello / Passkey'}</span>
+            </button>
+
+            <div className="flex items-center gap-2 text-[10px] text-slate-500 uppercase tracking-wider">
+              <div className="flex-1 h-px bg-[#2e2f42]" />
+              <span>Or enter code</span>
+              <div className="flex-1 h-px bg-[#2e2f42]" />
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleUnlock} className="space-y-3 pt-1">
           <input
             type="text"
             value={code}
-            onChange={(e) => setCode(e.target.value)}
+            onChange={handleChange}
             placeholder="123456 or XXXX-XXXX"
             autoFocus
             className="w-full tracking-widest text-center text-sm font-mono rounded-lg bg-[#11111a] border border-[#2e2f42] px-3 py-2.5 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
