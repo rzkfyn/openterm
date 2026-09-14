@@ -21,10 +21,12 @@ import {
   Bookmark,
   ShieldAlert,
   X,
+  KeyRound,
 } from 'lucide-react';
 import { VaultModal } from '../Modal/VaultModal';
 import { ImportExportModal } from '../Modal/ImportExportModal';
 import { useTotpStore } from '../../stores/totpStore';
+import { useBiometricStore } from '../../stores/biometricStore';
 
 interface DashboardProps {
   onNewConnection: () => void;
@@ -55,6 +57,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [isVaultBannerDismissed, setIsVaultBannerDismissed] = useState(() =>
     typeof localStorage !== 'undefined'
       ? localStorage.getItem('openterm_vault_banner_dismissed') === 'true'
+      : false
+  );
+  const { isEnabled: isBiometricEnabled } = useBiometricStore();
+  const [isRecoveryBannerDismissed, setIsRecoveryBannerDismissed] = useState(() =>
+    typeof localStorage !== 'undefined'
+      ? localStorage.getItem('openterm_recovery_banner_dismissed') === 'true'
       : false
   );
   const [isImportExportOpen, setIsImportExportOpen] = useState(false);
@@ -261,6 +269,48 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   setIsVaultBannerDismissed(true);
                   if (typeof localStorage !== 'undefined') {
                     localStorage.setItem('openterm_vault_banner_dismissed', 'true');
+                  }
+                }}
+                className="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-white/5 cursor-pointer transition-colors"
+                title="Dismiss reminder"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Biometric Emergency Recovery Reminder Banner */}
+        {isBiometricEnabled && !totpConfig.hasBackupCodes && !isRecoveryBannerDismissed && (
+          <div className="mb-4 p-3 rounded-lg bg-indigo-950/20 border border-indigo-800/40 flex items-center justify-between gap-4 text-xs animate-in fade-in duration-150">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shrink-0">
+                <KeyRound className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="font-medium text-indigo-200">
+                  Generate Emergency Recovery Kit
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Windows Hello is enabled without emergency codes. Generate 8 backup codes to prevent lockout if your TPM or BIOS resets.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={openTotpModal}
+                className="px-2.5 py-1 rounded bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 text-[11px] font-medium cursor-pointer transition-colors"
+              >
+                Generate Codes
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRecoveryBannerDismissed(true);
+                  if (typeof localStorage !== 'undefined') {
+                    localStorage.setItem('openterm_recovery_banner_dismissed', 'true');
                   }
                 }}
                 className="p-1 rounded text-slate-400 hover:text-slate-200 hover:bg-white/5 cursor-pointer transition-colors"
