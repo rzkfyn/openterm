@@ -130,14 +130,45 @@ export default function App() {
     }
   };
 
-  const handleDashboardConnect = (conn: SavedConnection) => {
+  const handleDashboardConnect = async (conn: SavedConnection) => {
     clearError();
+    const canAttemptDirect =
+      (conn.authType === 'password' && Boolean(conn.password)) ||
+      conn.authType === 'key';
+
+    if (canAttemptDirect) {
+      try {
+        await connectSession({
+          name: conn.name,
+          host: conn.host,
+          port: conn.port,
+          username: conn.username,
+          authType: conn.authType,
+          password: conn.authType === 'password' ? conn.password : undefined,
+          privateKeyPath: conn.authType === 'key' ? conn.privateKeyPath : undefined,
+          passphrase: conn.authType === 'key' ? conn.passphrase : undefined,
+          bookmarks: conn.bookmarks,
+        });
+        return;
+      } catch {
+        // Direct connect failed (e.g. invalid/missing password or passphrase). Prompt user via modal.
+      }
+    }
+
     setConnectTarget(conn);
   };
 
   const handleConnect = async (config: SessionConfig) => {
     try {
       await connectSession(config);
+      if (connectTarget) {
+        // ponytail: update stored credentials if profile previously saved them
+        if (connectTarget.password !== undefined && config.password !== undefined) {
+          await saveConnection({ ...connectTarget, password: config.password });
+        } else if (connectTarget.passphrase !== undefined && config.passphrase !== undefined) {
+          await saveConnection({ ...connectTarget, passphrase: config.passphrase });
+        }
+      }
       setConnectTarget(null);
     } catch {
       // error shown in modal
