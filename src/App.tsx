@@ -132,9 +132,8 @@ export default function App() {
   };
 
   const handleSaveOnly = async (conn: SavedConnection) => {
-    const hasCreds = Boolean(conn.password || conn.passphrase);
     const isSecured = Boolean(totpConfig?.enabled || isBiometricEnabled);
-    if (hasCreds && !isSecured) {
+    if (!isSecured) {
       setSecurityGate({ conn });
       return;
     }
@@ -143,9 +142,8 @@ export default function App() {
   };
 
   const handleSaveAndConnect = async (conn: SavedConnection, config: SessionConfig) => {
-    const hasCreds = Boolean(conn.password || conn.passphrase);
     const isSecured = Boolean(totpConfig?.enabled || isBiometricEnabled);
-    if (hasCreds && !isSecured) {
+    if (!isSecured) {
       setSecurityGate({ conn, config });
       return;
     }
@@ -182,6 +180,7 @@ export default function App() {
   };
 
   const handleDashboardConnect = async (conn: SavedConnection) => {
+    if (isConnecting) return;
     clearError();
     const canAttemptDirect =
       (conn.authType === 'password' && Boolean(conn.password)) ||
@@ -214,11 +213,13 @@ export default function App() {
     try {
       await connectSession(config);
       if (connectTarget) {
-        // ponytail: update stored credentials if profile previously saved them
-        if (connectTarget.password !== undefined && config.password !== undefined) {
-          await saveConnection({ ...connectTarget, password: config.password });
-        } else if (connectTarget.passphrase !== undefined && config.passphrase !== undefined) {
-          await saveConnection({ ...connectTarget, passphrase: config.passphrase });
+        const isSecured = Boolean(totpConfig?.enabled || isBiometricEnabled);
+        if (isSecured) {
+          if (connectTarget.password !== undefined && config.password !== undefined) {
+            await saveConnection({ ...connectTarget, password: config.password });
+          } else if (connectTarget.passphrase !== undefined && config.passphrase !== undefined) {
+            await saveConnection({ ...connectTarget, passphrase: config.passphrase });
+          }
         }
       }
       setConnectTarget(null);

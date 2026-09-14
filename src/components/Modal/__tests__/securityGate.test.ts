@@ -2,13 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { SavedConnection } from '../../../types';
 
 function shouldPromptSecurityGate(
-  conn: SavedConnection,
+  _conn: SavedConnection,
   isTotpEnabled: boolean,
   isBiometricEnabled: boolean
 ): boolean {
-  const hasCredentialsToSave = Boolean(conn.password || conn.passphrase);
   const isSecurityConfigured = isTotpEnabled || isBiometricEnabled;
-  return hasCredentialsToSave && !isSecurityConfigured;
+  return !isSecurityConfigured;
 }
 
 describe('Security Onboarding Gate Rule', () => {
@@ -48,8 +47,8 @@ describe('Security Onboarding Gate Rule', () => {
     expect(shouldPromptSecurityGate(connWithPassword, false, true)).toBe(false);
   });
 
-  it('does NOT trigger gate when saving profile without credentials (ask every time)', () => {
+  it('triggers gate even when saving profile without stored credentials to enforce app protection', () => {
     const connWithoutCreds = { ...baseConn, password: undefined, passphrase: undefined };
-    expect(shouldPromptSecurityGate(connWithoutCreds, false, false)).toBe(false);
+    expect(shouldPromptSecurityGate(connWithoutCreds, false, false)).toBe(true);
   });
 });
