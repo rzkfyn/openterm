@@ -33,8 +33,13 @@
 - Create `src/components/Modal/SecurityOnboardingModal.tsx`:
   - Shown when user clicks "Save" / "Save & Connect" with remembered credentials, but neither TOTP nor Biometrics is enabled.
   - Allows 1-click Windows Hello setup or 2FA Authenticator setup.
+  - Generates emergency recovery backup codes upon Windows Hello activation if TOTP is not configured, guarding against TPM resets and BIOS updates.
   - Allows temporary unsaved connection without gating.
 - Wire gate in `NewConnectionModal.tsx` and `App.tsx`.
+
+### 6. Hardware Failure & TPM Reset Fallback
+- Detect when biometric hardware becomes unavailable or unconfigured post-setup (`NotConfiguredForUser`, `DeviceNotPresent`, TPM clearing).
+- Present Emergency Recovery Code input on lock screen so user can regain access without wiping app profiles.
 
 ---
 

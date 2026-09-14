@@ -74,6 +74,13 @@ Users currently unlock OpenTerm with a 6-digit TOTP code (or recovery code). Whi
   - Once either method is activated, the profile save completes.
 - When user connects without saving (or saves with credentials omitted), the connection proceeds immediately with no gate.
 
+### 3.4 Hardware / TPM Failure & BIOS Update Recovery
+- **Failure Threat**: BIOS updates, motherboard swaps, dual-boot changes, or game anti-cheat drivers (e.g. Vanguard/Ricochet) can reset or corrupt the TPM endorsement hierarchy, permanently invalidating Windows Hello credentials.
+- **Recovery Architecture**:
+  - **Emergency Recovery Codes**: When user configures Windows Hello / Passkey without TOTP, generate emergency backup recovery codes (or reuse TOTP backup codes store in `totp.json`).
+  - **Degraded Hardware Detection**: If Windows Hello API returns `NotConfigured`, `DeviceNotPresent`, or hardware errors, the lock screen gracefully shifts to recovery mode without crashing or permanently locking the user out.
+  - **Master Vault Decoupling**: Profiles stored in `vault.enc` or `connections.json` remain mathematically decryptable via Master Password, ensuring physical disk recovery is always possible without TPM dependency.
+
 ---
 
 ## 4. Security Considerations
