@@ -9,6 +9,8 @@ import {
   attachTerminalSubscriber,
   detachTerminalSubscriber,
 } from '../../stores/sessionStore';
+import { useFileManagerStore } from '../../stores/fileManagerStore';
+import { parseOsc7Path, syncCoordinator } from '../../utils/syncUtils';
 import { shouldProcessPaste } from './pasteTracker';
 import {
   applyShiftArrowSelection,
@@ -49,6 +51,21 @@ export function useTerminalSession(sessionId: string | null) {
 
     term.loadAddon(fitAddon);
     term.loadAddon(webLinksAddon);
+
+    // Register OSC 7 parser for Terminal -> SFTP directory synchronization
+    const osc7Disposable = term.parser.registerOscHandler(7, (data: string) => {
+      const parsed = parseOsc7Path(data);
+      if (parsed && sessionId) {
+        const autoSync = localStorage.getItem('openterm_sftp_auto_sync') !== 'false';
+        if (autoSync && syncCoordinator.shouldSync(parsed, 'terminal')) {
+          const currentRemote = useFileManagerStore.getState().remote.currentPath;
+          if (currentRemote !== parsed) {
+            useFileManagerStore.getState().loadRemoteDir(sessionId, parsed);
+          }
+        }
+      }
+      return true;
+    });
 
     const keyboardSelectionRef = { current: null as KeyboardSelectionState | null };
 
@@ -222,6 +239,7 @@ export function useTerminalSession(sessionId: string | null) {
     }
 
     return () => {
+      osc7Disposable.dispose();
       el.removeEventListener('auxclick', handleAuxClick);
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeObserver.disconnect();

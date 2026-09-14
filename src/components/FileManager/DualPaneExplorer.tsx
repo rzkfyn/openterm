@@ -11,10 +11,11 @@ import { FileEditorModal } from './FileEditorModal';
 import { TransferConflictModal, ConflictDetails } from './TransferConflictModal';
 import { ConflictAction, FileEntry } from '../../types';
 import { shouldTransferOnConflict, resolveDestinationPath } from '../../utils/conflictUtils';
-import { ArrowRight, ArrowLeft, CloudOff, Bookmark, Plus, X, FolderTree } from 'lucide-react';
+import { ArrowRight, ArrowLeft, CloudOff, Bookmark, Plus, X, FolderTree, Repeat } from 'lucide-react';
 import { useSessionStore } from '../../stores/sessionStore';
 import { DirectoryTree } from './DirectoryTree';
 import { TransferDrawer } from './TransferDrawer';
+import { formatSafeCdCommand, syncCoordinator } from '../../utils/syncUtils';
 
 interface DualPaneExplorerProps {
   sessionId: string | null;
@@ -86,6 +87,33 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
       return next;
     });
   };
+
+  // Auto-sync directory state with terminal
+  const [autoSync, setAutoSync] = useState<boolean>(() => {
+    const saved = localStorage.getItem('openterm_sftp_auto_sync');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const toggleAutoSync = () => {
+    setAutoSync((prev) => {
+      const next = !prev;
+      localStorage.setItem('openterm_sftp_auto_sync', String(next));
+      return next;
+    });
+  };
+
+  // Bi-directional SFTP -> Terminal directory synchronization
+  const lastSyncedRemotePathRef = useRef<string>('');
+  useEffect(() => {
+    if (!sessionId || !remote.currentPath || !autoSync) return;
+    if (lastSyncedRemotePathRef.current === remote.currentPath) return;
+    lastSyncedRemotePathRef.current = remote.currentPath;
+
+    if (syncCoordinator.shouldSync(remote.currentPath, 'sftp')) {
+      const cdCmd = formatSafeCdCommand(remote.currentPath);
+      tauriApi.sshWrite(sessionId, cdCmd).catch(() => {});
+    }
+  }, [sessionId, remote.currentPath, autoSync]);
 
   // Prompt Modal state
   const [promptState, setPromptState] = useState<{
@@ -636,6 +664,25 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
             >
               <FolderTree className="h-3.5 w-3.5" />
             </button>
+
+            <div className="relative mt-2 pt-2 border-t border-[#2a2b38]">
+              <button
+                type="button"
+                onClick={toggleAutoSync}
+                className={`flex h-7 w-7 items-center justify-center rounded-md bg-[#1e1e2d] border border-[#2a2b38] transition-colors cursor-pointer ${
+                  autoSync
+                    ? 'text-emerald-400 border-emerald-500/50 bg-emerald-950/20'
+                    : 'text-slate-500 hover:text-slate-300 hover:bg-[#252538]'
+                }`}
+                title={
+                  autoSync
+                    ? 'Terminal Sync Active (SFTP & Terminal track directory changes)'
+                    : 'Terminal Sync Paused (Click to enable)'
+                }
+              >
+                <Repeat className="h-3.5 w-3.5" />
+              </button>
+            </div>
 
             <div className="relative mt-2 pt-2 border-t border-[#2a2b38]">
               <button
