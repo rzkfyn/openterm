@@ -10,6 +10,11 @@ import {
   detachTerminalSubscriber,
 } from '../../stores/sessionStore';
 import { shouldProcessPaste } from './pasteTracker';
+import {
+  applyShiftArrowSelection,
+  clearKeyboardSelection,
+  KeyboardSelectionState,
+} from './terminalSelection';
 
 export function useTerminalSession(sessionId: string | null) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -45,9 +50,38 @@ export function useTerminalSession(sessionId: string | null) {
     term.loadAddon(fitAddon);
     term.loadAddon(webLinksAddon);
 
+    const keyboardSelectionRef = { current: null as KeyboardSelectionState | null };
+
     // Attach custom keyboard handler for copy / paste / select all
     term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
       const isCtrlOrCmd = event.ctrlKey || event.metaKey;
+
+      // Shift + Arrow keys: Block/select text without sending VT escape sequences (which leak A, B, C, D)
+      if (
+        event.type === 'keydown' &&
+        event.shiftKey &&
+        (event.key === 'ArrowLeft' ||
+          event.key === 'ArrowRight' ||
+          event.key === 'ArrowUp' ||
+          event.key === 'ArrowDown')
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        applyShiftArrowSelection(term, event.key, keyboardSelectionRef);
+        return false;
+      }
+
+      // Normal arrow keys without Shift: clear keyboard selection and let shell move cursor
+      if (
+        event.type === 'keydown' &&
+        !event.shiftKey &&
+        (event.key === 'ArrowLeft' ||
+          event.key === 'ArrowRight' ||
+          event.key === 'ArrowUp' ||
+          event.key === 'ArrowDown')
+      ) {
+        clearKeyboardSelection(term, keyboardSelectionRef);
+      }
 
       // Copy: Ctrl+Shift+C or Ctrl+C when text is selected
       if (event.type === 'keydown' && isCtrlOrCmd && (event.key === 'c' || event.key === 'C')) {
