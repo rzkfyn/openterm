@@ -42,6 +42,23 @@ describe('themeStore', () => {
     }
   });
 
+  it('sets data-theme attribute on document root when theme changes', () => {
+    let currentAttr = '';
+    const mockElement = {
+      setAttribute: vi.fn((key: string, val: string) => {
+        if (key === 'data-theme') currentAttr = val;
+      }),
+      getAttribute: vi.fn((key: string) => (key === 'data-theme' ? currentAttr : null)),
+    };
+    vi.stubGlobal('document', { documentElement: mockElement });
+
+    useThemeStore.getState().setTheme('nord');
+    expect(mockElement.setAttribute).toHaveBeenCalledWith('data-theme', 'nord');
+
+    useThemeStore.getState().setTheme('solarized-dark');
+    expect(mockElement.setAttribute).toHaveBeenCalledWith('data-theme', 'solarized-dark');
+  });
+
   it('ignores invalid theme id', () => {
     useThemeStore.getState().setTheme('nonexistent');
     const state = useThemeStore.getState();

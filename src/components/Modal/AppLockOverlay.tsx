@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Lock, ArrowRight, AlertCircle, Fingerprint } from 'lucide-react';
 import { tauriApi } from '../../services/tauri';
 import { useBiometricStore } from '../../stores/biometricStore';
+import { getBiometricName } from '../../utils/platform';
 
 interface AppLockOverlayProps {
   isOpen: boolean;
@@ -29,13 +30,14 @@ export const AppLockOverlay: React.FC<AppLockOverlayProps> = ({ isOpen, onUnlock
     setIsBiometricLoading(true);
     setError(null);
     try {
+      const bioName = getBiometricName();
       const verified = await authenticate('Unlock OpenTerm');
       if (verified) {
         setCode('');
         setError(null);
         onUnlock();
       } else {
-        setError('Windows Hello verification cancelled or failed.');
+        setError(`${bioName} verification cancelled or failed.`);
       }
     } catch (err: any) {
       setError(err?.message || 'Biometric hardware unavailable. Enter backup code below.');
@@ -102,7 +104,7 @@ export const AppLockOverlay: React.FC<AppLockOverlayProps> = ({ isOpen, onUnlock
           <h2 className="text-base font-semibold text-white">OpenTerm Locked</h2>
           <p className="text-xs text-slate-400 mt-1">
             {isAvailable && isEnabled
-              ? 'Unlock with Windows Hello / Passkey or enter your 6-digit authenticator code.'
+              ? `Unlock with ${getBiometricName()} / Passkey or enter your 6-digit authenticator code.`
               : 'Enter your 6-digit authenticator code or an 8-character backup recovery code to unlock.'}
           </p>
         </div>
@@ -116,7 +118,7 @@ export const AppLockOverlay: React.FC<AppLockOverlayProps> = ({ isOpen, onUnlock
               className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold tracking-wide cursor-pointer transition-colors shadow-sm disabled:opacity-50"
             >
               <Fingerprint className="h-4 w-4" />
-              <span>{isBiometricLoading ? 'Verifying...' : 'Unlock with Windows Hello / Passkey'}</span>
+              <span>{isBiometricLoading ? 'Verifying...' : `Unlock with ${getBiometricName()} / Passkey`}</span>
             </button>
 
             <div className="flex items-center gap-2 text-[10px] text-slate-500 uppercase tracking-wider">

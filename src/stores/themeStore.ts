@@ -170,9 +170,17 @@ interface ThemeState {
 
 const STORAGE_KEY = 'openterm_terminal_theme';
 
+export function applyThemeToDOM(themeId: string) {
+  if (typeof document !== 'undefined') {
+    document.documentElement.setAttribute('data-theme', themeId);
+  }
+}
+
 export const useThemeStore = create<ThemeState>((set) => {
   const savedId = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
   const initialTheme = THEME_PRESETS.find((t) => t.id === savedId) || THEME_PRESETS[0];
+
+  applyThemeToDOM(initialTheme.id);
 
   return {
     currentThemeId: initialTheme.id,
@@ -183,6 +191,7 @@ export const useThemeStore = create<ThemeState>((set) => {
         if (typeof localStorage !== 'undefined') {
           localStorage.setItem(STORAGE_KEY, id);
         }
+        applyThemeToDOM(found.id);
         set({ currentThemeId: found.id, theme: found });
       }
     },

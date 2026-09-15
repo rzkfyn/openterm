@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSessionStore } from '../../stores/sessionStore';
-import { Terminal, FolderTree, Columns, Plus, X, Server, RotateCw, XCircle } from 'lucide-react';
+import { Terminal, FolderTree, Columns, Plus, X, Server, RotateCw, XCircle, Settings } from 'lucide-react';
 import { SessionConfig } from '../../types';
+import { useSettingsStore } from '../../stores/settingsStore';
 
 interface AppHeaderProps {
   onOpenNewConnection: () => void;
@@ -132,9 +133,9 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenNewConnection }) => 
         </div>
       </div>
 
-      {/* Right: View toggles (only when connected to a session) */}
-      {currentSessionId && (
-        <div className="flex items-center gap-1">
+      {/* Right: View toggles & Settings */}
+      <div className="flex items-center gap-1.5">
+        {currentSessionId && (
           <div className="flex items-center p-0.5 rounded-md bg-[#1e1e2d] border border-[#2a2b38]">
             <button
               type="button"
@@ -173,8 +174,17 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenNewConnection }) => 
               <FolderTree className="h-3.5 w-3.5" />
             </button>
           </div>
-        </div>
-      )}
+        )}
+
+        <button
+          type="button"
+          onClick={() => useSettingsStore.getState().openSettings()}
+          className="flex items-center justify-center h-[28px] w-[28px] rounded-md text-slate-400 hover:text-white hover:bg-[#1e1e2d] transition-colors cursor-pointer"
+          title="Settings (Cmd+,)"
+        >
+          <Settings className="h-3.5 w-3.5" />
+        </button>
+      </div>
 
       {/* Tab Context Menu */}
       {tabContextMenu && (

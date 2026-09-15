@@ -24,7 +24,23 @@ pub fn check_biometric_available() -> Result<bool, String> {
             .map_err(|e| format!("Async availability failed: {e}"))?;
         Ok(result == UserConsentVerifierAvailability::Available)
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        use objc2_local_authentication::{LAContext, LAPolicy};
+
+        let context = unsafe { LAContext::new() };
+        // Check if biometric authentication (Touch ID) is available and enrolled.
+        // Fall back to checking device owner authentication (passcode/watch) if configured.
+        let is_biometric_ok = unsafe {
+            context.canEvaluatePolicy_error(LAPolicy::DeviceOwnerAuthenticationWithBiometrics).is_ok()
+        };
+        let is_device_owner_ok = unsafe {
+            context.canEvaluatePolicy_error(LAPolicy::DeviceOwnerAuthentication).is_ok()
+        };
+
+        Ok(is_biometric_ok || is_device_owner_ok)
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         Ok(false)
     }
@@ -75,9 +91,50 @@ pub fn request_biometric_verification(message: &str) -> Result<bool, String> {
 
         Ok(result == UserConsentVerificationResult::Verified)
     }
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "macos")]
+    {
+        use block2::RcBlock;
+        use objc2::runtime::Bool;
+        use objc2_foundation::{NSError, NSString};
+        use objc2_local_authentication::{LAContext, LAPolicy};
+        use std::sync::mpsc::channel;
+
+        let context = unsafe { LAContext::new() };
+        let reason = NSString::from_str(message);
+
+        // Prefer DeviceOwnerAuthentication so Touch ID is presented with password fallback
+        let policy = LAPolicy::DeviceOwnerAuthentication;
+
+        let (tx, rx) = channel::<bool>();
+        let block = RcBlock::new(move |success: Bool, _error: *mut NSError| {
+            let _ = tx.send(success.as_bool());
+        });
+
+        unsafe {
+            context.evaluatePolicy_localizedReason_reply(policy, &reason, &block);
+        }
+
+        match rx.recv() {
+            Ok(success) => Ok(success),
+            Err(e) => Err(format!("Failed to receive biometric result: {e}")),
+        }
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         let _ = message;
         Ok(false)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_check_biometric_available_does_not_panic() {
+        let result = check_biometric_available();
+        assert!(result.is_ok());
+        println!("Biometric available on this device: {:?}", result);
+    }
+}
+

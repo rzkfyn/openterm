@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ShieldCheck, Fingerprint, Smartphone, X, AlertCircle, ArrowRight, Check, Copy, KeyRound } from 'lucide-react';
 import { useBiometricStore } from '../../stores/biometricStore';
 import { tauriApi } from '../../services/tauri';
+import { getBiometricName, isMac } from '../../utils/platform';
 
 interface SecurityOnboardingModalProps {
   isOpen: boolean;
@@ -38,16 +39,17 @@ export const SecurityOnboardingModal: React.FC<SecurityOnboardingModalProps> = (
   if (!isOpen) return null;
 
   const handleEnableBiometric = async () => {
+    const bioName = getBiometricName();
     if (!isAvailable) {
       setError(
-        'Biometric authentication not configured in OS. Set up Windows Hello PIN / Fingerprint in Windows Settings, or Touch ID in macOS System Settings.'
+        `Biometric authentication not configured in OS. Set up ${bioName} in System Settings.`
       );
       return;
     }
     setIsLoading(true);
     setError(null);
     try {
-      const verified = await authenticate('Enable Windows Hello / Passkey for OpenTerm');
+      const verified = await authenticate(`Enable ${bioName} / Passkey for OpenTerm`);
       if (verified) {
         setEnabled(true);
         // Generate emergency recovery codes for TPM / BIOS reset safety
@@ -93,13 +95,13 @@ export const SecurityOnboardingModal: React.FC<SecurityOnboardingModalProps> = (
                   <h3 className="text-xs font-semibold text-white uppercase tracking-wider">
                     Emergency Recovery Codes
                   </h3>
-                  <p className="text-[11px] text-emerald-400">Windows Hello active</p>
+                  <p className="text-[11px] text-emerald-400">{getBiometricName()} active</p>
                 </div>
               </div>
             </div>
 
             <p className="text-xs text-slate-300 leading-relaxed">
-              Save these 8 one-time emergency recovery codes. If a BIOS update, game anti-cheat, or TPM reset ever clears Windows Hello, enter any code on the lock screen to regain access:
+              Save these 8 one-time emergency recovery codes. If your system credentials or TPM reset ever clears {getBiometricName()}, enter any code on the lock screen to regain access:
             </p>
 
             <div className="grid grid-cols-2 gap-2 p-3 rounded bg-[#11111a] border border-[#2e2f42] font-mono text-xs text-slate-200">
@@ -187,7 +189,7 @@ export const SecurityOnboardingModal: React.FC<SecurityOnboardingModalProps> = (
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className={`text-xs font-semibold ${isAvailable ? 'text-emerald-300' : 'text-slate-300'}`}>
-                      Windows Hello / Passkey
+                      {getBiometricName()} / Passkey
                     </span>
                     <span
                       className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
@@ -201,8 +203,10 @@ export const SecurityOnboardingModal: React.FC<SecurityOnboardingModalProps> = (
                   </div>
                   <p className="text-[11px] text-slate-400 mt-0.5">
                     {isAvailable
-                      ? 'Unlock instantly using Windows Hello PIN, facial recognition, or fingerprint.'
-                      : 'Not configured. Click for instructions to set up Windows Hello or Touch ID.'}
+                      ? isMac
+                        ? 'Unlock instantly using Touch ID or system passphrase.'
+                        : 'Unlock instantly using Windows Hello PIN, facial recognition, or fingerprint.'
+                      : `Not configured. Set up ${getBiometricName()} in System Settings.`}
                   </p>
                 </div>
               </button>
