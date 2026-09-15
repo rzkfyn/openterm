@@ -28,6 +28,17 @@ export const TerminalSearchBar: React.FC<TerminalSearchBarProps> = ({
 
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Validate regex syntax before running search
+  const isRegexValid = React.useMemo(() => {
+    if (!regex || !query) return true;
+    try {
+      new RegExp(query);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [query, regex]);
+
   // Focus input and set initial query when opened
   useEffect(() => {
     if (isOpen) {
@@ -59,21 +70,37 @@ export const TerminalSearchBar: React.FC<TerminalSearchBarProps> = ({
   // Live search when query or search options change
   useEffect(() => {
     if (!isOpen) return;
-    if (query.trim()) {
-      onFindNext(query, searchOptions);
+    const trimmed = query.trim();
+    if (trimmed) {
+      if (regex && !isRegexValid) {
+        return;
+      }
+      try {
+        onFindNext(query, searchOptions);
+      } catch (err) {
+        console.warn('Live search error:', err);
+      }
     } else {
-      onClear();
+      try {
+        onClear();
+      } catch {}
     }
-  }, [query, caseSensitive, wholeWord, regex, isOpen]);
+  }, [query, caseSensitive, wholeWord, regex, isRegexValid, isOpen]);
 
   const handleNext = () => {
     if (!query) return;
-    onFindNext(query, { ...searchOptions, incremental: false });
+    if (regex && !isRegexValid) return;
+    try {
+      onFindNext(query, { ...searchOptions, incremental: false });
+    } catch {}
   };
 
   const handlePrev = () => {
     if (!query) return;
-    onFindPrevious(query, { ...searchOptions, incremental: false });
+    if (regex && !isRegexValid) return;
+    try {
+      onFindPrevious(query, { ...searchOptions, incremental: false });
+    } catch {}
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -109,8 +136,14 @@ export const TerminalSearchBar: React.FC<TerminalSearchBarProps> = ({
 
         {/* Result match counter badge */}
         {query && (
-          <span className="absolute right-2 text-[10.5px] font-mono text-slate-400 pointer-events-none">
-            {resultInfo && resultInfo.resultCount > 0
+          <span
+            className={`absolute right-2 text-[10.5px] font-mono pointer-events-none ${
+              regex && !isRegexValid ? 'text-rose-400 font-medium' : 'text-slate-400'
+            }`}
+          >
+            {regex && !isRegexValid
+              ? 'Invalid regex'
+              : resultInfo && resultInfo.resultCount > 0
               ? `${resultInfo.resultIndex + 1}/${resultInfo.resultCount}`
               : '0/0'}
           </span>

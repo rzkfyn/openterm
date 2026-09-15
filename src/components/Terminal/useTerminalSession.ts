@@ -62,6 +62,7 @@ export function useTerminalSession(sessionId: string | null, onTriggerSearch?: (
 
     // 1. Initialize xterm.js matching active theme preset and settings
     const term = new Terminal({
+      allowProposedApi: true,
       cursorBlink: settings.cursorBlink,
       cursorStyle: settings.cursorStyle,
       fontFamily: settings.fontFamily,
@@ -394,18 +395,32 @@ export function useTerminalSession(sessionId: string | null, onTriggerSearch?: (
 
   const findNext = (termStr: string, options?: ISearchOptions) => {
     if (!searchAddonRef.current || !termStr) return false;
-    return searchAddonRef.current.findNext(termStr, options);
+    try {
+      return searchAddonRef.current.findNext(termStr, options);
+    } catch (err) {
+      console.warn('xterm findNext search error:', err);
+      return false;
+    }
   };
 
   const findPrevious = (termStr: string, options?: ISearchOptions) => {
     if (!searchAddonRef.current || !termStr) return false;
-    return searchAddonRef.current.findPrevious(termStr, options);
+    try {
+      return searchAddonRef.current.findPrevious(termStr, options);
+    } catch (err) {
+      console.warn('xterm findPrevious search error:', err);
+      return false;
+    }
   };
 
   const clearSearch = () => {
-    if (searchAddonRef.current) {
-      searchAddonRef.current.clearDecorations();
-      searchAddonRef.current.clearActiveDecoration();
+    try {
+      if (searchAddonRef.current) {
+        searchAddonRef.current.clearDecorations();
+        searchAddonRef.current.clearActiveDecoration();
+      }
+    } catch (err) {
+      console.warn('xterm clearSearch error:', err);
     }
     setSearchResult(null);
   };
