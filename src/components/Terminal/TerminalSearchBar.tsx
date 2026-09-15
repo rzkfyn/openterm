@@ -39,20 +39,21 @@ export const TerminalSearchBar: React.FC<TerminalSearchBarProps> = ({
     }
   }, [query, regex]);
 
-  // Focus input and set initial query when opened
+  // Focus input and set initial query only when opening
+  const prevIsOpenRef = useRef(false);
   useEffect(() => {
-    if (isOpen) {
-      if (initialQuery) {
-        setQuery(initialQuery);
-      }
+    if (isOpen && !prevIsOpenRef.current) {
+      setQuery(initialQuery || '');
       setTimeout(() => {
         inputRef.current?.focus();
         inputRef.current?.select();
       }, 50);
-    } else {
+    } else if (!isOpen && prevIsOpenRef.current) {
       onClear();
+      setQuery('');
     }
-  }, [isOpen, initialQuery]);
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, initialQuery, onClear]);
 
   const searchOptions: ISearchOptions = {
     caseSensitive,

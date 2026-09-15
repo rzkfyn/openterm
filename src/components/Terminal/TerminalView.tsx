@@ -15,6 +15,13 @@ interface TerminalViewProps {
 
 export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionName }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchInitialQuery, setSearchInitialQuery] = useState('');
+
+  const handleOpenSearch = () => {
+    const sel = getSelection();
+    setSearchInitialQuery(sel);
+    setIsSearchOpen(true);
+  };
 
   const {
     containerRef,
@@ -29,7 +36,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
     clearSearch,
     searchResult,
     getSelection,
-  } = useTerminalSession(sessionId, () => setIsSearchOpen(true));
+  } = useTerminalSession(sessionId, handleOpenSearch);
   const [contextMenu, setContextMenu] = useState<TerminalContextMenuPosition | null>(null);
   const activeSessions = useSessionStore((s) => s.activeSessions);
   const reconnectSession = useSessionStore((s) => s.reconnectSession);
@@ -54,7 +61,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
         useSettingsStore.getState().resetTerminalFontSize();
       } else if (e.key === 'f' || e.key === 'F') {
         e.preventDefault();
-        setIsSearchOpen(true);
+        handleOpenSearch();
       }
     };
     window.addEventListener('keydown', handleTerminalShortcuts);
@@ -98,7 +105,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
           />
           <button
             type="button"
-            onClick={() => setIsSearchOpen(true)}
+            onClick={handleOpenSearch}
             className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium transition-colors cursor-pointer border bg-[#1e1e2d] text-slate-300 border-[#2a2b38] hover:text-white hover:border-slate-500"
             title="Find in terminal (Cmd+F)"
           >
@@ -168,6 +175,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
           isOpen={isSearchOpen}
           onClose={() => {
             setIsSearchOpen(false);
+            setSearchInitialQuery('');
             clearSearch();
             terminal?.focus();
           }}
@@ -175,7 +183,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
           onFindPrevious={findPrevious}
           onClear={clearSearch}
           resultInfo={searchResult}
-          initialQuery={getSelection()}
+          initialQuery={searchInitialQuery}
         />
       </div>
 
@@ -196,7 +204,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
             terminal?.focus();
           }}
           onFind={() => {
-            setIsSearchOpen(true);
+            handleOpenSearch();
           }}
           onClear={() => {
             clearTerminal();
