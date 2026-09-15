@@ -16,11 +16,13 @@ interface TerminalViewProps {
 export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionName }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchInitialQuery, setSearchInitialQuery] = useState('');
+  const [searchNonce, setSearchNonce] = useState(0);
 
   const handleOpenSearch = () => {
     const sel = getSelection();
     setSearchInitialQuery(sel);
     setIsSearchOpen(true);
+    setSearchNonce((n) => n + 1);
   };
 
   const {
@@ -48,6 +50,16 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
   // Handle Cmd/Ctrl + '+' / '-' / '0' zoom shortcuts and Cmd/Ctrl + F search shortcut
   useEffect(() => {
     const handleTerminalShortcuts = (e: KeyboardEvent) => {
+      if (!sessionId) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
       const isCtrlOrCmd = e.ctrlKey || e.metaKey;
       if (!isCtrlOrCmd) return;
       if (e.key === '=' || e.key === '+' || e.code === 'Equal' || e.code === 'NumpadAdd') {
@@ -66,7 +78,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
     };
     window.addEventListener('keydown', handleTerminalShortcuts);
     return () => window.removeEventListener('keydown', handleTerminalShortcuts);
-  }, []);
+  }, [sessionId]);
 
   if (!sessionId) {
     return (
@@ -184,6 +196,7 @@ export const TerminalView: React.FC<TerminalViewProps> = ({ sessionId, sessionNa
           onClear={clearSearch}
           resultInfo={searchResult}
           initialQuery={searchInitialQuery}
+          searchNonce={searchNonce}
         />
       </div>
 

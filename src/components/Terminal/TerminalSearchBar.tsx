@@ -10,6 +10,7 @@ interface TerminalSearchBarProps {
   onClear: () => void;
   resultInfo: { resultIndex: number; resultCount: number } | null;
   initialQuery?: string;
+  searchNonce?: number;
 }
 
 export const TerminalSearchBar: React.FC<TerminalSearchBarProps> = ({
@@ -20,6 +21,7 @@ export const TerminalSearchBar: React.FC<TerminalSearchBarProps> = ({
   onClear,
   resultInfo,
   initialQuery = '',
+  searchNonce,
 }) => {
   const [query, setQuery] = useState(initialQuery);
   const [caseSensitive, setCaseSensitive] = useState(false);
@@ -39,21 +41,29 @@ export const TerminalSearchBar: React.FC<TerminalSearchBarProps> = ({
     }
   }, [query, regex]);
 
-  // Focus input and set initial query only when opening
+  // Focus input and set initial query when opening or when search is re-triggered
   const prevIsOpenRef = useRef(false);
+  const prevNonceRef = useRef(searchNonce);
   useEffect(() => {
-    if (isOpen && !prevIsOpenRef.current) {
-      setQuery(initialQuery || '');
-      setTimeout(() => {
-        inputRef.current?.focus();
-        inputRef.current?.select();
-      }, 50);
-    } else if (!isOpen && prevIsOpenRef.current) {
+    if (isOpen) {
+      const isOpening = !prevIsOpenRef.current;
+      const isRetriggered = searchNonce !== prevNonceRef.current;
+      if (isOpening || isRetriggered) {
+        if (initialQuery || isOpening) {
+          setQuery(initialQuery || '');
+        }
+        setTimeout(() => {
+          inputRef.current?.focus();
+          inputRef.current?.select();
+        }, 50);
+      }
+    } else if (prevIsOpenRef.current) {
       onClear();
       setQuery('');
     }
     prevIsOpenRef.current = isOpen;
-  }, [isOpen, initialQuery, onClear]);
+    prevNonceRef.current = searchNonce;
+  }, [isOpen, initialQuery, searchNonce, onClear]);
 
   const searchOptions: ISearchOptions = {
     caseSensitive,
@@ -71,8 +81,7 @@ export const TerminalSearchBar: React.FC<TerminalSearchBarProps> = ({
   // Live search when query or search options change
   useEffect(() => {
     if (!isOpen) return;
-    const trimmed = query.trim();
-    if (trimmed) {
+    if (query.length > 0) {
       if (regex && !isRegexValid) {
         return;
       }
@@ -132,7 +141,11 @@ export const TerminalSearchBar: React.FC<TerminalSearchBarProps> = ({
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Find in terminal..."
-          className="w-48 sm:w-60 rounded bg-[#11111a] border border-[#2a2b38] focus:border-indigo-500/80 pl-7 pr-16 py-1 text-xs text-white placeholder-slate-500 outline-none font-mono"
+          className={`w-48 sm:w-60 rounded bg-[#11111a] border pl-7 pr-16 py-1 text-xs text-white placeholder-slate-500 outline-none font-mono ${
+            regex && !isRegexValid
+              ? 'border-rose-500/80 focus:border-rose-500'
+              : 'border-[#2a2b38] focus:border-indigo-500/80'
+          }`}
         />
 
         {/* Result match counter badge */}
