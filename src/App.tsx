@@ -14,9 +14,12 @@ import { ConnectModal } from './components/Modal/ConnectModal';
 import { AppLockOverlay } from './components/Modal/AppLockOverlay';
 import { SecurityOnboardingModal } from './components/Modal/SecurityOnboardingModal';
 import { TotpModal } from './components/Modal/TotpModal';
+import { SettingsModal } from './components/Modal/SettingsModal';
 import { Dashboard } from './components/Dashboard/Dashboard';
 import { SessionConfig, SavedConnection } from './types';
 import { useBiometricStore } from './stores/biometricStore';
+import { useThemeStore, applyThemeToDOM } from './stores/themeStore';
+import { useSettingsStore } from './stores/settingsStore';
 
 export default function App() {
   const [isNewModalOpen, setIsNewModalOpen] = useState(false);
@@ -39,6 +42,24 @@ export default function App() {
     conn: SavedConnection;
     config?: SessionConfig;
   } | null>(null);
+
+  // Theme synchronization
+  const currentThemeId = useThemeStore((state) => state.currentThemeId);
+  useEffect(() => {
+    applyThemeToDOM(currentThemeId);
+  }, [currentThemeId]);
+
+  // Global keyboard shortcut: Cmd+, or Ctrl+, opens Settings
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+        e.preventDefault();
+        useSettingsStore.getState().openSettings();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Check 2FA config on launch
   useEffect(() => {
@@ -147,26 +168,32 @@ export default function App() {
       setSecurityGate({ conn, config });
       return;
     }
-    await saveConnection(conn);
     try {
       await connectSession(config);
+      await saveConnection(conn);
       setIsNewModalOpen(false);
     } catch {
-      // error shown in modal via store
+      // Connection failed: do NOT save profile to disk.
+      // Error is stored in sessionStore and displayed directly in NewConnectionModal.
     }
   };
 
   const handleSecuritySuccess = async () => {
     if (!securityGate) return;
     const { conn, config } = securityGate;
-    await saveConnection(conn);
+    setSecurityGate(null);
     if (config) {
       try {
         await connectSession(config);
-      } catch {}
+        await saveConnection(conn);
+        setIsNewModalOpen(false);
+      } catch {
+        // Connection failed: do not save profile.
+      }
+    } else {
+      await saveConnection(conn);
+      setIsNewModalOpen(false);
     }
-    setSecurityGate(null);
-    setIsNewModalOpen(false);
   };
 
   const handleConnectWithoutSaving = async () => {
@@ -342,6 +369,11 @@ export default function App() {
             handleSecuritySuccess();
           }
         }}
+      />
+
+      {/* Preferences & Settings Modal */}
+      <SettingsModal
+        onOpenTotpModal={() => openTotpModal()}
       />
     </div>
   );
