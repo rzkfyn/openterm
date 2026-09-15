@@ -273,7 +273,9 @@ export default function App() {
           <main ref={mainRef} className="flex flex-1 overflow-hidden bg-[#1e1e2d] relative">
             {viewMode === 'terminal' && (
               <div className="h-full w-full min-w-0">
-                <TerminalView sessionId={currentSessionId} sessionName={currentSession?.name} />
+                <ErrorBoundary fallbackTitle="Terminal Session Error">
+                  <TerminalView sessionId={currentSessionId} sessionName={currentSession?.name} />
+                </ErrorBoundary>
               </div>
             )}
 
@@ -291,7 +293,9 @@ export default function App() {
                   style={{ width: `${terminalSplitPercent}%` }}
                   className="h-full min-w-[200px] overflow-hidden"
                 >
-                  <TerminalView sessionId={currentSessionId} sessionName={currentSession?.name} />
+                  <ErrorBoundary fallbackTitle="Terminal Session Error">
+                    <TerminalView sessionId={currentSessionId} sessionName={currentSession?.name} />
+                  </ErrorBoundary>
                 </div>
 
                 <ResizableSplitter onResize={handleSplitResize} />

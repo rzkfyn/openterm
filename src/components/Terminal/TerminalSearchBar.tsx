@@ -10,6 +10,7 @@ interface TerminalSearchBarProps {
   onClear: () => void;
   resultInfo: { resultIndex: number; resultCount: number } | null;
   initialQuery?: string;
+  searchNonce?: number;
 }
 
 export const TerminalSearchBar: React.FC<TerminalSearchBarProps> = ({
@@ -20,6 +21,7 @@ export const TerminalSearchBar: React.FC<TerminalSearchBarProps> = ({
   onClear,
   resultInfo,
   initialQuery = '',
+  searchNonce,
 }) => {
   const [query, setQuery] = useState(initialQuery);
   const [caseSensitive, setCaseSensitive] = useState(false);
@@ -28,20 +30,40 @@ export const TerminalSearchBar: React.FC<TerminalSearchBarProps> = ({
 
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Focus input and set initial query when opened
+  // Validate regex syntax before running search
+  const isRegexValid = React.useMemo(() => {
+    if (!regex || !query) return true;
+    try {
+      new RegExp(query);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [query, regex]);
+
+  // Focus input and set initial query when opening or when search is re-triggered
+  const prevIsOpenRef = useRef(false);
+  const prevNonceRef = useRef(searchNonce);
   useEffect(() => {
     if (isOpen) {
-      if (initialQuery) {
-        setQuery(initialQuery);
+      const isOpening = !prevIsOpenRef.current;
+      const isRetriggered = searchNonce !== prevNonceRef.current;
+      if (isOpening || isRetriggered) {
+        if (initialQuery || isOpening) {
+          setQuery(initialQuery || '');
+        }
+        setTimeout(() => {
+          inputRef.current?.focus();
+          inputRef.current?.select();
+        }, 50);
       }
-      setTimeout(() => {
-        inputRef.current?.focus();
-        inputRef.current?.select();
-      }, 50);
-    } else {
+    } else if (prevIsOpenRef.current) {
       onClear();
+      setQuery('');
     }
-  }, [isOpen, initialQuery]);
+    prevIsOpenRef.current = isOpen;
+    prevNonceRef.current = searchNonce;
+  }, [isOpen, initialQuery, searchNonce, onClear]);
 
   const searchOptions: ISearchOptions = {
     caseSensitive,
@@ -59,21 +81,36 @@ export const TerminalSearchBar: React.FC<TerminalSearchBarProps> = ({
   // Live search when query or search options change
   useEffect(() => {
     if (!isOpen) return;
-    if (query.trim()) {
-      onFindNext(query, searchOptions);
+    if (query.length > 0) {
+      if (regex && !isRegexValid) {
+        return;
+      }
+      try {
+        onFindNext(query, searchOptions);
+      } catch (err) {
+        console.warn('Live search error:', err);
+      }
     } else {
-      onClear();
+      try {
+        onClear();
+      } catch {}
     }
-  }, [query, caseSensitive, wholeWord, regex, isOpen]);
+  }, [query, caseSensitive, wholeWord, regex, isRegexValid, isOpen]);
 
   const handleNext = () => {
     if (!query) return;
-    onFindNext(query, { ...searchOptions, incremental: false });
+    if (regex && !isRegexValid) return;
+    try {
+      onFindNext(query, { ...searchOptions, incremental: false });
+    } catch {}
   };
 
   const handlePrev = () => {
     if (!query) return;
-    onFindPrevious(query, { ...searchOptions, incremental: false });
+    if (regex && !isRegexValid) return;
+    try {
+      onFindPrevious(query, { ...searchOptions, incremental: false });
+    } catch {}
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -104,13 +141,23 @@ export const TerminalSearchBar: React.FC<TerminalSearchBarProps> = ({
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Find in terminal..."
-          className="w-48 sm:w-60 rounded bg-[#11111a] border border-[#2a2b38] focus:border-indigo-500/80 pl-7 pr-16 py-1 text-xs text-white placeholder-slate-500 outline-none font-mono"
+          className={`w-48 sm:w-60 rounded bg-[#11111a] border pl-7 pr-16 py-1 text-xs text-white placeholder-slate-500 outline-none font-mono ${
+            regex && !isRegexValid
+              ? 'border-rose-500/80 focus:border-rose-500'
+              : 'border-[#2a2b38] focus:border-indigo-500/80'
+          }`}
         />
 
         {/* Result match counter badge */}
         {query && (
-          <span className="absolute right-2 text-[10.5px] font-mono text-slate-400 pointer-events-none">
-            {resultInfo && resultInfo.resultCount > 0
+          <span
+            className={`absolute right-2 text-[10.5px] font-mono pointer-events-none ${
+              regex && !isRegexValid ? 'text-rose-400 font-medium' : 'text-slate-400'
+            }`}
+          >
+            {regex && !isRegexValid
+              ? 'Invalid regex'
+              : resultInfo && resultInfo.resultCount > 0
               ? `${resultInfo.resultIndex + 1}/${resultInfo.resultCount}`
               : '0/0'}
           </span>
