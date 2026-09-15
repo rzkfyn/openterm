@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, X, Copy, Check, AlertCircle, Smartphone, Fingerprint, KeyRound } from 'lucide-react';
+import { ShieldCheck, X, Copy, Check, AlertCircle, Fingerprint, KeyRound, ChevronDown } from 'lucide-react';
 import QRCode from 'qrcode';
 import { tauriApi } from '../../services/tauri';
 import { TotpConfig, TotpSetupInfo } from '../../types';
 import { useTotpStore } from '../../stores/totpStore';
 import { useBiometricStore } from '../../stores/biometricStore';
+import { getBiometricName } from '../../utils/platform';
 
 interface TotpModalProps {
   isOpen: boolean;
@@ -45,13 +46,14 @@ export const TotpModal: React.FC<TotpModalProps> = ({
   }, [isOpen, checkBiometricAvailability]);
 
   const handleToggleBiometric = async () => {
+    const bioName = getBiometricName();
     if (isBiometricEnabled) {
       setBiometricEnabled(false);
     } else {
       setBiometricLoading(true);
       setError(null);
       try {
-        const verified = await authenticateBiometric('Enable Windows Hello / Passkey for OpenTerm');
+        const verified = await authenticateBiometric(`Enable ${bioName} / Passkey for OpenTerm`);
         if (verified) {
           setBiometricEnabled(true);
         } else {
@@ -162,8 +164,9 @@ export const TotpModal: React.FC<TotpModalProps> = ({
     setBiometricLoading(true);
     setError(null);
     try {
+      const bioName = getBiometricName();
       const verified = await authenticateBiometric(
-        'Verify identity with Windows Hello to generate emergency recovery codes'
+        `Verify identity with ${bioName} to generate emergency recovery codes`
       );
       if (verified) {
         const codes = await tauriApi.totpGenerateEmergencyRecoveryCodes();
@@ -181,150 +184,165 @@ export const TotpModal: React.FC<TotpModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs animate-in fade-in duration-150 p-4">
-      <div className="w-full max-w-md rounded-lg bg-[#181824] border border-[#2e2f42] p-5 shadow-2xl text-slate-200">
+      <div className="w-full max-w-md rounded-xl bg-[#181824] border border-[#2a2b38] p-5 shadow-2xl text-slate-200">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-[#2e2f42]">
-          <div className="flex items-center gap-2">
-            <Smartphone className="h-4 w-4 text-indigo-400" />
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-200">
-              App Security & 2FA
-            </h3>
+        <div className="flex items-center justify-between pb-3 border-b border-[#2a2b38]">
+          <div>
+            <h3 className="text-sm font-semibold text-white">App Security & 2FA</h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {config.enabled ? 'Two-factor authentication is active' : 'Secure OpenTerm with an Authenticator App'}
+            </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-slate-400 hover:text-white hover:bg-[#252636] transition-colors cursor-pointer"
+            className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Biometric Passkey Section */}
-        {isBiometricAvailable && (
-          <div className="mt-4 p-3 rounded-lg bg-[#141420] border border-[#2e2f42] flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
-                <Fingerprint className="h-4 w-4" />
-              </div>
-              <div>
-                <p className="text-xs font-medium text-slate-200">Windows Hello / Passkey</p>
-                <p className="text-[11px] text-slate-400">
-                  Unlock using fingerprint, face, or PIN alongside 2FA
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={handleToggleBiometric}
-              disabled={biometricLoading}
-              className={`px-3 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer shrink-0 ${
-                isBiometricEnabled
-                  ? 'bg-emerald-600/30 text-emerald-300 hover:bg-emerald-600/40 border border-emerald-600/40'
-                  : 'bg-indigo-600 hover:bg-indigo-500 text-white'
-              }`}
-            >
-              {biometricLoading
-                ? 'Verifying...'
-                : isBiometricEnabled
-                ? 'Enabled'
-                : 'Enable'}
-            </button>
-          </div>
-        )}
-
-        {/* Protected Emergency Recovery Codes for Biometric Users */}
-        {isBiometricEnabled && !backupCodes && (
-          <div className="mt-3 p-3 rounded-lg bg-[#141420] border border-[#2e2f42] space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <KeyRound className="h-4 w-4 text-emerald-400" />
-                <span className="text-xs font-semibold text-white">Emergency Recovery Kit</span>
-              </div>
-              <span
-                className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                  config.hasBackupCodes
-                    ? 'bg-emerald-500/20 text-emerald-300'
-                    : 'bg-amber-500/20 text-amber-300'
-                }`}
-              >
-                {config.hasBackupCodes ? 'Codes Configured' : 'Missing Backup Codes'}
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              {config.hasBackupCodes
-                ? 'Generate a new set of 8 emergency recovery codes. Old codes will be invalidated.'
-                : 'Protect against TPM corruption or BIOS updates locking you out. Generate 8 emergency recovery codes.'}
-            </p>
-            <button
-              type="button"
-              onClick={handleGenerateRecoveryCodes}
-              disabled={biometricLoading}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded bg-[#252636] hover:bg-[#2e3046] text-slate-200 text-xs font-medium transition-colors cursor-pointer"
-            >
-              <ShieldCheck className="h-3.5 w-3.5 text-indigo-400" />
-              <span>
-                {biometricLoading
-                  ? 'Verifying with Windows Hello...'
-                  : 'Verify with Passkey & Generate Codes'}
-              </span>
-            </button>
-          </div>
-        )}
-
         {/* Enabled State Management */}
         {config.enabled && !backupCodes ? (
           <div className="mt-4 space-y-4">
-            <div className="flex items-center gap-2.5 p-3 rounded bg-emerald-950/30 border border-emerald-800/40 text-xs">
-              <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
-              <div>
-                <p className="font-semibold text-emerald-300">2FA App Lock is Active</p>
-                <p className="text-slate-400 text-[11px] mt-0.5">
-                  OpenTerm requires a 6-digit authenticator code on idle timeout and launch.
-                </p>
+            {/* Settings Card */}
+            <div className="rounded-lg bg-[#11111a] border border-[#2a2b38] divide-y divide-[#262738] overflow-hidden">
+              {/* Row 1: Biometrics / Passkey */}
+              {isBiometricAvailable && (
+                <div className="flex items-center justify-between p-3.5 gap-3">
+                  <div className="flex items-center gap-3">
+                    <Fingerprint className="h-4 w-4 text-slate-400 shrink-0" />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-slate-200">
+                          {getBiometricName()} / Passkey
+                        </span>
+                        {isBiometricEnabled && (
+                          <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                            Active
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Unlock using biometric authentication alongside 2FA
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleToggleBiometric}
+                    disabled={biometricLoading}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors cursor-pointer shrink-0 ${
+                      isBiometricEnabled
+                        ? 'bg-[#1e1e2d] border border-[#2a2b38] text-slate-300 hover:text-white hover:border-slate-500'
+                        : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm'
+                    }`}
+                  >
+                    {biometricLoading
+                      ? 'Verifying...'
+                      : isBiometricEnabled
+                      ? 'Disable'
+                      : 'Enable'}
+                  </button>
+                </div>
+              )}
+
+              {/* Row 2: Emergency Recovery Codes */}
+              {isBiometricEnabled && (
+                <div className="p-3.5 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <KeyRound className="h-4 w-4 text-slate-400 shrink-0" />
+                      <div>
+                        <span className="text-xs font-medium text-slate-200">
+                          Emergency Recovery Kit
+                        </span>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          Backup codes in case biometrics or device reset
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-400">
+                      {config.hasBackupCodes ? (
+                        <span className="text-emerald-400 font-medium flex items-center gap-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                          Configured
+                        </span>
+                      ) : (
+                        <span className="text-amber-400 font-medium flex items-center gap-1">
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                          Missing
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleGenerateRecoveryCodes}
+                    disabled={biometricLoading}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1e1e2d] border border-[#2a2b38] hover:border-slate-500 text-slate-300 hover:text-white text-xs font-medium transition-colors cursor-pointer"
+                  >
+                    <ShieldCheck className="h-3.5 w-3.5 text-slate-400" />
+                    <span>
+                      {biometricLoading
+                        ? `Verifying with ${getBiometricName()}...`
+                        : config.hasBackupCodes
+                        ? 'Regenerate Emergency Codes'
+                        : 'Generate Emergency Codes'}
+                    </span>
+                  </button>
+                </div>
+              )}
+
+              {/* Row 3: Auto-Lock Timeout */}
+              <div className="flex items-center justify-between p-3.5 gap-4">
+                <div>
+                  <span className="text-xs font-medium text-slate-200">Auto-Lock on Idle</span>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Lock workspace after inactivity
+                  </p>
+                </div>
+                <div className="relative w-44 shrink-0">
+                  <select
+                    value={selectedTimeout}
+                    onChange={(e) => handleSaveTimeout(Number(e.target.value))}
+                    className="w-full rounded-md bg-[#181824] border border-[#2a2b38] focus:border-indigo-500/80 pl-3 pr-8 py-1.5 text-xs text-slate-100 outline-none transition-colors appearance-none cursor-pointer"
+                  >
+                    <option value={5} className="bg-[#181824] text-slate-200">5 Minutes</option>
+                    <option value={15} className="bg-[#181824] text-slate-200">15 Minutes (Default)</option>
+                    <option value={30} className="bg-[#181824] text-slate-200">30 Minutes</option>
+                    <option value={60} className="bg-[#181824] text-slate-200">1 Hour</option>
+                    <option value={0} className="bg-[#181824] text-slate-200">Disabled (Manual only)</option>
+                  </select>
+                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                </div>
               </div>
             </div>
 
-            {/* Idle Timeout Settings */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-slate-300">
-                Auto-Lock on Idle:
-              </label>
-              <select
-                value={selectedTimeout}
-                onChange={(e) => handleSaveTimeout(Number(e.target.value))}
-                className="w-full rounded bg-[#11111a] border border-[#2e2f42] px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
-              >
-                <option value={5}>5 Minutes</option>
-                <option value={15}>15 Minutes (Default)</option>
-                <option value={30}>30 Minutes</option>
-                <option value={60}>1 Hour</option>
-                <option value={0}>Disabled (Manual lock only)</option>
-              </select>
-            </div>
-
             {/* Disable 2FA Section */}
-            <form onSubmit={handleDisableTotp} className="pt-3 border-t border-[#262738] space-y-3">
-              <p className="text-xs text-slate-400">
-                To turn off 2FA, enter current 6-digit code or an unused backup code:
-              </p>
+            <form onSubmit={handleDisableTotp} className="pt-3 border-t border-[#262738] space-y-2">
+              <label className="block text-xs font-medium text-slate-400">
+                Disable Two-Factor Authentication
+              </label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={disableCode}
                   onChange={(e) => setDisableCode(e.target.value)}
-                  placeholder="6-digit code or backup code"
-                  className="flex-1 rounded bg-[#11111a] border border-[#2e2f42] px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-rose-500"
+                  placeholder="Enter 6-digit code or backup code"
+                  className="flex-1 rounded-md bg-[#11111a] border border-[#2a2b38] focus:border-rose-500/80 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors"
                 />
                 <button
                   type="submit"
                   disabled={isLoading || !disableCode}
-                  className="px-3 py-1.5 text-xs font-medium rounded bg-rose-600/80 hover:bg-rose-600 text-white disabled:opacity-50 transition-colors"
+                  className="px-3.5 py-1.5 text-xs font-medium rounded-md bg-rose-600/80 hover:bg-rose-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 >
                   {isLoading ? 'Checking...' : 'Disable 2FA'}
                 </button>
               </div>
               {error && (
-                <div className="flex items-center gap-1.5 text-xs text-rose-400 bg-rose-950/40 p-2 rounded border border-rose-800/40">
+                <div className="flex items-center gap-1.5 text-xs text-rose-400 bg-rose-950/40 p-2 rounded-md border border-rose-800/40">
                   <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                   <span>{error}</span>
                 </div>
@@ -421,7 +439,7 @@ export const TotpModal: React.FC<TotpModalProps> = ({
                 onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ''))}
                 placeholder="123456"
                 autoFocus
-                className="w-full tracking-widest text-center text-sm font-mono rounded bg-[#11111a] border border-[#2e2f42] px-3 py-2 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                className="w-full tracking-widest text-center text-sm font-mono rounded-md bg-[#11111a] border border-[#2a2b38] focus:border-indigo-500/80 px-3 py-2 text-white placeholder-slate-600 outline-none transition-colors"
               />
             </div>
 

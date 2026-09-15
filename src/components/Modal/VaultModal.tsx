@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Lock, Unlock, X, KeyRound, AlertCircle, Check, Copy, LifeBuoy, Clock } from 'lucide-react';
+import { X, AlertCircle, Check, Copy, LifeBuoy, Clock } from 'lucide-react';
 import { tauriApi } from '../../services/tauri';
 import { VaultStatus } from '../../types';
 
@@ -204,60 +204,63 @@ export const VaultModal: React.FC<VaultModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs animate-in fade-in duration-150 p-4">
-      <div className="w-full max-w-md rounded-lg bg-[#181824] border border-[#2e2f42] p-5 shadow-2xl text-slate-200">
+      <div className="w-full max-w-md rounded-xl bg-[#181824] border border-[#2a2b38] p-5 shadow-2xl text-slate-200">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-[#2e2f42]">
-          <div className="flex items-center gap-2">
-            <Shield className="h-4 w-4 text-indigo-400" />
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-200">
-              Master Password Vault
-            </h3>
+        <div className="flex items-center justify-between pb-3 border-b border-[#2a2b38]">
+          <div>
+            <h3 className="text-sm font-semibold text-white">Master Password Vault</h3>
+            <div className="flex items-center gap-1.5 mt-0.5 text-[11px]">
+              {status.isEncrypted ? (
+                status.isUnlocked ? (
+                  <span className="flex items-center gap-1.5 text-emerald-400 font-medium">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    Unlocked · AES-256-GCM
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-amber-400 font-medium">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                    Locked
+                  </span>
+                )
+              ) : (
+                <span className="text-slate-400 flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-slate-500" />
+                  Unencrypted (Plaintext)
+                </span>
+              )}
+            </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded p-1 text-slate-400 hover:text-white hover:bg-[#252636] transition-colors"
+            className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Status banner */}
-        <div className="mt-3.5 flex items-center gap-2 p-2.5 rounded bg-[#11111a] border border-[#262738] text-xs">
-          {status.isEncrypted ? (
-            status.isUnlocked ? (
-              <>
-                <Unlock className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                <span className="text-slate-300">Vault status: <strong className="text-emerald-400 font-semibold">Unlocked (AES-256-GCM)</strong></span>
-              </>
-            ) : (
-              <>
-                <Lock className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-                <span className="text-slate-300">Vault status: <strong className="text-amber-400 font-semibold">Locked</strong></span>
-              </>
-            )
-          ) : (
-            <>
-              <KeyRound className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-              <span className="text-slate-400">Vault status: <strong className="text-slate-300">Unencrypted (Plaintext)</strong></span>
-            </>
-          )}
-        </div>
-
-        {/* Navigation tabs if unlocked or unencrypted */}
+        {/* Navigation tabs if unlocked */}
         {status.isEncrypted && status.isUnlocked && mode !== 'recovery_key_display' && (
-          <div className="flex gap-2 mt-3 text-xs border-b border-[#252636] pb-2">
+          <div className="mt-4 flex rounded-md bg-[#11111a] p-0.5 border border-[#2a2b38] text-xs">
             <button
               type="button"
               onClick={() => { setMode('change'); setError(null); }}
-              className={`px-2.5 py-1 rounded transition-colors ${mode === 'change' ? 'bg-indigo-600 text-white font-medium' : 'text-slate-400 hover:text-white'}`}
+              className={`flex-1 py-1.5 px-3 rounded text-center transition-colors font-medium cursor-pointer ${
+                mode === 'change'
+                  ? 'bg-[#1e1e2d] text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
             >
               Change Password
             </button>
             <button
               type="button"
               onClick={() => { setMode('remove'); setError(null); }}
-              className={`px-2.5 py-1 rounded transition-colors ${mode === 'remove' ? 'bg-rose-600/80 text-white font-medium' : 'text-slate-400 hover:text-rose-300'}`}
+              className={`flex-1 py-1.5 px-3 rounded text-center transition-colors font-medium cursor-pointer ${
+                mode === 'remove'
+                  ? 'bg-[#1e1e2d] text-rose-300 shadow-xs'
+                  : 'text-slate-400 hover:text-rose-300'
+              }`}
             >
               Disable Vault
             </button>
@@ -289,7 +292,7 @@ export const VaultModal: React.FC<VaultModalProps> = ({
                 autoFocus
                 disabled={lockoutRemaining > 0}
                 placeholder="••••••••"
-                className="w-full rounded bg-[#11111a] border border-[#2e2f42] px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
+                className="w-full rounded-md bg-[#11111a] border border-[#2a2b38] focus:border-indigo-500/80 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors disabled:opacity-50"
               />
             </div>
 
@@ -315,14 +318,14 @@ export const VaultModal: React.FC<VaultModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-3 py-1.5 text-xs rounded bg-[#252636] text-slate-300 hover:bg-[#2e3046] transition-colors"
+                  className="px-3 py-1.5 text-xs font-medium rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isLoading || !currentPassword || lockoutRemaining > 0}
-                  className="px-4 py-1.5 text-xs font-medium rounded bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors cursor-pointer"
+                  className="px-4 py-1.5 text-xs font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm cursor-pointer"
                 >
                   {isLoading ? 'Decrypting...' : 'Unlock Vault'}
                 </button>
@@ -349,7 +352,7 @@ export const VaultModal: React.FC<VaultModalProps> = ({
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full rounded bg-[#11111a] border border-[#2e2f42] px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                  className="w-full rounded-md bg-[#11111a] border border-[#2a2b38] focus:border-indigo-500/80 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors"
                 />
               </div>
             )}
@@ -363,7 +366,7 @@ export const VaultModal: React.FC<VaultModalProps> = ({
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="At least 6 characters"
-                className="w-full rounded bg-[#11111a] border border-[#2e2f42] px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                className="w-full rounded-md bg-[#11111a] border border-[#2a2b38] focus:border-indigo-500/80 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors"
               />
             </div>
 
@@ -376,7 +379,7 @@ export const VaultModal: React.FC<VaultModalProps> = ({
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full rounded bg-[#11111a] border border-[#2e2f42] px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                className="w-full rounded-md bg-[#11111a] border border-[#2a2b38] focus:border-indigo-500/80 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors"
               />
             </div>
 
@@ -398,14 +401,14 @@ export const VaultModal: React.FC<VaultModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3 py-1.5 text-xs rounded bg-[#252636] text-slate-300 hover:bg-[#2e3046] transition-colors"
+                className="px-3 py-1.5 text-xs font-medium rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isLoading || !newPassword}
-                className="px-4 py-1.5 text-xs font-medium rounded bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors"
+                className="px-4 py-1.5 text-xs font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm cursor-pointer"
               >
                 {isLoading ? 'Encrypting...' : mode === 'setup' ? 'Enable Vault' : 'Update Password'}
               </button>
@@ -428,7 +431,7 @@ export const VaultModal: React.FC<VaultModalProps> = ({
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full rounded bg-[#11111a] border border-[#2e2f42] px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                className="w-full rounded-md bg-[#11111a] border border-[#2a2b38] focus:border-indigo-500/80 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors"
               />
             </div>
 
@@ -450,14 +453,14 @@ export const VaultModal: React.FC<VaultModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3 py-1.5 text-xs rounded bg-[#252636] text-slate-300 hover:bg-[#2e3046] transition-colors"
+                className="px-3 py-1.5 text-xs font-medium rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isLoading || !currentPassword}
-                className="px-4 py-1.5 text-xs font-medium rounded bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-50 transition-colors"
+                className="px-4 py-1.5 text-xs font-medium rounded-md bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm cursor-pointer"
               >
                 {isLoading ? 'Decrypting...' : 'Disable & Decrypt Vault'}
               </button>
@@ -487,7 +490,7 @@ export const VaultModal: React.FC<VaultModalProps> = ({
                 onChange={(e) => setRecoveryKey(e.target.value)}
                 autoFocus
                 placeholder="OT-XXXX-XXXX-XXXX-XXXX"
-                className="w-full rounded bg-[#11111a] border border-[#2e2f42] px-3 py-1.5 text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                className="w-full rounded-md bg-[#11111a] border border-[#2a2b38] focus:border-indigo-500/80 px-3 py-1.5 text-xs font-mono text-slate-100 placeholder-slate-500 outline-none transition-colors"
               />
             </div>
 
@@ -500,7 +503,7 @@ export const VaultModal: React.FC<VaultModalProps> = ({
                 value={totpCode}
                 onChange={(e) => setTotpCode(e.target.value)}
                 placeholder="6-digit code or backup code"
-                className="w-full rounded bg-[#11111a] border border-[#2e2f42] px-3 py-1.5 text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                className="w-full rounded-md bg-[#11111a] border border-[#2a2b38] focus:border-indigo-500/80 px-3 py-1.5 text-xs font-mono text-slate-100 placeholder-slate-500 outline-none transition-colors"
               />
             </div>
 
@@ -513,7 +516,7 @@ export const VaultModal: React.FC<VaultModalProps> = ({
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="At least 6 characters"
-                className="w-full rounded bg-[#11111a] border border-[#2e2f42] px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                className="w-full rounded-md bg-[#11111a] border border-[#2a2b38] focus:border-indigo-500/80 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors"
               />
             </div>
 
@@ -526,7 +529,7 @@ export const VaultModal: React.FC<VaultModalProps> = ({
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full rounded bg-[#11111a] border border-[#2e2f42] px-3 py-1.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                className="w-full rounded-md bg-[#11111a] border border-[#2a2b38] focus:border-indigo-500/80 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors"
               />
             </div>
 
@@ -549,14 +552,14 @@ export const VaultModal: React.FC<VaultModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-3 py-1.5 text-xs rounded bg-[#252636] text-slate-300 hover:bg-[#2e3046] transition-colors"
+                  className="px-3 py-1.5 text-xs font-medium rounded-md text-slate-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isLoading || !recoveryKey.trim() || !newPassword}
-                  className="px-4 py-1.5 text-xs font-medium rounded bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-50 transition-colors cursor-pointer"
+                  className="px-4 py-1.5 text-xs font-medium rounded-md bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm cursor-pointer"
                 >
                   {isLoading ? 'Recovering...' : 'Recover Vault'}
                 </button>

@@ -192,14 +192,14 @@ export const StatusBar: React.FC = () => {
 
         <span className="ml-2 font-mono text-[10px] text-slate-500">UTF-8</span>
 
-        {/* Terminal Color Theme Picker */}
+        {/* Color Theme Picker */}
         <div className="flex items-center gap-1 ml-2 pl-2 border-l border-[#2a2b38]">
           <Palette className="h-3 w-3 text-slate-400 shrink-0" />
           <select
             value={currentThemeId}
             onChange={(e) => setTheme(e.target.value)}
             className="bg-transparent text-[10px] text-slate-400 hover:text-slate-200 border-none outline-none cursor-pointer pr-1"
-            title="Terminal color theme preset"
+            title="Color theme preset"
           >
             {THEME_PRESETS.map((preset) => (
               <option key={preset.id} value={preset.id} className="bg-[#181824] text-slate-200">

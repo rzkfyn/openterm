@@ -23,12 +23,15 @@ import {
   X,
   KeyRound,
   Fingerprint,
+  Settings,
 } from 'lucide-react';
 import { useSessionStore } from '../../stores/sessionStore';
 import { VaultModal } from '../Modal/VaultModal';
 import { ImportExportModal } from '../Modal/ImportExportModal';
 import { useTotpStore } from '../../stores/totpStore';
 import { useBiometricStore } from '../../stores/biometricStore';
+import { useSettingsStore } from '../../stores/settingsStore';
+import { getBiometricName } from '../../utils/platform';
 
 interface DashboardProps {
   onNewConnection: () => void;
@@ -70,13 +73,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const isConnecting = useSessionStore((state) => state.isConnecting);
 
   const handleTogglePasskey = async () => {
+    const bioName = getBiometricName();
     if (!isBiometricAvailable && !isBiometricEnabled) {
-      alert('Biometric authentication not configured. Set up Windows Hello PIN / Fingerprint in Windows Settings, or Touch ID in macOS System Settings.');
+      alert(`Biometric authentication not configured. Set up ${bioName} in System Settings.`);
       return;
     }
     try {
       if (!isBiometricEnabled) {
-        const verified = await authenticateBiometric('Enable Windows Hello / Passkey for OpenTerm');
+        const verified = await authenticateBiometric(`Enable ${bioName} / Passkey for OpenTerm`);
         if (verified) {
           setBiometricEnabled(true);
         }
@@ -169,9 +173,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="flex h-full w-full bg-[#11111a] text-slate-200 overflow-y-auto select-none">
-      <div className="w-full max-w-4xl mx-auto px-6 py-10">
+      <div className="w-full max-w-6xl xl:max-w-7xl mx-auto px-6 sm:px-8 py-8">
         {/* Top Header / Welcome */}
-        <div className="flex items-center justify-between pb-6 mb-8 border-b border-[#2a2b38]">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 mb-8 border-b border-[#2a2b38]">
           <div className="flex items-center gap-3.5">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#1e1e2d] border border-[#2a2b38] p-1.5 shrink-0">
               <img src="/app-icon.png" alt="OpenTerm" className="h-full w-full object-contain" />
@@ -184,88 +188,112 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleTogglePasskey}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium cursor-pointer transition-colors ${
-                isBiometricEnabled
-                  ? 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300 hover:bg-emerald-900/50'
-                  : isBiometricAvailable
-                  ? 'bg-[#1e1e2d] border-[#2a2b38] text-slate-300 hover:text-white hover:bg-[#252538]'
-                  : 'bg-[#1e1e2d]/60 border-[#2a2b38]/60 text-slate-400 hover:text-slate-200 hover:bg-[#252538]'
-              }`}
-              title={
-                isBiometricEnabled
-                  ? 'Passkey Active (Click to disable)'
-                  : isBiometricAvailable
-                  ? 'Enable Windows Hello / Passkey'
-                  : 'Passkey not configured in OS (Windows Hello / Touch ID)'
-              }
-            >
-              <Fingerprint className="h-3.5 w-3.5" />
-              <span>
-                {isBiometricEnabled
-                  ? 'Passkey Active'
-                  : isBiometricAvailable
-                  ? 'Enable Passkey'
-                  : 'Passkey (Setup in OS)'}
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={openTotpModal}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium cursor-pointer transition-colors ${
-                totpConfig.enabled
-                  ? 'bg-indigo-950/40 border-indigo-700/50 text-indigo-300 hover:bg-indigo-900/50'
-                  : 'bg-[#1e1e2d] border-[#2a2b38] text-slate-300 hover:text-white hover:bg-[#252538]'
-              }`}
-              title={totpConfig.enabled ? '2FA Active (Click to manage)' : 'Enable 2FA App Lock'}
-            >
-              <Smartphone className="h-3.5 w-3.5" />
-              <span>{totpConfig.enabled ? '2FA Active' : 'Enable 2FA'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsVaultModalOpen(true)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium cursor-pointer transition-colors ${
-                vaultStatus.isEncrypted
-                  ? vaultStatus.isUnlocked
-                    ? 'bg-emerald-950/40 border-emerald-700/50 text-emerald-300 hover:bg-emerald-900/50'
-                    : 'bg-amber-950/40 border-amber-700/50 text-amber-300 hover:bg-amber-900/50'
-                  : 'bg-[#1e1e2d] border-[#2a2b38] text-slate-300 hover:text-white hover:bg-[#252538]'
-              }`}
-              title={
-                vaultStatus.isEncrypted
-                  ? vaultStatus.isUnlocked
-                    ? 'Vault Unlocked (Click to manage or lock)'
-                    : 'Vault Locked'
-                  : 'Enable Master Password Vault'
-              }
-            >
-              <Shield className="h-3.5 w-3.5" />
-              <span>
-                {vaultStatus.isEncrypted
-                  ? vaultStatus.isUnlocked
-                    ? 'Vault Active'
-                    : 'Vault Locked'
-                  : 'Enable Vault'}
-              </span>
-            </button>
-
-            {vaultStatus.isEncrypted && vaultStatus.isUnlocked && (
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {/* Security Controls Segmented Group */}
+            <div className="inline-flex items-center rounded-md bg-[#1e1e2d] border border-[#2a2b38] text-xs overflow-hidden select-none">
               <button
                 type="button"
-                onClick={lockVault}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-[#1e1e2d] border border-[#2a2b38] text-slate-400 hover:text-rose-300 hover:border-rose-900/40 text-xs font-medium cursor-pointer transition-colors"
-                title="Lock Vault"
+                onClick={handleTogglePasskey}
+                className="group flex items-center gap-1.5 px-3 py-1.5 border-r border-[#2a2b38] text-slate-300 hover:text-white hover:bg-[#252538] transition-colors cursor-pointer whitespace-nowrap"
+                title={
+                  isBiometricEnabled
+                    ? `${getBiometricName()} / Passkey is active (Click to disable)`
+                    : isBiometricAvailable
+                    ? `Enable ${getBiometricName()} / Passkey`
+                    : `Passkey not configured in OS (${getBiometricName()})`
+                }
               >
-                <Lock className="h-3 w-3" />
-                <span>Lock</span>
+                <Fingerprint className={`h-3.5 w-3.5 shrink-0 transition-colors ${
+                  isBiometricEnabled ? 'text-slate-300 group-hover:text-emerald-400' : 'text-slate-500'
+                }`} />
+                <span className="font-medium">Passkey</span>
+                {isBiometricEnabled ? (
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" title="Active" />
+                ) : (
+                  <span className="text-[10px] text-slate-500 font-mono">Off</span>
+                )}
               </button>
-            )}
 
+              <button
+                type="button"
+                onClick={openTotpModal}
+                className="group flex items-center gap-1.5 px-3 py-1.5 border-r border-[#2a2b38] text-slate-300 hover:text-white hover:bg-[#252538] transition-colors cursor-pointer whitespace-nowrap"
+                title={totpConfig.enabled ? '2FA App Lock is active (Click to manage)' : 'Enable 2FA App Lock'}
+              >
+                <Smartphone className={`h-3.5 w-3.5 shrink-0 transition-colors ${
+                  totpConfig.enabled ? 'text-slate-300 group-hover:text-indigo-400' : 'text-slate-500'
+                }`} />
+                <span className="font-medium">2FA</span>
+                {totpConfig.enabled ? (
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" title="Active" />
+                ) : (
+                  <span className="text-[10px] text-slate-500 font-mono">Off</span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsVaultModalOpen(true)}
+                className={`group flex items-center gap-1.5 px-3 py-1.5 text-slate-300 hover:text-white hover:bg-[#252538] transition-colors cursor-pointer whitespace-nowrap ${
+                  vaultStatus.isEncrypted && vaultStatus.isUnlocked ? 'border-r border-[#2a2b38]' : ''
+                }`}
+                title={
+                  vaultStatus.isEncrypted
+                    ? vaultStatus.isUnlocked
+                      ? 'Master Password Vault is Unlocked (AES-256). Click to manage.'
+                      : 'Master Password Vault is Locked. Click to unlock.'
+                    : 'Enable Master Password Vault (Disk Encryption)'
+                }
+              >
+                <Shield
+                  className={`h-3.5 w-3.5 shrink-0 transition-colors ${
+                    vaultStatus.isEncrypted && vaultStatus.isUnlocked
+                      ? 'text-slate-300 group-hover:text-emerald-400'
+                      : vaultStatus.isEncrypted
+                      ? 'text-amber-400'
+                      : 'text-slate-500'
+                  }`}
+                />
+                <span className="font-medium">Vault</span>
+                {vaultStatus.isEncrypted ? (
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full shrink-0 ${
+                      vaultStatus.isUnlocked ? 'bg-emerald-400' : 'bg-amber-400'
+                    }`}
+                    title={vaultStatus.isUnlocked ? 'Unlocked' : 'Locked'}
+                  />
+                ) : (
+                  <span className="text-[10px] text-slate-500 font-mono">Off</span>
+                )}
+              </button>
+
+              {vaultStatus.isEncrypted && vaultStatus.isUnlocked && (
+                <button
+                  type="button"
+                  onClick={lockVault}
+                  className="group flex items-center gap-1 px-2.5 py-1.5 text-slate-400 hover:text-amber-300 hover:bg-[#252538] transition-colors cursor-pointer whitespace-nowrap"
+                  title="Lock Vault now"
+                >
+                  <Lock className="h-3 w-3 shrink-0 text-slate-400 group-hover:text-amber-400 transition-colors" />
+                  <span className="text-[11px] font-medium">Lock</span>
+                </button>
+              )}
+            </div>
+
+            <div className="h-5 w-px bg-[#2a2b38] mx-0.5 hidden lg:block" />
+
+            {/* Settings */}
+            <button
+              type="button"
+              onClick={() => useSettingsStore.getState().openSettings()}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1e1e2d] border border-[#2a2b38] hover:border-slate-600 text-slate-300 hover:text-white text-xs font-medium cursor-pointer transition-colors whitespace-nowrap"
+              title="Preferences & Typography Settings (Cmd+,)"
+            >
+              <Settings className="h-3.5 w-3.5 text-slate-400" />
+              <span>Settings</span>
+            </button>
+
+            {/* Utility & Primary Actions */}
             <button
               type="button"
               onClick={() => {
@@ -275,17 +303,21 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 }
                 setIsImportExportOpen(true);
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1e1e2d] border border-[#2a2b38] text-slate-300 hover:text-white hover:border-slate-600 text-xs font-medium cursor-pointer transition-colors"
-              title={vaultStatus.isEncrypted && !vaultStatus.isUnlocked ? 'Unlock Vault to Import / Export' : 'Import or Export connections'}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#1e1e2d] border border-[#2a2b38] hover:border-slate-600 text-slate-300 hover:text-white text-xs font-medium cursor-pointer transition-colors whitespace-nowrap"
+              title={
+                vaultStatus.isEncrypted && !vaultStatus.isUnlocked
+                  ? 'Unlock Vault to Import / Export'
+                  : 'Import or Export connections'
+              }
             >
-              <ArrowUpDown className="h-3.5 w-3.5" />
+              <ArrowUpDown className="h-3.5 w-3.5 text-slate-400" />
               <span>Import / Export</span>
             </button>
 
             <button
               type="button"
               onClick={onNewConnection}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium cursor-pointer transition-colors shadow-sm"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium cursor-pointer transition-colors shadow-sm whitespace-nowrap"
             >
               <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
               <span>New Connection</span>
@@ -347,7 +379,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   Generate Emergency Recovery Kit
                 </p>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  Windows Hello is enabled without emergency codes. Generate 8 backup codes to prevent lockout if your TPM or BIOS resets.
+                  {getBiometricName()} is enabled without emergency codes. Generate 8 backup codes to prevent lockout if your system credentials reset.
                 </p>
               </div>
             </div>

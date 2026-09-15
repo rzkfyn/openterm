@@ -104,14 +104,14 @@ export const QuickCommandsDropdown: React.FC<QuickCommandsDropdownProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-sans transition-colors cursor-pointer ${
+        className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-sans font-medium transition-colors cursor-pointer border ${
           isOpen
-            ? 'bg-amber-500/30 text-amber-300 border border-amber-500/50'
-            : 'text-slate-400 hover:text-amber-300 hover:bg-[#252636]'
+            ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+            : 'bg-[#1e1e2d] text-slate-300 border-[#2a2b38] hover:text-white hover:border-slate-500'
         }`}
         title="Quick Commands"
       >
-        <Zap className="h-3 w-3 text-amber-400" />
+        <Zap className="h-3 w-3 text-amber-400 shrink-0" />
         <span>Commands</span>
       </button>
 

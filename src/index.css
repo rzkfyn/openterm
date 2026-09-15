@@ -2,18 +2,120 @@
 @import "@xterm/xterm/css/xterm.css";
 
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --app-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--app-font-family);
   color-scheme: dark;
+
+  --theme-bg: #11111a;
+  --theme-surface: #1e1e2d;
+  --theme-surface-subtle: #181824;
+  --theme-hover: #252538;
+  --theme-border: #2a2b38;
+}
+
+[data-theme="dracula"] {
+  --theme-bg: #21222c;
+  --theme-surface: #282a36;
+  --theme-surface-subtle: #1e1f29;
+  --theme-hover: #343746;
+  --theme-border: #44475a;
+}
+
+[data-theme="one-dark"] {
+  --theme-bg: #1e2227;
+  --theme-surface: #282c34;
+  --theme-surface-subtle: #21252b;
+  --theme-hover: #2c313a;
+  --theme-border: #3e4451;
+}
+
+[data-theme="nord"] {
+  --theme-bg: #242933;
+  --theme-surface: #2e3440;
+  --theme-surface-subtle: #2b303c;
+  --theme-hover: #3b4252;
+  --theme-border: #434c5e;
+}
+
+[data-theme="solarized-dark"] {
+  --theme-bg: #00212b;
+  --theme-surface: #073642;
+  --theme-surface-subtle: #002b36;
+  --theme-hover: #0e4352;
+  --theme-border: #0e4a5a;
 }
 
 body {
   margin: 0;
   padding: 0;
   overflow: hidden;
+  font-family: var(--app-font-family);
   background-color: #11111a;
   color: #e2e8f0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Dynamic Theme Overrides for App Chrome */
+[data-theme]:not([data-theme="midnight"]) body {
+  background-color: var(--theme-bg);
+}
+
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#11111a\],
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#101018\],
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#0d0e15\],
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#0b0b12\] {
+  background-color: var(--theme-bg) !important;
+}
+
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#1e1e2d\] {
+  background-color: var(--theme-surface) !important;
+}
+
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#181824\],
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#171724\],
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#161722\],
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#15151e\],
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#151522\],
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#141420\],
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#14151f\],
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#1a1a26\],
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#1a1b26\],
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#181826\] {
+  background-color: var(--theme-surface-subtle) !important;
+}
+
+[data-theme]:not([data-theme="midnight"]) .hover\:bg-\[\#252538\]:hover,
+[data-theme]:not([data-theme="midnight"]) .hover\:bg-\[\#252636\]:hover,
+[data-theme]:not([data-theme="midnight"]) .hover\:bg-\[\#25263a\]:hover,
+[data-theme]:not([data-theme="midnight"]) .hover\:bg-\[\#202030\]:hover,
+[data-theme]:not([data-theme="midnight"]) .hover\:bg-\[\#2e3046\]:hover,
+[data-theme]:not([data-theme="midnight"]) .hover\:bg-\[\#343547\]:hover,
+[data-theme]:not([data-theme="midnight"]) .hover\:bg-\[\#1e1e2d\]:hover,
+[data-theme]:not([data-theme="midnight"]) .hover\:bg-\[\#222334\]:hover,
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#252538\],
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#252636\],
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#232336\],
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#2a2b42\] {
+  background-color: var(--theme-hover) !important;
+}
+
+[data-theme]:not([data-theme="midnight"]) .border-\[\#2a2b38\],
+[data-theme]:not([data-theme="midnight"]) .border-\[\#2e2f42\],
+[data-theme]:not([data-theme="midnight"]) .border-\[\#262738\],
+[data-theme]:not([data-theme="midnight"]) .border-\[\#222332\],
+[data-theme]:not([data-theme="midnight"]) .border-\[\#252636\] {
+  border-color: var(--theme-border) !important;
+}
+
+[data-theme]:not([data-theme="midnight"]) :where(.divide-\[\#2a2b38\] > *),
+[data-theme]:not([data-theme="midnight"]) :where(.divide-\[\#2e2f42\] > *),
+[data-theme]:not([data-theme="midnight"]) :where(.divide-\[\#262738\] > *) {
+  border-color: var(--theme-border) !important;
+}
+
+[data-theme]:not([data-theme="midnight"]) .bg-\[\#2a2b38\] {
+  background-color: var(--theme-border) !important;
 }
 
 code, kbd, samp, pre, .font-mono {
