@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { Copy, Clipboard, CheckSquare, Trash2, RotateCcw } from 'lucide-react';
+import { Copy, Clipboard, CheckSquare, Trash2, RotateCcw, Search } from 'lucide-react';
+import { isMac } from '../../utils/platform';
 
 export interface TerminalContextMenuPosition {
   x: number;
@@ -12,6 +13,7 @@ interface TerminalContextMenuProps {
   onCopy: () => void;
   onPaste: () => void;
   onSelectAll: () => void;
+  onFind: () => void;
   onClear: () => void;
   onReset: () => void;
   onClose: () => void;
@@ -23,6 +25,7 @@ export const TerminalContextMenu: React.FC<TerminalContextMenuProps> = ({
   onCopy,
   onPaste,
   onSelectAll,
+  onFind,
   onClear,
   onReset,
   onClose,
@@ -98,6 +101,19 @@ export const TerminalContextMenu: React.FC<TerminalContextMenuProps> = ({
         <CheckSquare className="h-3.5 w-3.5 text-slate-400" />
         <span className="flex-1">Select All</span>
         <span className="text-[10px] font-mono text-slate-500">Ctrl+Shift+A</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => {
+          onFind();
+          onClose();
+        }}
+        className="flex w-full items-center gap-2 px-2.5 py-1.5 rounded text-left hover:bg-[#252538] hover:text-white cursor-pointer transition-colors"
+      >
+        <Search className="h-3.5 w-3.5 text-slate-400" />
+        <span className="flex-1">Find...</span>
+        <span className="text-[10px] font-mono text-slate-500">{isMac ? '⌘F' : 'Ctrl+F'}</span>
       </button>
 
       <div className="my-1 border-t border-[#2a2b38]" />

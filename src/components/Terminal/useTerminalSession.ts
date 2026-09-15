@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { SearchAddon, ISearchOptions } from '@xterm/addon-search';
 import { tauriApi } from '../../services/tauri';
 import { useThemeStore } from '../../stores/themeStore';
+import { useSettingsStore } from '../../stores/settingsStore';
 import {
   useSessionStore,
   attachTerminalSubscriber,
@@ -18,11 +20,17 @@ import {
   KeyboardSelectionState,
 } from './terminalSelection';
 
-export function useTerminalSession(sessionId: string | null) {
+export function useTerminalSession(sessionId: string | null, onTriggerSearch?: () => void) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const searchAddonRef = useRef<SearchAddon | null>(null);
+  const onTriggerSearchRef = useRef(onTriggerSearch);
+  onTriggerSearchRef.current = onTriggerSearch;
+
+  const [searchResult, setSearchResult] = useState<{ resultIndex: number; resultCount: number } | null>(null);
   const currentTheme = useThemeStore((s) => s.theme);
+  const settings = useSettingsStore((s) => s.settings);
 
   // Sync theme changes to live xterm instance
   useEffect(() => {
@@ -34,23 +42,50 @@ export function useTerminalSession(sessionId: string | null) {
     }
   }, [currentTheme]);
 
+  // Sync settings (font, cursor, scrollback) to live xterm instance
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.options.fontFamily = settings.fontFamily;
+      terminalRef.current.options.fontSize = settings.fontSize;
+      terminalRef.current.options.lineHeight = settings.lineHeight;
+      terminalRef.current.options.cursorBlink = settings.cursorBlink;
+      terminalRef.current.options.cursorStyle = settings.cursorStyle;
+      terminalRef.current.options.scrollback = settings.scrollback;
+      try {
+        fitAddonRef.current?.fit();
+      } catch {}
+    }
+  }, [settings]);
+
   useEffect(() => {
     if (!sessionId || !containerRef.current) return;
 
-    // 1. Initialize xterm.js matching active theme preset
+    // 1. Initialize xterm.js matching active theme preset and settings
     const term = new Terminal({
-      cursorBlink: true,
-      fontFamily: 'Menlo, Monaco, "Courier New", "Cascadia Code", monospace',
-      fontSize: 12.5,
-      lineHeight: 1.25,
+      cursorBlink: settings.cursorBlink,
+      cursorStyle: settings.cursorStyle,
+      fontFamily: settings.fontFamily,
+      fontSize: settings.fontSize,
+      lineHeight: settings.lineHeight,
+      scrollback: settings.scrollback,
       theme: currentTheme.xterm,
     });
 
     const fitAddon = new FitAddon();
+    fitAddonRef.current = fitAddon;
     const webLinksAddon = new WebLinksAddon();
+    const searchAddon = new SearchAddon({
+      highlightLimit: 1000,
+    });
+    searchAddonRef.current = searchAddon;
 
     term.loadAddon(fitAddon);
     term.loadAddon(webLinksAddon);
+    term.loadAddon(searchAddon);
+
+    const searchResultsDisposable = searchAddon.onDidChangeResults((e) => {
+      setSearchResult(e);
+    });
 
     // Register OSC 7 parser for Terminal -> SFTP directory synchronization
     const osc7Disposable = term.parser.registerOscHandler(7, (data: string) => {
@@ -100,6 +135,14 @@ export function useTerminalSession(sessionId: string | null) {
         clearKeyboardSelection(term, keyboardSelectionRef);
       }
 
+      // Find / Search in Terminal: Cmd/Ctrl + F
+      if (event.type === 'keydown' && isCtrlOrCmd && (event.key === 'f' || event.key === 'F')) {
+        event.preventDefault();
+        event.stopPropagation();
+        onTriggerSearchRef.current?.();
+        return false;
+      }
+
       // Copy: Ctrl+Shift+C or Ctrl+C when text is selected
       if (event.type === 'keydown' && isCtrlOrCmd && (event.key === 'c' || event.key === 'C')) {
         if (event.shiftKey || term.hasSelection()) {
@@ -109,6 +152,42 @@ export function useTerminalSession(sessionId: string | null) {
             return false;
           }
         }
+      }
+
+      // Terminal Font Zoom In: Cmd/Ctrl + '+' or '='
+      if (
+        event.type === 'keydown' &&
+        isCtrlOrCmd &&
+        (event.key === '=' || event.key === '+' || event.code === 'Equal' || event.code === 'NumpadAdd')
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        useSettingsStore.getState().increaseTerminalFontSize();
+        return false;
+      }
+
+      // Terminal Font Zoom Out: Cmd/Ctrl + '-' or '_'
+      if (
+        event.type === 'keydown' &&
+        isCtrlOrCmd &&
+        (event.key === '-' || event.key === '_' || event.code === 'Minus' || event.code === 'NumpadSubtract')
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        useSettingsStore.getState().decreaseTerminalFontSize();
+        return false;
+      }
+
+      // Terminal Font Zoom Reset: Cmd/Ctrl + '0'
+      if (
+        event.type === 'keydown' &&
+        isCtrlOrCmd &&
+        (event.key === '0' || event.code === 'Digit0' || event.code === 'Numpad0')
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        useSettingsStore.getState().resetTerminalFontSize();
+        return false;
       }
 
       // Paste: Ctrl+V (or Ctrl+Shift+V)
@@ -244,11 +323,13 @@ export function useTerminalSession(sessionId: string | null) {
       if (resizeTimer) clearTimeout(resizeTimer);
       resizeObserver.disconnect();
       onDataDisposable.dispose();
+      searchResultsDisposable.dispose();
       detachTerminalSubscriber(sessionId);
       if (unlistenClosed) unlistenClosed();
       term.dispose();
       terminalRef.current = null;
       fitAddonRef.current = null;
+      searchAddonRef.current = null;
     };
   }, [sessionId]);
 
@@ -311,6 +392,28 @@ export function useTerminalSession(sessionId: string | null) {
     }
   };
 
+  const findNext = (termStr: string, options?: ISearchOptions) => {
+    if (!searchAddonRef.current || !termStr) return false;
+    return searchAddonRef.current.findNext(termStr, options);
+  };
+
+  const findPrevious = (termStr: string, options?: ISearchOptions) => {
+    if (!searchAddonRef.current || !termStr) return false;
+    return searchAddonRef.current.findPrevious(termStr, options);
+  };
+
+  const clearSearch = () => {
+    if (searchAddonRef.current) {
+      searchAddonRef.current.clearDecorations();
+      searchAddonRef.current.clearActiveDecoration();
+    }
+    setSearchResult(null);
+  };
+
+  const getSelection = () => {
+    return terminalRef.current?.getSelection() || '';
+  };
+
   return {
     containerRef,
     terminal: terminalRef.current,
@@ -319,5 +422,10 @@ export function useTerminalSession(sessionId: string | null) {
     selectAll,
     clearTerminal,
     resetTerminal,
+    findNext,
+    findPrevious,
+    clearSearch,
+    searchResult,
+    getSelection,
   };
 }
