@@ -7,7 +7,24 @@ export interface UpdateInfo {
   releaseUrl: string;
 }
 
+export interface ReleaseItem {
+  id: number;
+  tagName: string;        // e.g. "v0.7.2"
+  name: string;           // e.g. "v0.7.2 - Terminal Sync & UI"
+  publishedAt: string;    // ISO string
+  body: string;           // Raw markdown text
+  htmlUrl: string;        // Web release link
+  isPrerelease: boolean;
+}
+
+export interface VersionDistanceResult {
+  isLatest: boolean;
+  behindCount: number;
+  latestVersion: string;
+}
+
 const GITHUB_API_LATEST = 'https://api.github.com/repos/rzkfyn/openterm/releases/latest';
+const GITHUB_API_RELEASES = 'https://api.github.com/repos/rzkfyn/openterm/releases?per_page=15';
 const CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
 export function parseSemver(v: string): [number, number, number] | null {
@@ -94,4 +111,121 @@ export async function checkLatestRelease(
     // Network failure / offline / timeout — fail silently
     return null;
   }
+}
+
+function getCachedReleases(): ReleaseItem[] {
+  if (typeof localStorage !== 'undefined') {
+    const cached = localStorage.getItem('openterm_cached_releases');
+    if (cached) {
+      try {
+        return JSON.parse(cached) as ReleaseItem[];
+      } catch {
+        return [];
+      }
+    }
+  }
+  return [];
+}
+
+export async function fetchReleasesList(force = false): Promise<ReleaseItem[]> {
+  const now = Date.now();
+  if (!force && typeof localStorage !== 'undefined') {
+    const lastCheck = localStorage.getItem('openterm_last_releases_check');
+    if (lastCheck) {
+      const elapsed = now - parseInt(lastCheck, 10);
+      if (elapsed < CHECK_INTERVAL_MS) {
+        const cached = getCachedReleases();
+        if (cached.length > 0) {
+          return cached;
+        }
+      }
+    }
+  }
+
+  try {
+    const signal = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+      ? AbortSignal.timeout(5000)
+      : undefined;
+
+    const res = await fetch(GITHUB_API_RELEASES, {
+      signal,
+      headers: {
+        Accept: 'application/vnd.github.v3+json',
+      },
+    });
+
+    if (!res.ok) {
+      return getCachedReleases();
+    }
+
+    const data = await res.json();
+    if (!Array.isArray(data)) {
+      return getCachedReleases();
+    }
+
+    const releases: ReleaseItem[] = data
+      .filter((item: any) => !item.draft)
+      .map((item: any) => ({
+        id: item.id,
+        tagName: item.tag_name || '',
+        name: item.name || item.tag_name || '',
+        publishedAt: item.published_at || '',
+        body: item.body || '',
+        htmlUrl: item.html_url || '',
+        isPrerelease: Boolean(item.prerelease),
+      }));
+
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('openterm_last_releases_check', now.toString());
+      localStorage.setItem('openterm_cached_releases', JSON.stringify(releases));
+    }
+
+    return releases;
+  } catch {
+    return getCachedReleases();
+  }
+}
+
+export function calculateVersionDistance(
+  releases: ReleaseItem[],
+  currentVersion: string
+): VersionDistanceResult {
+  const cleanCurrent = currentVersion.trim().replace(/^v/i, '');
+
+  if (!releases || releases.length === 0) {
+    return {
+      isLatest: true,
+      behindCount: 0,
+      latestVersion: cleanCurrent,
+    };
+  }
+
+  const validSemverReleases = releases.filter((r) => parseSemver(r.tagName) !== null);
+  if (validSemverReleases.length === 0) {
+    return {
+      isLatest: true,
+      behindCount: 0,
+      latestVersion: cleanCurrent,
+    };
+  }
+
+  const stableReleases = validSemverReleases.filter((r) => !r.isPrerelease);
+  const pool = stableReleases.length > 0 ? stableReleases : validSemverReleases;
+
+  let latestRelease = pool[0];
+  for (let i = 1; i < pool.length; i++) {
+    if (isNewerVersion(pool[i].tagName, latestRelease.tagName)) {
+      latestRelease = pool[i];
+    }
+  }
+
+  const latestVersion = latestRelease.tagName.trim().replace(/^v/i, '');
+  const behindCount = pool.filter((r) => isNewerVersion(r.tagName, cleanCurrent)).length;
+  const isLatest = behindCount === 0 || !isNewerVersion(latestVersion, cleanCurrent);
+
+  return {
+    isLatest,
+    behindCount,
+    latestVersion,
+  };
 }
