@@ -76,6 +76,17 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
     }
   }, [isOpen, mode, editingConnection]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const connId = (mode === 'edit' && editingConnection?.id) || crypto.randomUUID();
@@ -123,21 +134,23 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
   };
 
   const inputCls =
-    'w-full rounded-md bg-[#11111a] border border-[#2a2b38] focus:border-indigo-500/80 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors';
+    'w-full rounded-md bg-[#11111a] border border-[#2a2b38] focus:border-indigo-500/80 px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors select-text';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 select-none">
-      <div className="w-full max-w-md rounded-lg bg-[#1e1e2d] border border-[#2a2b38] shadow-2xl overflow-hidden">
+      <div className="w-full max-w-3xl rounded-lg bg-[#1e1e2d] border border-[#2a2b38] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]" role="dialog" aria-modal="true" aria-labelledby="connection-modal-title">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#2a2b38] bg-[#11111a] px-4 py-3">
+        <div className="flex items-center justify-between border-b border-[#2a2b38] bg-[#11111a] px-4 py-3 shrink-0">
           <div>
-            <h3 className="text-xs font-semibold text-slate-100">
+            <h3 id="connection-modal-title" className="text-xs font-semibold text-slate-100">
               {mode === 'edit' ? 'Edit Connection Profile' : 'New Connection Profile'}
             </h3>
           </div>
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close"
+            title="Close"
             className="rounded p-1 text-slate-400 hover:text-slate-100 hover:bg-[#1e1e2d] cursor-pointer transition-colors"
           >
             <X className="h-3.5 w-3.5" />
@@ -145,13 +158,17 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSaveAndConnect} className="p-4 space-y-3.5">
+        <form onSubmit={handleSaveAndConnect} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="p-4 space-y-4 flex-1 min-h-0 overflow-y-auto">
           {error && (
             <div className="p-2.5 rounded-md bg-rose-950/40 border border-rose-800 text-rose-300 text-xs">
               {error}
             </div>
           )}
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+            {/* Left Column: General & Credentials */}
+            <div className="space-y-3.5">
           <div>
             <label className="block mb-1 text-[11px] font-medium text-slate-400">
               Profile Name
@@ -317,21 +334,24 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
           )}
 
           {/* Remember credentials in Vault */}
-          <div className="pt-1">
-            <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={savePassword}
-                onChange={(e) => setSavePassword(e.target.checked)}
-                className="rounded accent-indigo-500 cursor-pointer"
-              />
-              <span>Remember password/passphrase in profile</span>
-            </label>
+            <div className="pt-1">
+              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={savePassword}
+                  onChange={(e) => setSavePassword(e.target.checked)}
+                  className="rounded accent-indigo-500 cursor-pointer"
+                />
+                <span>Remember password/passphrase in profile</span>
+              </label>
+            </div>
           </div>
 
-          {/* SFTP Bookmarks */}
-          <div className="pt-2 border-t border-[#2a2b38]">
-            <div className="flex items-center justify-between mb-2">
+          {/* Right Column: SFTP Bookmarks & Quick Commands */}
+          <div className="space-y-4">
+              {/* SFTP Bookmarks */}
+              <div className="rounded-lg bg-[#141420] border border-[#2a2b38] p-3 space-y-2.5">
+                <div className="flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => setShowBookmarks(!showBookmarks)}
@@ -415,11 +435,11 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
             )}
           </div>
 
-          {/* Quick Commands */}
-          <div className="pt-2 border-t border-[#2a2b38]">
-            <div className="flex items-center justify-between mb-2">
-              <button
-                type="button"
+              {/* Quick Commands */}
+              <div className="rounded-lg bg-[#141420] border border-[#2a2b38] p-3 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
                 onClick={() => setShowQuickCommands(!showQuickCommands)}
                 className="flex items-center gap-1.5 text-xs font-medium text-slate-300 hover:text-white cursor-pointer"
               >
@@ -488,9 +508,11 @@ export const NewConnectionModal: React.FC<NewConnectionModalProps> = ({
               </div>
             )}
           </div>
-
+        </div>
+      </div>
+    </div>
           {/* Actions */}
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#2a2b38]">
+          <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-[#2a2b38] bg-[#11111a]/60 shrink-0">
             <button
               type="button"
               onClick={onClose}
