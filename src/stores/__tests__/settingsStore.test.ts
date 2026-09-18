@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useSettingsStore, DEFAULT_SETTINGS } from '../settingsStore';
+import { useSettingsStore, DEFAULT_SETTINGS, loadSavedSettings } from '../settingsStore';
 
 describe('settingsStore', () => {
   const storageMap = new Map<string, string>();
@@ -86,5 +86,47 @@ describe('settingsStore', () => {
     useSettingsStore.getState().updateSetting('appFontFamily', '"Geist", sans-serif');
     expect(useSettingsStore.getState().settings.appFontFamily).toBe('"Geist", sans-serif');
     expect(setPropertyMock).toHaveBeenCalledWith('--app-font-family', '"Geist", sans-serif');
+  });
+
+  it('initializes split sync settings with correct defaults', () => {
+    const { settings } = useSettingsStore.getState();
+    expect(settings.sftpSyncToTerminal).toBe(true);
+    expect(settings.sftpSyncFromTerminal).toBe(false);
+  });
+
+  it('allows independent updating of sftpSyncToTerminal and sftpSyncFromTerminal', () => {
+    useSettingsStore.getState().updateSetting('sftpSyncToTerminal', false);
+    useSettingsStore.getState().updateSetting('sftpSyncFromTerminal', true);
+
+    const { settings } = useSettingsStore.getState();
+    expect(settings.sftpSyncToTerminal).toBe(false);
+    expect(settings.sftpSyncFromTerminal).toBe(true);
+  });
+
+  it('migrates legacy openterm_sftp_auto_sync to sftpSyncToTerminal in loadSavedSettings', () => {
+    localStorage.setItem('openterm_sftp_auto_sync', 'false');
+    const settingsFalse = loadSavedSettings();
+    expect(settingsFalse.sftpSyncToTerminal).toBe(false);
+
+    localStorage.setItem('openterm_sftp_auto_sync', 'true');
+    const settingsTrue = loadSavedSettings();
+    expect(settingsTrue.sftpSyncToTerminal).toBe(true);
+  });
+
+  it('migrates legacy sftpAutoSync in stored settings to sftpSyncToTerminal', () => {
+    localStorage.setItem('openterm_app_settings', JSON.stringify({ sftpAutoSync: false }));
+    const settings = loadSavedSettings();
+    expect(settings.sftpSyncToTerminal).toBe(false);
+    expect(settings.sftpSyncFromTerminal).toBe(false);
+  });
+
+  it('prioritizes sftpSyncToTerminal over legacy settings when present', () => {
+    localStorage.setItem('openterm_sftp_auto_sync', 'false');
+    localStorage.setItem(
+      'openterm_app_settings',
+      JSON.stringify({ sftpAutoSync: false, sftpSyncToTerminal: true })
+    );
+    const settings = loadSavedSettings();
+    expect(settings.sftpSyncToTerminal).toBe(true);
   });
 });

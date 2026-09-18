@@ -19,7 +19,8 @@ export interface AppSettings {
   confirmCloseSession: boolean;
   // SFTP Explorer
   sftpShowHiddenFiles: boolean;
-  sftpAutoSync: boolean;
+  sftpSyncToTerminal: boolean;
+  sftpSyncFromTerminal: boolean;
   defaultViewMode: DefaultViewMode;
 }
 
@@ -79,7 +80,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   copyOnSelect: false,
   confirmCloseSession: true,
   sftpShowHiddenFiles: true,
-  sftpAutoSync: true,
+  sftpSyncToTerminal: true,
+  sftpSyncFromTerminal: false,
   defaultViewMode: 'terminal',
 };
 
@@ -104,19 +106,29 @@ interface SettingsState {
   resetSettings: () => void;
 }
 
-export const useSettingsStore = create<SettingsState>((set, get) => {
-  const loadSavedSettings = (): AppSettings => {
-    if (typeof localStorage === 'undefined') return DEFAULT_SETTINGS;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        return { ...DEFAULT_SETTINGS, ...parsed };
-      }
-    } catch {}
-    return DEFAULT_SETTINGS;
-  };
+export function loadSavedSettings(): AppSettings {
+  if (typeof localStorage === 'undefined') return DEFAULT_SETTINGS;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
 
+    if (parsed.sftpAutoSync !== undefined && parsed.sftpSyncToTerminal === undefined) {
+      parsed.sftpSyncToTerminal = parsed.sftpAutoSync;
+    }
+
+    if (parsed.sftpSyncToTerminal === undefined) {
+      const legacy = localStorage.getItem('openterm_sftp_auto_sync');
+      if (legacy !== null) {
+        parsed.sftpSyncToTerminal = legacy !== 'false';
+      }
+    }
+
+    return { ...DEFAULT_SETTINGS, ...parsed };
+  } catch {}
+  return DEFAULT_SETTINGS;
+}
+
+export const useSettingsStore = create<SettingsState>((set, get) => {
   const initialSettings = loadSavedSettings();
   applyAppFontToDOM(initialSettings.appFontFamily);
 

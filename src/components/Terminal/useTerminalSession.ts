@@ -92,8 +92,8 @@ export function useTerminalSession(sessionId: string | null, onTriggerSearch?: (
     const osc7Disposable = term.parser.registerOscHandler(7, (data: string) => {
       const parsed = parseOsc7Path(data);
       if (parsed && sessionId) {
-        const autoSync = localStorage.getItem('openterm_sftp_auto_sync') !== 'false';
-        if (autoSync && syncCoordinator.shouldSync(parsed, 'terminal')) {
+        const sftpSyncFromTerminal = useSettingsStore.getState().settings.sftpSyncFromTerminal;
+        if (sftpSyncFromTerminal && syncCoordinator.shouldSync(parsed, 'terminal')) {
           const currentRemote = useFileManagerStore.getState().remote.currentPath;
           if (currentRemote !== parsed) {
             useFileManagerStore.getState().loadRemoteDir(sessionId, parsed);
