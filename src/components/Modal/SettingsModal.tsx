@@ -12,8 +12,10 @@ import {
   ChevronDown,
   Plus,
   Minus,
+  HelpCircle,
 } from 'lucide-react';
 import { useSettingsStore, FONT_PRESETS, APP_FONT_PRESETS, SettingsTab } from '../../stores/settingsStore';
+import { Osc7SetupModal } from './Osc7SetupModal';
 import { useThemeStore, THEME_PRESETS } from '../../stores/themeStore';
 import { useUpdateStore } from '../../stores/updateStore';
 import { useSavedConnectionStore } from '../../stores/savedConnectionStore';
@@ -60,7 +62,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     return !APP_FONT_PRESETS.some((p) => p.value === settings.appFontFamily);
   });
   const [customAppFontInput, setCustomAppFontInput] = useState(settings.appFontFamily);
-
+  const [isOsc7ModalOpen, setIsOsc7ModalOpen] = useState(false);
   if (!isOpen) return null;
 
   const tabs: { id: SettingsTab; label: string; icon: React.FC<{ className?: string }> }[] = [
@@ -78,6 +80,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs animate-in fade-in duration-150 p-4 select-none">
       <div className="flex flex-col w-full max-w-2xl h-[560px] rounded-xl bg-[#181824] border border-[#2a2b38] shadow-2xl text-slate-200 overflow-hidden">
         {/* Top Header */}
@@ -532,22 +535,48 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </label>
                 </div>
 
-                {/* Terminal-SFTP Directory Auto Sync */}
+                {/* Row 1: SFTP to Terminal Navigation (Auto-CD) */}
                 <div className="flex items-center justify-between pt-3 border-t border-[#262738]">
                   <div>
-                    <span className="text-xs font-medium text-slate-200">Terminal-SFTP Auto-Sync</span>
-                    <p className="text-[11px] text-slate-400 mt-0.5">Follow terminal current working directory via OSC 7</p>
+                    <span className="text-xs font-medium text-slate-200">Sync SFTP to Terminal</span>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Send cd command to active terminal when navigating remote folders
+                    </p>
                   </div>
                   <label className="relative inline-flex items-center cursor-pointer">
                     <input
                       type="checkbox"
-                      checked={settings.sftpAutoSync}
-                      onChange={(e) => {
-                        updateSetting('sftpAutoSync', e.target.checked);
-                        if (typeof localStorage !== 'undefined') {
-                          localStorage.setItem('openterm_sftp_auto_sync', String(e.target.checked));
-                        }
-                      }}
+                      checked={settings.sftpSyncToTerminal}
+                      onChange={(e) => updateSetting('sftpSyncToTerminal', e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-[#11111a] border border-[#2a2b38] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                  </label>
+                </div>
+
+                {/* Row 2: Terminal to SFTP Navigation (Auto-Follow) */}
+                <div className="flex items-center justify-between pt-3 border-t border-[#262738]">
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-medium text-slate-200">Sync Terminal to SFTP</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsOsc7ModalOpen(true)}
+                        title="View remote shell setup guide"
+                        className="text-slate-400 hover:text-indigo-400 transition-colors cursor-pointer"
+                      >
+                        <HelpCircle className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Follow terminal working directory via OSC 7 escape sequences
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.sftpSyncFromTerminal}
+                      onChange={(e) => updateSetting('sftpSyncFromTerminal', e.target.checked)}
                       className="sr-only peer"
                     />
                     <div className="w-9 h-5 bg-[#11111a] border border-[#2a2b38] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
@@ -724,6 +753,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+      </div>
+      <Osc7SetupModal isOpen={isOsc7ModalOpen} onClose={() => setIsOsc7ModalOpen(false)} />
+    </>
   );
 };

@@ -57,7 +57,6 @@ afterEach(() => {
 import {
   Osc7SetupModal,
   SHELL_CONFIGS,
-  ShellType,
 } from '../Osc7SetupModal';
 
 describe('Osc7SetupModal', () => {
@@ -132,14 +131,14 @@ describe('Osc7SetupModal', () => {
 
   it('switches shell snippets when clicking tabs', () => {
     const onClose = vi.fn();
-    const element = Osc7SetupModal({ isOpen: true, onClose }) as React.ReactElement;
+    const element = Osc7SetupModal({ isOpen: true, onClose }) as React.ReactElement<any>;
 
     // Outer backdrop -> card dialog -> body
     const card = element.props.children;
     const body = card.props.children[1];
     // body children: [0: description, 1: tabs container, 2: content block, 3: action row]
     const tabsContainer = body.props.children[1];
-    const [bashTab, zshTab, fishTab] = tabsContainer.props.children;
+    const [, zshTab, fishTab] = tabsContainer.props.children;
 
     // Click Zsh tab
     zshTab.props.onClick();
@@ -167,7 +166,7 @@ describe('Osc7SetupModal', () => {
 
   it('handles close button click', () => {
     const onClose = vi.fn();
-    const element = Osc7SetupModal({ isOpen: true, onClose }) as React.ReactElement;
+    const element = Osc7SetupModal({ isOpen: true, onClose }) as React.ReactElement<any>;
 
     const card = element.props.children;
     const header = card.props.children[0];
@@ -180,7 +179,7 @@ describe('Osc7SetupModal', () => {
 
   it('handles backdrop click dismissal', () => {
     const onClose = vi.fn();
-    const element = Osc7SetupModal({ isOpen: true, onClose }) as React.ReactElement;
+    const element = Osc7SetupModal({ isOpen: true, onClose }) as React.ReactElement<any>;
 
     // Backdrop click on outer container
     const backdropEvent = {
@@ -200,7 +199,7 @@ describe('Osc7SetupModal', () => {
   it('copies active shell snippet to clipboard on copy click and shows Copied! text', async () => {
     const onClose = vi.fn();
     currentTab = 'bash';
-    const element = Osc7SetupModal({ isOpen: true, onClose }) as React.ReactElement;
+    const element = Osc7SetupModal({ isOpen: true, onClose }) as React.ReactElement<any>;
 
     const card = element.props.children;
     const body = card.props.children[1];
@@ -221,7 +220,7 @@ describe('Osc7SetupModal', () => {
   it('copies zsh snippet to clipboard when zsh tab is active', async () => {
     const onClose = vi.fn();
     currentTab = 'zsh';
-    const element = Osc7SetupModal({ isOpen: true, onClose, defaultTab: 'zsh' }) as React.ReactElement;
+    const element = Osc7SetupModal({ isOpen: true, onClose, defaultTab: 'zsh' }) as React.ReactElement<any>;
 
     const card = element.props.children;
     const body = card.props.children[1];
@@ -235,7 +234,7 @@ describe('Osc7SetupModal', () => {
   it('copies fish snippet to clipboard when fish tab is active', async () => {
     const onClose = vi.fn();
     currentTab = 'fish';
-    const element = Osc7SetupModal({ isOpen: true, onClose, defaultTab: 'fish' }) as React.ReactElement;
+    const element = Osc7SetupModal({ isOpen: true, onClose, defaultTab: 'fish' }) as React.ReactElement<any>;
 
     const card = element.props.children;
     const body = card.props.children[1];
@@ -254,7 +253,7 @@ describe('Osc7SetupModal', () => {
     // Retrieve the keydown handler registered by the component
     const call = mockAddEventListener.mock.calls.find((c) => c[0] === 'keydown');
     expect(call).toBeDefined();
-    const keydownHandler = call[1];
+    const keydownHandler = call![1];
 
     // Non-Escape key does not call onClose
     keydownHandler({ key: 'Enter' });

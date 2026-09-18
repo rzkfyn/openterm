@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Terminal, Copy, Check, X, ExternalLink } from 'lucide-react';
+import { tauriApi } from '../../services/tauri';
 
+const OSC7_SPECS_URL = 'https://iterm2.com/documentation-escape-codes.html';
 export type ShellType = 'bash' | 'zsh' | 'fish';
 
 export interface ShellConfig {
@@ -201,15 +203,18 @@ export const Osc7SetupModal: React.FC<Osc7SetupModalProps> = ({
               )}
             </button>
 
-            <a
-              href="https://iterm2.com/documentation-escape-codes.html"
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => {
+                tauriApi.openUrl(OSC7_SPECS_URL).catch(() => {
+                  window.open(OSC7_SPECS_URL, '_blank', 'noopener,noreferrer');
+                });
+              }}
               className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-indigo-400 transition-colors cursor-pointer"
             >
               <span>OSC 7 Specs</span>
               <ExternalLink className="h-3 w-3" />
-            </a>
+            </button>
           </div>
         </div>
       </div>
