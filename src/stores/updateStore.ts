@@ -25,6 +25,8 @@ interface UpdateState {
   fetchReleases: (force?: boolean) => Promise<void>;
 }
 
+const normalizeTag = (t?: string | null) => (t || '').trim().replace(/^v/i, '');
+
 let statusTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const useUpdateStore = create<UpdateState>((set, get) => ({
@@ -86,7 +88,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
   openChangelog: (initialTag?: string) => {
     set({
       isChangelogOpen: true,
-      ...(initialTag ? { selectedReleaseTag: initialTag } : {}),
+      selectedReleaseTag: initialTag ?? null,
     });
     get().fetchReleases();
   },
@@ -104,11 +106,20 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
     try {
       const releases = await fetchReleasesList(force);
       set((state) => {
-        const shouldSelectFirst = (!state.selectedReleaseTag || state.selectedReleaseTag.trim() === '') && releases.length > 0;
+        const normalized = normalizeTag(state.selectedReleaseTag);
+        const matchingRelease = normalized
+          ? releases.find((r) => normalizeTag(r.tagName) === normalized)
+          : null;
+        const selectedReleaseTag = matchingRelease
+          ? matchingRelease.tagName
+          : releases.length > 0
+          ? releases[0].tagName
+          : state.selectedReleaseTag;
+
         return {
           releases,
           isLoadingReleases: false,
-          selectedReleaseTag: shouldSelectFirst ? releases[0].tagName : state.selectedReleaseTag,
+          selectedReleaseTag,
         };
       });
     } catch {

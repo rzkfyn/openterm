@@ -249,6 +249,41 @@ describe('ChangelogModal', () => {
       v71Btn.props.onClick();
       expect(mockSelectRelease).toHaveBeenCalledWith('v0.7.1');
     });
+    it('correctly selects release with tagName "v0.7.2" when selectedReleaseTag lacks "v" prefix (e.g. "0.7.2")', () => {
+      useUpdateStore.setState({
+        isChangelogOpen: true,
+        currentVersion: '0.7.1',
+        releases: mockReleases,
+        selectedReleaseTag: '0.7.2',
+      });
+
+      const element = ChangelogModal({}) as React.ReactElement<any>;
+      const html = renderToStaticMarkup(element);
+
+      expect(html).toContain('v0.7.2 - Terminal Sync &amp; UI');
+      expect(html).not.toContain('Select a release to view notes.');
+
+      const v72Btn = findElement(
+        element,
+        (n) => n.type === 'button' && n.props && n.props['data-tag'] === 'v0.7.2'
+      );
+      expect(v72Btn.props.className).toContain('bg-white/10');
+    });
+
+    it('falls back to releases[0] when selectedReleaseTag does not match any release', () => {
+      useUpdateStore.setState({
+        isChangelogOpen: true,
+        currentVersion: '0.7.1',
+        releases: mockReleases,
+        selectedReleaseTag: '9.9.9',
+      });
+
+      const element = ChangelogModal({}) as React.ReactElement<any>;
+      const html = renderToStaticMarkup(element);
+
+      expect(html).toContain('v0.7.2 - Terminal Sync &amp; UI');
+      expect(html).not.toContain('Select a release to view notes.');
+    });
 
     it('displays loading state when isLoadingReleases is true and releases is empty', () => {
       useUpdateStore.setState({
@@ -313,11 +348,11 @@ describe('ChangelogModal', () => {
       expect(html).toContain('No release notes provided for this version.');
     });
 
-    it('renders placeholder when no release is selected', () => {
+    it('renders placeholder when no release is selected (empty releases)', () => {
       useUpdateStore.setState({
         isChangelogOpen: true,
         currentVersion: '0.7.1',
-        releases: mockReleases,
+        releases: [],
         selectedReleaseTag: null,
       });
 

@@ -94,8 +94,14 @@ describe('useUpdateStore', () => {
       // Does not overwrite explicitly set initialTag with first release tag
       expect(useUpdateStore.getState().selectedReleaseTag).toBe('v0.7.1');
     });
-  });
 
+    it('resets selectedReleaseTag to null when openChangelog() is called without argument', () => {
+      useUpdateStore.setState({ selectedReleaseTag: 'v0.7.1' });
+      useUpdateStore.getState().openChangelog();
+      expect(useUpdateStore.getState().isChangelogOpen).toBe(true);
+      expect(useUpdateStore.getState().selectedReleaseTag).toBeNull();
+    });
+  });
   describe('closeChangelog', () => {
     it('sets isChangelogOpen to false', () => {
       useUpdateStore.setState({ isChangelogOpen: true });
@@ -144,6 +150,26 @@ describe('useUpdateStore', () => {
 
       expect(useUpdateStore.getState().releases).toEqual(mockReleases);
       expect(useUpdateStore.getState().selectedReleaseTag).toBe('v0.7.1');
+    });
+
+    it('matches and normalizes tag without "v" prefix to release tagName', async () => {
+      vi.mocked(updateChecker.fetchReleasesList).mockResolvedValue(mockReleases);
+      useUpdateStore.setState({ selectedReleaseTag: '0.7.1' });
+
+      await useUpdateStore.getState().fetchReleases();
+
+      expect(useUpdateStore.getState().releases).toEqual(mockReleases);
+      expect(useUpdateStore.getState().selectedReleaseTag).toBe('v0.7.1');
+    });
+
+    it('defaults to releases[0].tagName when selectedReleaseTag matches no release', async () => {
+      vi.mocked(updateChecker.fetchReleasesList).mockResolvedValue(mockReleases);
+      useUpdateStore.setState({ selectedReleaseTag: '9.9.9' });
+
+      await useUpdateStore.getState().fetchReleases();
+
+      expect(useUpdateStore.getState().releases).toEqual(mockReleases);
+      expect(useUpdateStore.getState().selectedReleaseTag).toBe('v0.7.2');
     });
 
     it('keeps selectedReleaseTag null if releases list is empty', async () => {

@@ -33,6 +33,7 @@ function isCurrentRelease(tagName: string, currentVersion: string): boolean {
   }
   return tagName.trim().replace(/^v/i, '') === currentVersion.trim().replace(/^v/i, '');
 }
+const normalizeTag = (t?: string | null) => (t || '').trim().replace(/^v/i, '');
 
 export const ChangelogModal: React.FC = () => {
   const {
@@ -91,9 +92,11 @@ export const ChangelogModal: React.FC = () => {
   };
 
   // Determine selected release
-  const selectedRelease = selectedReleaseTag
-    ? releases.find((r) => r.tagName === selectedReleaseTag) || null
+  const normalizedSelectedTag = normalizeTag(selectedReleaseTag);
+  const foundRelease = normalizedSelectedTag
+    ? releases.find((r) => normalizeTag(r.tagName) === normalizedSelectedTag) || null
     : null;
+  const selectedRelease = foundRelease || (releases.length > 0 ? releases[0] : null);
 
   // Version distance calculation
   const cleanCurrent = currentVersion.trim().replace(/^v/i, '');
@@ -182,7 +185,9 @@ export const ChangelogModal: React.FC = () => {
             ) : (
               <div className="flex-1 overflow-y-auto p-2 space-y-1">
                 {releases.map((item, index) => {
-                  const isSelected = item.tagName === selectedReleaseTag;
+                  const isSelected =
+                    normalizeTag(item.tagName) ===
+                    normalizeTag(selectedRelease?.tagName ?? selectedReleaseTag);
                   const isCurrent = isCurrentRelease(item.tagName, currentVersion);
                   const isLatest = index === 0;
                   const isNew = isNewerVersion(item.tagName, currentVersion) && !isCurrent;
