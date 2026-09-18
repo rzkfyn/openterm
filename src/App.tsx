@@ -15,6 +15,7 @@ import { AppLockOverlay } from './components/Modal/AppLockOverlay';
 import { SecurityOnboardingModal } from './components/Modal/SecurityOnboardingModal';
 import { TotpModal } from './components/Modal/TotpModal';
 import { SettingsModal } from './components/Modal/SettingsModal';
+import { ChangelogModal } from './components/Modal/ChangelogModal';
 import { Dashboard } from './components/Dashboard/Dashboard';
 import { SessionConfig, SavedConnection } from './types';
 import { useBiometricStore } from './stores/biometricStore';
@@ -379,6 +380,9 @@ export default function App() {
       <SettingsModal
         onOpenTotpModal={() => openTotpModal()}
       />
+
+      {/* In-App Changelog Modal */}
+      <ChangelogModal />
     </div>
   );
 }

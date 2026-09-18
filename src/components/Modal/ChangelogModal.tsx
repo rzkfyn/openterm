@@ -65,21 +65,28 @@ export const ChangelogModal: React.FC = () => {
     }
   };
 
+  const openExternal = (url: string) => {
+    if (!url || !/^https?:\/\//i.test(url)) return;
+    try {
+      if (typeof window !== 'undefined' && window.open) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+    } catch {
+      // ignore
+    }
+  };
+
   const handleOpenReleaseUrl = (url: string) => {
     if (!url) return;
     try {
       const p = tauriApi.openUrl(url);
       if (p && typeof p.catch === 'function') {
         p.catch(() => {
-          if (typeof window !== 'undefined' && window.open) {
-            window.open(url, '_blank', 'noopener,noreferrer');
-          }
+          openExternal(url);
         });
       }
     } catch {
-      if (typeof window !== 'undefined' && window.open) {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      }
+      openExternal(url);
     }
   };
 

@@ -31,7 +31,6 @@ interface SettingsModalProps {
 }
 
 const REPO_URL = 'https://github.com/rzkfyn/openterm';
-const RELEASES_URL = 'https://github.com/rzkfyn/openterm/releases';
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
   onOpenVaultModal,
@@ -48,7 +47,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   } = useSettingsStore();
 
   const { currentThemeId, setTheme } = useThemeStore();
-  const { isChecking, checkForUpdates, currentVersion } = useUpdateStore();
+  const { isChecking, checkForUpdates, currentVersion, openChangelog } = useUpdateStore();
   const { vaultStatus } = useSavedConnectionStore();
   const totpConfig = useTotpStore((s) => s.config);
   const { isEnabled: isBiometricEnabled, isAvailable: isBiometricAvailable } = useBiometricStore();
@@ -725,11 +724,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                     <button
                       type="button"
-                      onClick={() => handleOpenUrl(RELEASES_URL)}
+                      onClick={() => openChangelog()}
                       className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 cursor-pointer"
                     >
-                      <span>Releases</span>
-                      <ExternalLink className="h-3 w-3" />
+                      <span>View Changelog</span>
                     </button>
                   </div>
 
