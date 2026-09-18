@@ -1,6 +1,6 @@
 [package]
 name = "openterm"
-version = "0.7.1"
+version = "0.7.2"
 description = "Lightweight Dual SSH & SFTP Client"
 authors = ["OpenTerm Contributors"]
 edition = "2021"
