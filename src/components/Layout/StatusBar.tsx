@@ -6,7 +6,6 @@ import { Terminal, Columns, FolderTree, Wifi, WifiOff, ArrowUpCircle, X, Palette
 import { useThemeStore, THEME_PRESETS } from '../../stores/themeStore';
 
 const REPO_URL = 'https://github.com/rzkfyn/openterm';
-const RELEASES_URL = 'https://github.com/rzkfyn/openterm/releases';
 
 const GithubIcon: React.FC<{ className?: string }> = ({ className = 'h-3.5 w-3.5' }) => (
   <svg
@@ -29,13 +28,12 @@ export const StatusBar: React.FC = () => {
   const {
     currentVersion,
     latestVersion,
-    releaseUrl,
     hasUpdate,
     isChecking,
     dismissed,
     checkStatus,
     dismissUpdate,
-    checkForUpdates,
+    openChangelog,
   } = useUpdateStore();
   const currentSession = activeSessions.find((s) => s.id === currentSessionId);
   const isConnected = currentSession && currentSession.status !== 'disconnected';
@@ -46,18 +44,6 @@ export const StatusBar: React.FC = () => {
     });
   };
 
-  const handleOpenReleases = () => {
-    tauriApi.openUrl(RELEASES_URL).catch(() => {
-      window.open(RELEASES_URL, '_blank');
-    });
-  };
-
-  const handleOpenLatestRelease = () => {
-    const targetUrl = releaseUrl || RELEASES_URL;
-    tauriApi.openUrl(targetUrl).catch(() => {
-      window.open(targetUrl, '_blank');
-    });
-  };
 
   return (
     <footer className="flex h-[24px] items-center justify-between px-2.5 bg-[#11111a] border-t border-[#2a2b38] text-[#94a3b8] text-[11px] select-none shrink-0 z-20">
@@ -74,10 +60,10 @@ export const StatusBar: React.FC = () => {
           </button>
           <button
             type="button"
-            onClick={() => checkForUpdates(true)}
+            onClick={() => openChangelog()}
             onContextMenu={(e) => {
               e.preventDefault();
-              handleOpenReleases();
+              openChangelog();
             }}
             className={`flex items-center gap-1 font-mono text-[10px] transition-colors cursor-pointer px-1 py-0.5 rounded hover:bg-[#1e1e2d] ${
               isChecking
@@ -94,8 +80,8 @@ export const StatusBar: React.FC = () => {
                 : checkStatus === 'up-to-date'
                 ? 'OpenTerm is up to date!'
                 : checkStatus === 'error'
-                ? 'Failed to check updates (click to retry)'
-                : 'v' + currentVersion + ' (Click to check updates, right-click for release history)'
+                ? 'Failed to check updates'
+                : `v${currentVersion} (Click to view changelog)`
             }
           >
             <span>v{currentVersion}</span>
@@ -108,7 +94,7 @@ export const StatusBar: React.FC = () => {
           <div className="inline-flex items-center rounded bg-[#1e1e2d] border border-[#2a2b38] hover:border-indigo-500/40 divide-x divide-[#2a2b38] text-[10px] overflow-hidden transition-colors">
             <button
               type="button"
-              onClick={handleOpenLatestRelease}
+              onClick={() => openChangelog(latestVersion)}
               className="flex items-center gap-1.5 px-2 py-0.5 text-slate-300 hover:text-white hover:bg-[#25263a] transition-colors cursor-pointer"
               title={`New version v${latestVersion} available! Click to view release notes.`}
             >

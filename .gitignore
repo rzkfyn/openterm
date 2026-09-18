@@ -44,3 +44,6 @@ yarn.lock
 
 # strix security scan results
 strix_runs/
+
+# superpowers workspace
+.superpowers/
