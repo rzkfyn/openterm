@@ -517,6 +517,76 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 </div>
 
+                {/* Double-Click File Action */}
+                <div className="pt-3 border-t border-[#262738]">
+                  <label className="block text-xs font-medium text-slate-200 mb-1">
+                    Double-Click File Action
+                  </label>
+                  <p className="text-[11px] text-slate-400 mb-2">
+                    Action executed when double-clicking a file in file panes (directories always navigate).
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'transfer', label: 'Transfer to Opposite Pane' },
+                      { id: 'edit', label: 'Open in Built-in Editor' },
+                    ].map((act) => (
+                      <button
+                        key={act.id}
+                        type="button"
+                        onClick={() => updateSetting('fileDoubleClickAction', act.id as any)}
+                        className={`py-2 px-3 rounded-md border text-center text-xs font-medium cursor-pointer transition-colors ${
+                          (settings.fileDoubleClickAction || 'transfer') === act.id
+                            ? 'bg-[#1e1e2d] border-indigo-500 text-white font-semibold'
+                            : 'bg-[#11111a] border-[#2a2b38] text-slate-400 hover:text-white hover:border-slate-600'
+                        }`}
+                      >
+                        {act.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Default File Editor */}
+                <div className="pt-3 border-t border-[#262738]">
+                  <label className="block text-xs font-medium text-slate-200 mb-1">
+                    Default File Editor
+                  </label>
+                  <p className="text-[11px] text-slate-400 mb-2">
+                    Choose built-in CodeMirror editor or launch an external application.
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 mb-2">
+                    {[
+                      { id: 'builtin', label: 'Built-in Editor' },
+                      { id: 'system', label: 'OS Default App' },
+                      { id: 'custom', label: 'Custom Command' },
+                    ].map((ed) => (
+                      <button
+                        key={ed.id}
+                        type="button"
+                        onClick={() => updateSetting('fileEditorType', ed.id as any)}
+                        className={`py-2 px-3 rounded-md border text-center text-xs font-medium cursor-pointer transition-colors ${
+                          (settings.fileEditorType || 'builtin') === ed.id
+                            ? 'bg-[#1e1e2d] border-indigo-500 text-white font-semibold'
+                            : 'bg-[#11111a] border-[#2a2b38] text-slate-400 hover:text-white hover:border-slate-600'
+                        }`}
+                      >
+                        {ed.label}
+                      </button>
+                    ))}
+                  </div>
+                  {settings.fileEditorType === 'custom' && (
+                    <div className="mt-2">
+                      <input
+                        type="text"
+                        value={settings.customEditorCommand}
+                        onChange={(e) => updateSetting('customEditorCommand', e.target.value)}
+                        placeholder="e.g. code, notepad++, subl, /usr/bin/cursor"
+                        className="w-full px-3 py-1.5 rounded bg-[#11111a] border border-[#2a2b38] text-xs text-slate-200 placeholder-slate-500 font-mono outline-hidden focus:border-indigo-500"
+                      />
+                    </div>
+                  )}
+                </div>
+
                 {/* Show Hidden Files */}
                 <div className="flex items-center justify-between pt-3 border-t border-[#262738]">
                   <div>

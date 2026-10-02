@@ -329,6 +329,258 @@ pub fn create_local_file(path_str: &str) -> Result<(), String> {
         .map(|_| ())
 }
 
+pub fn read_local_text_file(path_str: &str, max_bytes: usize) -> Result<String, String> {
+    let p = validate_local_path(path_str, PathAccessMode::Read)?;
+    if !p.exists() {
+        return Err(format!("File does not exist: {}", path_str));
+    }
+    let meta = fs::metadata(&p).map_err(|e| format!("Failed to stat file '{}': {}", path_str, e))?;
+    if meta.is_dir() {
+        return Err(format!("Cannot open directory '{}' as text file", path_str));
+    }
+    if meta.len() > max_bytes as u64 {
+        return Err(format!(
+            "File size ({} bytes) exceeds maximum editor limit ({} bytes)",
+            meta.len(),
+            max_bytes
+        ));
+    }
+    let bytes = fs::read(&p).map_err(|e| format!("Failed to read file '{}': {}", path_str, e))?;
+    String::from_utf8(bytes).map_err(|_| "File appears to be binary (non UTF-8 content)".to_string())
+}
+
+pub fn write_local_text_file(path_str: &str, content: &str) -> Result<(), String> {
+    let p = validate_local_path(path_str, PathAccessMode::Write)?;
+    if let Some(parent) = p.parent() {
+        if !parent.exists() {
+            let _ = fs::create_dir_all(parent);
+        }
+    }
+    fs::write(&p, content.as_bytes()).map_err(|e| format!("Failed to write file '{}': {}", path_str, e))
+}
+pub fn copy_local_item(src: &str, dest: &str) -> Result<(), String> {
+    let src_p = validate_local_path(src, PathAccessMode::Read)?;
+    let dest_p = validate_local_path(dest, PathAccessMode::Write)?;
+    if src_p.is_dir() {
+        if !dest_p.exists() {
+            fs::create_dir_all(&dest_p).map_err(|e| format!("Failed to create destination dir: {}", e))?;
+        }
+        for entry in fs::read_dir(&src_p).map_err(|e| format!("Failed to read source dir: {}", e))? {
+            if let Ok(entry) = entry {
+                let file_name = entry.file_name();
+                let src_sub = src_p.join(&file_name);
+                let dest_sub = dest_p.join(&file_name);
+                copy_local_item(&src_sub.to_string_lossy(), &dest_sub.to_string_lossy())?;
+            }
+        }
+    } else {
+        if let Some(parent) = dest_p.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        fs::copy(&src_p, &dest_p).map_err(|e| format!("Failed to copy file: {}", e))?;
+    }
+    Ok(())
+}
+
+
+pub fn open_file_in_editor(path_str: &str, custom_command: Option<&str>) -> Result<(), String> {
+    let p = validate_local_path(path_str, PathAccessMode::Read)?;
+    if !p.exists() {
+        return Err(format!("File does not exist: {}", path_str));
+    }
+    let target_str = p.to_string_lossy().to_string();
+
+    if let Some(cmd) = custom_command {
+        let trimmed = cmd.trim();
+        if !trimmed.is_empty() {
+            #[cfg(target_os = "windows")]
+            {
+                std::process::Command::new("cmd")
+                    .args(["/C", &format!("{} \"{}\"", trimmed, target_str)])
+                    .spawn()
+                    .map_err(|e| format!("Failed to launch custom editor '{}': {}", trimmed, e))?;
+                return Ok(());
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                std::process::Command::new("sh")
+                    .args(["-c", &format!("{} \"$1\"", trimmed), "--", &target_str])
+                    .spawn()
+                    .map_err(|e| format!("Failed to launch custom editor '{}': {}", trimmed, e))?;
+                return Ok(());
+            }
+        }
+    }
+
+    // Default OS application
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", &target_str])
+            .spawn()
+            .map_err(|e| format!("Failed to open file with system default handler: {}", e))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&target_str)
+            .spawn()
+            .map_err(|e| format!("Failed to open file with system default handler: {}", e))?;
+    }
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&target_str)
+            .spawn()
+            .map_err(|e| format!("Failed to open file with system default handler: {}", e))?;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+pub fn copy_files_to_system_clipboard(paths: &[String]) -> Result<(), String> {
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::System::DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData, RegisterClipboardFormatW};
+    use windows::Win32::System::Memory::{GlobalAlloc, GlobalLock, GlobalUnlock, GHND};
+    use windows::Win32::UI::Shell::DROPFILES;
+    use windows::core::w;
+
+    if paths.is_empty() {
+        return Ok(());
+    }
+
+    let mut normalized_paths: Vec<String> = Vec::new();
+    for p in paths {
+        let path_buf = if let Ok(val) = validate_local_path(p, PathAccessMode::Read) {
+            dunce::canonicalize(val).unwrap_or_else(|_| PathBuf::from(p))
+        } else {
+            let mut resolved = p.clone();
+            if resolved.starts_with('~') {
+                if let Some(h) = dirs::home_dir() {
+                    let rest = resolved.trim_start_matches('~').trim_start_matches(|c| c == '/' || c == '\\');
+                    resolved = h.join(rest).to_string_lossy().to_string();
+                }
+            }
+            let clean = resolved.trim_start_matches(r"\\?\").replace('/', "\\");
+            dunce::canonicalize(&clean).unwrap_or_else(|_| PathBuf::from(clean))
+        };
+        let clean_str = path_buf.to_string_lossy().trim_start_matches(r"\\?\").replace('/', "\\");
+        normalized_paths.push(clean_str);
+    }
+
+    let mut wide_chars: Vec<u16> = Vec::new();
+    for p in &normalized_paths {
+        let os_str = OsStr::new(p);
+        wide_chars.extend(os_str.encode_wide());
+        wide_chars.push(0);
+    }
+    wide_chars.push(0);
+
+    let dropfiles_size = std::mem::size_of::<DROPFILES>();
+    let total_bytes = dropfiles_size + wide_chars.len() * std::mem::size_of::<u16>();
+
+    unsafe {
+        let h_global = GlobalAlloc(GHND, total_bytes)
+            .map_err(|e| format!("GlobalAlloc failed: {}", e))?;
+        let ptr = GlobalLock(h_global);
+        if ptr.is_null() {
+            return Err("GlobalLock returned null".to_string());
+        }
+
+        let df = ptr as *mut DROPFILES;
+        (*df).pFiles = dropfiles_size as u32;
+        (*df).fWide = true.into();
+
+        let dest_str = (ptr as *mut u8).add(dropfiles_size) as *mut u16;
+        std::ptr::copy_nonoverlapping(wide_chars.as_ptr(), dest_str, wide_chars.len());
+
+        let _ = GlobalUnlock(h_global);
+
+        OpenClipboard(HWND::default()).map_err(|e| format!("Failed to open clipboard: {}", e))?;
+        let _ = EmptyClipboard();
+
+        // 1. CF_HDROP format ID is 15
+        let handle_hdrop = windows::Win32::Foundation::HANDLE(h_global.0 as _);
+        let _ = SetClipboardData(15, handle_hdrop);
+
+        // 2. Preferred DropEffect (DROPEFFECT_COPY = 1)
+        let format_dropeffect = RegisterClipboardFormatW(w!("Preferred DropEffect"));
+        if format_dropeffect != 0 {
+            if let Ok(h_effect) = GlobalAlloc(GHND, std::mem::size_of::<u32>()) {
+                let p_effect = GlobalLock(h_effect);
+                if !p_effect.is_null() {
+                    *(p_effect as *mut u32) = 1;
+                    let _ = GlobalUnlock(h_effect);
+                    let _ = SetClipboardData(format_dropeffect, windows::Win32::Foundation::HANDLE(h_effect.0 as _));
+                }
+            }
+        }
+
+        // 3. CF_UNICODETEXT (format 13) - text representation of paths
+        let text_joined = normalized_paths.join("\r\n");
+        let wide_text: Vec<u16> = OsStr::new(&text_joined).encode_wide().chain(std::iter::once(0)).collect();
+        let text_bytes = wide_text.len() * std::mem::size_of::<u16>();
+        if let Ok(h_text) = GlobalAlloc(GHND, text_bytes) {
+            let p_text = GlobalLock(h_text);
+            if !p_text.is_null() {
+                std::ptr::copy_nonoverlapping(wide_text.as_ptr(), p_text as *mut u16, wide_text.len());
+                let _ = GlobalUnlock(h_text);
+                let _ = SetClipboardData(13, windows::Win32::Foundation::HANDLE(h_text.0 as _));
+            }
+        }
+
+        let _ = CloseClipboard();
+    }
+
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+pub fn copy_files_to_system_clipboard(paths: &[String]) -> Result<(), String> {
+    if paths.is_empty() {
+        return Ok(());
+    }
+    let joined = paths
+        .iter()
+        .map(|p| format!("POSIX file \"{}\"", p.replace('"', "\\\"")))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let script = format!("set the clipboard to {{{}}}", joined);
+    let output = std::process::Command::new("osascript")
+        .args(["-e", &script])
+        .output()
+        .map_err(|e| format!("Failed to execute osascript: {}", e))?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+    }
+    Ok(())
+}
+
+#[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+pub fn copy_files_to_system_clipboard(paths: &[String]) -> Result<(), String> {
+    if paths.is_empty() {
+        return Ok(());
+    }
+    let uris = paths
+        .iter()
+        .map(|p| format!("file://{}", p))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut child = std::process::Command::new("xclip")
+        .args(["-selection", "clipboard", "-t", "text/uri-list"])
+        .stdin(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn xclip: {}", e))?;
+    if let Some(mut stdin) = child.stdin.take() {
+        use std::io::Write;
+        let _ = stdin.write_all(uris.as_bytes());
+    }
+    let _ = child.wait();
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

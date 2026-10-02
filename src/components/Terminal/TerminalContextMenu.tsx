@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useState, useRef } from 'react';
+import { calculateMenuPosition } from '../../utils/menuUtils';
 import { Copy, Clipboard, CheckSquare, Trash2, RotateCcw, Search } from 'lucide-react';
 import { isMac } from '../../utils/platform';
 
@@ -53,14 +54,20 @@ export const TerminalContextMenu: React.FC<TerminalContextMenuProps> = ({
     };
   }, [onClose]);
 
-  // Adjust menu coordinates so it doesn't clip screen boundaries
-  const adjustedX = Math.min(position.x, window.innerWidth - 180);
-  const adjustedY = Math.min(position.y, window.innerHeight - 200);
+  const [coords, setCoords] = useState(() =>
+    calculateMenuPosition(position, { width: 170, height: 160 })
+  );
 
+  useLayoutEffect(() => {
+    if (menuRef.current) {
+      const rect = menuRef.current.getBoundingClientRect();
+      setCoords(calculateMenuPosition(position, { width: rect.width, height: rect.height }));
+    }
+  }, [position]);
   return (
     <div
       ref={menuRef}
-      style={{ left: `${adjustedX}px`, top: `${adjustedY}px` }}
+      style={{ left: `${coords.x}px`, top: `${coords.y}px` }}
       className="fixed z-50 min-w-[170px] rounded-md bg-[#181824] border border-[#2a2b38] p-1 shadow-2xl text-xs text-slate-300 select-none animate-in fade-in zoom-in-95 duration-100"
     >
       <button

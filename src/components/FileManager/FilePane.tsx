@@ -4,7 +4,8 @@ import { FileEntry } from '../../types';
 import { FileItemRow } from './FileItemRow';
 import { PathBreadcrumb } from './PathBreadcrumb';
 import { ContextMenu, ContextMenuPosition } from './ContextMenu';
-import { Loader2, ChevronUp, ChevronDown, ArrowDownToLine, Search, X } from 'lucide-react';
+import { Loader2, ChevronUp, ChevronDown, ArrowDownToLine, Search, X, Check, RotateCcw } from 'lucide-react';
+import { useColumnConfigStore } from '../../stores/columnConfigStore';
 
 type SortKey = 'name' | 'size' | 'modified';
 type SortDir = 'asc' | 'desc';
@@ -20,6 +21,7 @@ interface FilePaneProps {
   selectedPaths: string[];
   canGoBack?: boolean;
   canGoForward?: boolean;
+  fileDoubleClickAction?: 'transfer' | 'edit';
   onGoBack?: () => void;
   onGoForward?: () => void;
   onSelect: (paths: string[]) => void;
@@ -27,6 +29,8 @@ interface FilePaneProps {
   onRefresh: () => void;
   onDropTransfer?: (source: 'local' | 'remote', paths: string[], targetFolder?: string) => void;
   onEditFile?: (entry: FileEntry) => void;
+  onOpenExternal?: (entry: FileEntry) => void;
+  onCopyFiles?: (entry: FileEntry) => void;
   onTransferItem?: (entry: FileEntry) => void;
   onRenameItem?: (entry: FileEntry) => void;
   onChmodItem?: (entry: FileEntry) => void;
@@ -34,6 +38,7 @@ interface FilePaneProps {
   onBookmarkFolder?: (entry: FileEntry) => void;
   onNewFile?: () => void;
   onNewFolder?: () => void;
+  onStartNativeDrag?: (paths: string[], isRemote: boolean) => void;
 }
 
 export const FilePane: React.FC<FilePaneProps> = ({
@@ -42,6 +47,9 @@ export const FilePane: React.FC<FilePaneProps> = ({
   currentPath,
   entries,
   total,
+  onOpenExternal,
+  onCopyFiles,
+  fileDoubleClickAction = 'transfer',
   isLoading,
   error,
   selectedPaths,
@@ -61,6 +69,7 @@ export const FilePane: React.FC<FilePaneProps> = ({
   onBookmarkFolder,
   onNewFile,
   onNewFolder,
+  onStartNativeDrag,
 }) => {
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -73,6 +82,55 @@ export const FilePane: React.FC<FilePaneProps> = ({
     position: ContextMenuPosition;
     targetEntry?: FileEntry | null;
   } | null>(null);
+  const {
+    sizeWidth,
+    modifiedWidth,
+    showSize,
+    showModified,
+    setSizeWidth,
+    setModifiedWidth,
+    toggleShowSize,
+    toggleShowModified,
+    resetColumns,
+  } = useColumnConfigStore();
+  const [headerMenuPos, setHeaderMenuPos] = useState<{ x: number; y: number } | null>(null);
+  const headerMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleHeaderClickOutside = (e: MouseEvent) => {
+      if (headerMenuRef.current && !headerMenuRef.current.contains(e.target as Node)) {
+        setHeaderMenuPos(null);
+      }
+    };
+    if (headerMenuPos) {
+      window.addEventListener('mousedown', handleHeaderClickOutside);
+      return () => window.removeEventListener('mousedown', handleHeaderClickOutside);
+    }
+  }, [headerMenuPos]);
+
+  const handleResizeColumnStart = (col: 'size' | 'modified', e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const initialWidth = col === 'size' ? sizeWidth : modifiedWidth;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const delta = moveEvent.clientX - startX;
+      if (col === 'size') {
+        setSizeWidth(initialWidth - delta);
+      } else {
+        setModifiedWidth(initialWidth - delta);
+      }
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -228,7 +286,17 @@ export const FilePane: React.FC<FilePaneProps> = ({
       rowVirtualizer.scrollToIndex(prevIndex);
       return;
     }
-
+    // Ctrl+C to Copy File Paths
+    // Ctrl+C to Copy Files
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+      e.preventDefault();
+      if (selectedEntry && onCopyFiles) {
+        onCopyFiles(selectedEntry);
+      } else if (selectedPaths.length > 0) {
+        navigator.clipboard.writeText(selectedPaths.join('\n'));
+      }
+      return;
+    }
     // Enter to Open / Edit
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -265,6 +333,10 @@ export const FilePane: React.FC<FilePaneProps> = ({
   const handleDoubleClick = (entry: FileEntry) => {
     if (entry.isDir) {
       onNavigate(entry.path);
+    } else if (fileDoubleClickAction === 'edit') {
+      if (onEditFile) onEditFile(entry);
+    } else if (onTransferItem) {
+      onTransferItem(entry);
     } else if (onEditFile) {
       onEditFile(entry);
     }
@@ -470,32 +542,106 @@ export const FilePane: React.FC<FilePaneProps> = ({
       />
 
       {/* Column Headers */}
-      <div className="flex h-[22px] items-center px-3 bg-[#171724] border-b border-[#2a2b38] text-[10px] font-mono text-slate-400 select-none">
+      <div
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setHeaderMenuPos({ x: e.clientX, y: e.clientY });
+        }}
+        className="relative flex h-[22px] items-center px-3 bg-[#171724] border-b border-[#2a2b38] text-[10px] font-mono text-slate-400 select-none"
+      >
         <button
           type="button"
           onClick={() => toggleSort('name')}
-          className="flex flex-1 items-center gap-1 hover:text-slate-200 cursor-pointer transition-colors"
+          className="flex flex-1 items-center gap-1 hover:text-slate-200 cursor-pointer transition-colors truncate"
         >
           <span>Name</span>
           {sortKey === 'name' && (sortDir === 'asc' ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
         </button>
-        <button
-          type="button"
-          onClick={() => toggleSort('size')}
-          className="flex w-16 items-center justify-end gap-1 hover:text-slate-200 cursor-pointer transition-colors"
-        >
-          <span>Size</span>
-          {sortKey === 'size' && (sortDir === 'asc' ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
-        </button>
-        <button
-          type="button"
-          onClick={() => toggleSort('modified')}
-          className="flex w-24 items-center justify-end gap-1 pr-1 hover:text-slate-200 cursor-pointer transition-colors"
-        >
-          <span>Modified</span>
-          {sortKey === 'modified' && (sortDir === 'asc' ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
-        </button>
+
+        {showSize && (
+          <div className="flex items-center h-full shrink-0">
+            <div
+              onMouseDown={(e) => handleResizeColumnStart('size', e)}
+              className="relative w-2 h-full cursor-col-resize flex items-center justify-center group/col shrink-0"
+              title="Drag to resize column"
+            >
+              <div className="w-[1px] h-3.5 bg-[#2e3044] group-hover/col:bg-indigo-400 group-hover/col:w-[2px] transition-all" />
+            </div>
+            <button
+              type="button"
+              style={{ width: `${sizeWidth}px` }}
+              onClick={() => toggleSort('size')}
+              className="flex items-center justify-end gap-1 px-1 hover:text-slate-200 cursor-pointer transition-colors shrink-0 truncate"
+            >
+              <span>Size</span>
+              {sortKey === 'size' && (sortDir === 'asc' ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
+            </button>
+          </div>
+        )}
+
+        {showModified && (
+          <div className="flex items-center h-full shrink-0">
+            <div
+              onMouseDown={(e) => handleResizeColumnStart('modified', e)}
+              className="relative w-2 h-full cursor-col-resize flex items-center justify-center group/col shrink-0"
+              title="Drag to resize column"
+            >
+              <div className="w-[1px] h-3.5 bg-[#2e3044] group-hover/col:bg-indigo-400 group-hover/col:w-[2px] transition-all" />
+            </div>
+            <button
+              type="button"
+              style={{ width: `${modifiedWidth}px` }}
+              onClick={() => toggleSort('modified')}
+              className="flex items-center justify-end gap-1 pr-1 pl-1 hover:text-slate-200 cursor-pointer transition-colors shrink-0 truncate"
+            >
+              <span>Modified</span>
+              {sortKey === 'modified' && (sortDir === 'asc' ? <ChevronUp className="h-2.5 w-2.5" /> : <ChevronDown className="h-2.5 w-2.5" />)}
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Column Visibility / Reset Header Menu */}
+      {headerMenuPos && (
+        <div
+          ref={headerMenuRef}
+          style={{ top: `${headerMenuPos.y}px`, left: `${headerMenuPos.x}px` }}
+          className="fixed z-50 min-w-[140px] rounded-md bg-[#181824] border border-[#2e2f42] p-1 shadow-2xl text-xs text-slate-300 font-sans select-none animate-in fade-in zoom-in-95 duration-100"
+        >
+          <div className="px-2 py-1 text-[10px] text-slate-500 font-mono uppercase tracking-wider border-b border-[#252636] mb-1">
+            Columns
+          </div>
+          <button
+            type="button"
+            onClick={toggleShowSize}
+            className="flex w-full items-center justify-between px-2 py-1 rounded hover:bg-[#252538] hover:text-white transition-colors cursor-pointer text-left text-xs"
+          >
+            <span>Size</span>
+            {showSize && <Check className="h-3 w-3 text-indigo-400" />}
+          </button>
+          <button
+            type="button"
+            onClick={toggleShowModified}
+            className="flex w-full items-center justify-between px-2 py-1 rounded hover:bg-[#252538] hover:text-white transition-colors cursor-pointer text-left text-xs"
+          >
+            <span>Modified</span>
+            {showModified && <Check className="h-3 w-3 text-indigo-400" />}
+          </button>
+          <div className="my-1 border-t border-[#252636]" />
+          <button
+            type="button"
+            onClick={() => {
+              resetColumns();
+              setHeaderMenuPos(null);
+            }}
+            className="flex w-full items-center gap-1.5 px-2 py-1 rounded hover:bg-[#252538] hover:text-white transition-colors cursor-pointer text-left text-[11px] text-slate-400"
+          >
+            <RotateCcw className="h-3 w-3 text-slate-400" />
+            <span>Reset Columns</span>
+          </button>
+        </div>
+      )}
 
       {/* File Tree List */}
       <div
@@ -551,6 +697,7 @@ export const FilePane: React.FC<FilePaneProps> = ({
                         onDropTransfer(src, paths, folderPath);
                       }
                     }}
+                    onStartNativeDrag={onStartNativeDrag}
                   />
                 </div>
               );
@@ -566,6 +713,8 @@ export const FilePane: React.FC<FilePaneProps> = ({
           targetEntry={contextMenu.targetEntry}
           isRemote={isRemote}
           onClose={() => setContextMenu(null)}
+          onOpenExternal={onOpenExternal}
+          onCopyFiles={onCopyFiles}
           onEdit={onEditFile}
           onTransfer={onTransferItem}
           onRename={onRenameItem}

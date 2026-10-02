@@ -442,6 +442,58 @@ fn download_dir_recursive(
     }
     Ok(())
 }
+/// Synchronous Direct SFTP Download (Blocks until bytes are completely written to disk)
+pub fn download_sftp_file_sync(
+    manager: &SessionManager,
+    session_id: &str,
+    remote_path: &str,
+    local_path: &str,
+) -> Result<(), String> {
+    let validated_local = local_fs::validate_local_path(local_path, PathAccessMode::Write)?;
+    let session = manager
+        .get_session(session_id)
+        .ok_or_else(|| format!("Session {} not found", session_id))?;
+    let sftp_arc = session
+        .sftp
+        .as_ref()
+        .ok_or_else(|| "SFTP subsystem not initialized".to_string())?;
+    let sftp = sftp_arc.lock();
+
+    let remote_path_buf = remote_path.replace('\\', "/");
+    let local_clean = validated_local.to_string_lossy().to_string();
+    let local_clean = local_clean.trim_start_matches(r"\\?\");
+    let local_path_obj = Path::new(local_clean);
+
+    if let Some(parent) = local_path_obj.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            format!("Failed to create local destination directory '{}': {}", parent.display(), e)
+        })?;
+    }
+
+    let mut remote_file = sftp
+        .open(Path::new(&remote_path_buf))
+        .map_err(|e| format!("Failed to open remote file '{}': {}", remote_path, e))?;
+
+    let mut local_file = File::create(local_path_obj)
+        .map_err(|e| format!("Failed to create local file '{}': {}", local_path_obj.display(), e))?;
+
+    let mut buffer = [0u8; 131072]; // 128 KB buffer
+    loop {
+        let n = remote_file
+            .read(&mut buffer)
+            .map_err(|e| format!("Failed reading remote file: {}", e))?;
+        if n == 0 {
+            break;
+        }
+        local_file
+            .write_all(&buffer[..n])
+            .map_err(|e| format!("Failed writing local file: {}", e))?;
+    }
+    local_file.flush().map_err(|e| format!("Failed flushing local file: {}", e))?;
+
+    Ok(())
+}
+
 
 /// Direct-to-Disk SFTP Download (Zero Binary in JavaScript)
 pub fn download_sftp_file(

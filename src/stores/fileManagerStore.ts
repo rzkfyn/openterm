@@ -18,9 +18,11 @@ interface PaneState {
 interface FileManagerState {
   local: PaneState;
   remote: PaneState;
+  remotePathBySession: Record<string, string>;
 
   setLocalSelected: (paths: string[]) => void;
   setRemoteSelected: (paths: string[]) => void;
+  clearSessionRemotePath: (sessionId: string) => void;
   
   loadLocalDir: (path: string, offset?: number, append?: boolean, addToHistory?: boolean) => Promise<void>;
   loadRemoteDir: (sessionId: string, path: string, offset?: number, append?: boolean, addToHistory?: boolean) => Promise<void>;
@@ -45,7 +47,13 @@ const initialPaneState: PaneState = {
 export const useFileManagerStore = create<FileManagerState>((set) => ({
   local: { ...initialPaneState },
   remote: { ...initialPaneState },
+  remotePathBySession: {},
 
+  clearSessionRemotePath: (sessionId) =>
+    set((state) => {
+      const { [sessionId]: _, ...rest } = state.remotePathBySession;
+      return { remotePathBySession: rest };
+    }),
   setLocalSelected: (paths) =>
     set((state) => ({ local: { ...state.local, selectedPaths: paths } })),
 
@@ -126,6 +134,10 @@ export const useFileManagerStore = create<FileManagerState>((set) => ({
             offset: res.offset,
             hasMore: res.hasMore,
             isLoading: false,
+          },
+          remotePathBySession: {
+            ...state.remotePathBySession,
+            [sessionId]: res.path,
           },
         };
       });
