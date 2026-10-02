@@ -26,6 +26,7 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
   const {
     local,
     remote,
+    remotePathBySession,
     setLocalSelected,
     setRemoteSelected,
     loadLocalDir,
@@ -33,7 +34,6 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
     goBack,
     goForward,
   } = useFileManagerStore();
-
   const { startDownload, startUpload } = useTransferStore();
   const session = useSessionStore((state) => state.activeSessions.find((s) => s.id === sessionId));
   const addSessionBookmark = useSessionStore((state) => state.addSessionBookmark);
@@ -42,6 +42,9 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
   const [showBookmarkMenu, setShowBookmarkMenu] = useState(false);
   const sftpSyncToTerminal = useSettingsStore((state) => state.settings.sftpSyncToTerminal);
   const updateSetting = useSettingsStore((state) => state.updateSetting);
+  const fileDoubleClickAction = useSettingsStore((state) => state.settings.fileDoubleClickAction);
+  const fileEditorType = useSettingsStore((state) => state.settings.fileEditorType);
+  const customEditorCommand = useSettingsStore((state) => state.settings.customEditorCommand);
 
   // FileZilla-style directory tree state
   const [localTreeHeightPercent, setLocalTreeHeightPercent] = useState<number>(() => {
@@ -103,6 +106,22 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
       tauriApi.sshWrite(sessionId, cdCmd).catch(() => {});
     }
   }, [sessionId, remote.currentPath, sftpSyncToTerminal]);
+
+  // Auto-sync watcher feedback for external editor
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    tauriApi.onRemoteFileSynced((payload) => {
+      if (sessionId && payload.sessionId === sessionId) {
+        loadRemoteDir(sessionId, remote.currentPath);
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    }).catch(() => {});
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, [sessionId, remote.currentPath, loadRemoteDir]);
 
   // Prompt Modal state
   const [promptState, setPromptState] = useState<{
@@ -211,6 +230,10 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
       return next;
     });
   };
+  const handleDualPaneReset = useCallback(() => {
+    setLocalSplitPercent(50);
+    localStorage.setItem('openterm_sftp_split_percent', '50');
+  }, []);
 
   const prevSessionIdRef = useRef<string | null>(null);
 
@@ -225,11 +248,19 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
       prevSessionIdRef.current = null;
       return;
     }
-    if (prevSessionIdRef.current !== sessionId || !remote.currentPath) {
+    const cachedPath = remotePathBySession[sessionId];
+    if (prevSessionIdRef.current !== sessionId) {
       prevSessionIdRef.current = sessionId;
-      loadRemoteDir(sessionId, '.');
+      const targetPath = cachedPath || '.';
+      if (remote.currentPath !== targetPath || remote.entries.length === 0) {
+        loadRemoteDir(sessionId, targetPath);
+      }
+      return;
     }
-  }, [sessionId, remote.currentPath, loadRemoteDir]);
+    if (!remote.currentPath) {
+      loadRemoteDir(sessionId, cachedPath || '.');
+    }
+  }, [sessionId, remote.currentPath, remote.entries.length, remotePathBySession, loadRemoteDir]);
 
   const promptConflict = useCallback(
     (conflict: ConflictDetails): Promise<{ action: ConflictAction; applyToAll: boolean } | null> => {
@@ -416,9 +447,36 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
           const targetDir = paneEl?.getAttribute('data-pane-current-path') || currentRemote;
           handleDropTransfer(true, 'local', paths, targetDir);
         } else {
-          // If single path dropped on local pane and is directory, navigate
-          if (paths.length === 1) {
-            loadLocalDir(paths[0]);
+          const currentLocal = useFileManagerStore.getState().local.currentPath;
+          const targetDir = paneEl?.getAttribute('data-pane-current-path') || currentLocal;
+          if (paths.length === 1 && paths[0]) {
+            tauriApi.localStat(paths[0]).then((stat) => {
+              if (stat.isDir && paths[0] !== targetDir) {
+                const name = paths[0].split(/[/\\]/).pop() || '';
+                const dest = joinLocalPath(targetDir, name);
+                if (dest !== paths[0]) {
+                  tauriApi.localCopy(paths[0], dest).then(() => loadLocalDir(targetDir)).catch(() => {});
+                } else {
+                  loadLocalDir(paths[0]);
+                }
+              } else if (!stat.isDir) {
+                const name = paths[0].split(/[/\\]/).pop() || '';
+                const dest = joinLocalPath(targetDir, name);
+                if (dest !== paths[0]) {
+                  tauriApi.localCopy(paths[0], dest).then(() => loadLocalDir(targetDir)).catch(() => {});
+                }
+              }
+            }).catch(() => {
+              loadLocalDir(targetDir);
+            });
+          } else if (paths.length > 1) {
+            Promise.all(
+              paths.map((p) => {
+                const name = p.split(/[/\\]/).pop() || '';
+                const dest = joinLocalPath(targetDir, name);
+                return dest !== p ? tauriApi.localCopy(p, dest) : Promise.resolve();
+              })
+            ).then(() => loadLocalDir(targetDir)).catch(() => {});
           }
         }
       })
@@ -568,6 +626,93 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
       setChmodState({ isOpen: false, entry: null });
     }
   };
+  const handleOpenExternal = async (entry: FileEntry, isRemote: boolean) => {
+    try {
+      if (isRemote) {
+        if (!sessionId) return;
+        const tempBase = 'openterm-remote-cache';
+        const safeName = `${sessionId}_${entry.name}`;
+        const targetLocal = joinLocalPath('~', '.openterm', tempBase, safeName);
+        await tauriApi.localMkdir(joinLocalPath('~', '.openterm', tempBase));
+        await tauriApi.sftpDownloadSync(
+          sessionId,
+          entry.path,
+          targetLocal
+        );
+        await tauriApi.openInExternalEditor(
+          targetLocal,
+          fileEditorType === 'custom' && customEditorCommand ? customEditorCommand : undefined
+        );
+        // Start background watcher that auto-syncs file changes back to SFTP on save
+        await tauriApi.watchAndSyncRemoteFile(sessionId, entry.path, targetLocal);
+      } else {
+        await tauriApi.openInExternalEditor(
+          entry.path,
+          fileEditorType === 'custom' && customEditorCommand ? customEditorCommand : undefined
+        );
+      }
+    } catch (err) {
+      console.error('Failed to open in external editor:', err);
+    }
+  };
+
+  const handleCopyFiles = async (entry: FileEntry, isRemote: boolean) => {
+    const paths = isRemote ? remote.selectedPaths : local.selectedPaths;
+    const list = paths.length > 0 && paths.includes(entry.path) ? paths : [entry.path];
+
+    // Put real files onto system clipboard for OS paste (Explorer / Finder / Desktop)
+    try {
+      if (!isRemote) {
+        await tauriApi.copyFilesToClipboard(list);
+      } else if (sessionId) {
+        // Download selected remote files to cache so OS clipboard can reference real local files
+        const tempBase = 'openterm-remote-cache';
+        await tauriApi.localMkdir(joinLocalPath('~', '.openterm', tempBase));
+        const localCachedPaths: string[] = [];
+        for (const remotePath of list) {
+          const fileName = remotePath.split(/[/\\]/).pop() || 'file';
+          const localTarget = joinLocalPath('~', '.openterm', tempBase, `${sessionId}_${fileName}`);
+          await tauriApi.sftpDownloadSync(sessionId, remotePath, localTarget);
+          localCachedPaths.push(localTarget);
+        }
+        await tauriApi.copyFilesToClipboard(localCachedPaths);
+      }
+    } catch (err) {
+      console.error('Failed to set OS clipboard file drop:', err);
+    }
+  };
+  const handleStartNativeDrag = useCallback(
+    async (paths: string[], isRemote: boolean) => {
+      try {
+        if (!isRemote) {
+          await tauriApi.startNativeDrag(paths);
+        } else if (sessionId) {
+          const tempBase = 'openterm-remote-cache';
+          await tauriApi.localMkdir(joinLocalPath('~', '.openterm', tempBase));
+          const localCachedPaths: string[] = [];
+          for (const remotePath of paths) {
+            const fileName = remotePath.split(/[/\\]/).pop() || 'file';
+            const localTarget = joinLocalPath('~', '.openterm', tempBase, `${sessionId}_${fileName}`);
+            await tauriApi.sftpDownloadSync(sessionId, remotePath, localTarget);
+            localCachedPaths.push(localTarget);
+          }
+          await tauriApi.startNativeDrag(localCachedPaths);
+        }
+      } catch (err) {
+        console.debug('Native drag finished or cancelled:', err);
+      }
+    },
+    [sessionId]
+  );
+
+
+  const handleEditDispatch = (entry: FileEntry, isRemote: boolean) => {
+    if (fileEditorType !== 'builtin') {
+      handleOpenExternal(entry, isRemote);
+    } else {
+      setEditorState({ isOpen: true, filePath: entry.path, isRemote });
+    }
+  };
 
   const handleTransferSingle = async (entry: FileEntry, isRemoteSource: boolean) => {
     if (!sessionId) return;
@@ -602,12 +747,16 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
               error={local.error}
               selectedPaths={local.selectedPaths}
               canGoBack={local.historyIndex > 0}
+              fileDoubleClickAction={fileDoubleClickAction}
               canGoForward={local.historyIndex < local.history.length - 1}
               onGoBack={() => goBack(false)}
               onGoForward={() => goForward(false)}
               onSelect={setLocalSelected}
               onNavigate={(p) => loadLocalDir(p)}
               onRefresh={() => loadLocalDir(local.currentPath)}
+              onEditFile={(entry) => handleEditDispatch(entry, false)}
+              onOpenExternal={(entry) => handleOpenExternal(entry, false)}
+              onCopyFiles={(entry) => handleCopyFiles(entry, false)}
               onDropTransfer={(src, paths, target) => handleDropTransfer(false, src, paths, target)}
               onTransferItem={(entry) => handleTransferSingle(entry, false)}
               onRenameItem={(entry) => handleRename(entry, false)}
@@ -615,6 +764,7 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
               onBookmarkFolder={(entry) => handleBookmarkFolder(entry, false)}
               onNewFile={() => handleNewFile(false)}
               onNewFolder={() => handleNewFolder(false)}
+              onStartNativeDrag={handleStartNativeDrag}
             />
           </div>
         </div>
@@ -759,7 +909,7 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
               )}
             </div>
           </div>
-          <ResizableSplitter onResize={handleDualPaneResize} />
+          <ResizableSplitter onResize={handleDualPaneResize} onDoubleClick={handleDualPaneReset} />
         </div>
 
         {/* Remote Explorer Column */}
@@ -792,12 +942,15 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
                   canGoBack={remote.historyIndex > 0}
                   canGoForward={remote.historyIndex < remote.history.length - 1}
                   onGoBack={() => sessionId && goBack(true, sessionId)}
+                  fileDoubleClickAction={fileDoubleClickAction}
                   onGoForward={() => sessionId && goForward(true, sessionId)}
                   onSelect={setRemoteSelected}
                   onNavigate={(p) => loadRemoteDir(sessionId, p)}
                   onRefresh={() => loadRemoteDir(sessionId, remote.currentPath)}
                   onDropTransfer={(src, paths, target) => handleDropTransfer(true, src, paths, target)}
-                  onEditFile={(entry) => setEditorState({ isOpen: true, filePath: entry.path, isRemote: true })}
+                  onEditFile={(entry) => handleEditDispatch(entry, true)}
+                  onOpenExternal={(entry) => handleOpenExternal(entry, true)}
+                  onCopyFiles={(entry) => handleCopyFiles(entry, true)}
                   onTransferItem={(entry) => handleTransferSingle(entry, true)}
                   onRenameItem={(entry) => handleRename(entry, true)}
                   onChmodItem={(entry) => setChmodState({ isOpen: true, entry })}
@@ -805,6 +958,7 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
                   onBookmarkFolder={(entry) => handleBookmarkFolder(entry, true)}
                   onNewFile={() => handleNewFile(true)}
                   onNewFolder={() => handleNewFolder(true)}
+                  onStartNativeDrag={handleStartNativeDrag}
                 />
               </div>
             </>

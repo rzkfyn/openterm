@@ -291,6 +291,7 @@ export const useSessionStore = create<SessionState>((set) => ({
     sessionLiveCallbacks.delete(id);
     sessionOutputHistory.delete(id);
 
+    useFileManagerStore.getState().clearSessionRemotePath(id);
     try {
       await tauriApi.sshDisconnect(id);
     } catch (e) {

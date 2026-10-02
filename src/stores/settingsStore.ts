@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 export type CursorStyle = 'block' | 'underline' | 'bar';
 export type DefaultViewMode = 'terminal' | 'split' | 'sftp';
+export type FileEditorType = 'builtin' | 'system' | 'custom';
 export type SettingsTab = 'appearance' | 'terminal' | 'sftp' | 'security' | 'about';
 
 export interface AppSettings {
@@ -22,6 +23,9 @@ export interface AppSettings {
   sftpSyncToTerminal: boolean;
   sftpSyncFromTerminal: boolean;
   defaultViewMode: DefaultViewMode;
+  fileDoubleClickAction: 'transfer' | 'edit';
+  fileEditorType: FileEditorType;
+  customEditorCommand: string;
 }
 
 export const APP_FONT_PRESETS = [
@@ -83,6 +87,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   sftpSyncToTerminal: true,
   sftpSyncFromTerminal: false,
   defaultViewMode: 'terminal',
+  fileDoubleClickAction: 'transfer',
+  fileEditorType: 'builtin',
+  customEditorCommand: '',
 };
 
 const STORAGE_KEY = 'openterm_app_settings';

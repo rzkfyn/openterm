@@ -124,6 +124,9 @@ export default function App() {
       return next;
     });
   };
+  const handleSplitReset = () => {
+    setTerminalSplitPercent(50);
+  };
 
   const {
     activeSessions,
@@ -299,7 +302,7 @@ export default function App() {
                   </ErrorBoundary>
                 </div>
 
-                <ResizableSplitter onResize={handleSplitResize} />
+                <ResizableSplitter onResize={handleSplitResize} onDoubleClick={handleSplitReset} />
 
                 <div
                   style={{ width: `${100 - terminalSplitPercent}%` }}

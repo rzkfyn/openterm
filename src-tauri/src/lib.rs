@@ -371,6 +371,144 @@ fn sftp_write_text_file(
 }
 
 #[tauri::command]
+fn local_read_text_file(path: String, max_bytes: Option<usize>) -> Result<String, String> {
+    let limit = max_bytes.unwrap_or(2 * 1024 * 1024);
+    local_fs::read_local_text_file(&path, limit)
+}
+
+#[tauri::command]
+fn local_write_text_file(path: String, content: String) -> Result<(), String> {
+    local_fs::write_local_text_file(&path, &content)
+}
+
+#[tauri::command]
+fn open_in_external_editor(path: String, custom_command: Option<String>) -> Result<(), String> {
+    local_fs::open_file_in_editor(&path, custom_command.as_deref())
+}
+
+#[tauri::command]
+fn copy_files_to_clipboard(paths: Vec<String>) -> Result<(), String> {
+    local_fs::copy_files_to_system_clipboard(&paths)
+}
+
+#[tauri::command]
+async fn start_native_drag<R: tauri::Runtime>(
+    app: AppHandle<R>,
+    window: tauri::Window<R>,
+    paths: Vec<String>,
+) -> Result<(), String> {
+    if paths.is_empty() {
+        return Ok(());
+    }
+
+    let mut resolved_paths: Vec<std::path::PathBuf> = Vec::new();
+    for p in paths {
+        let path_buf = if let Ok(val) = local_fs::validate_local_path(&p, local_fs::PathAccessMode::Read) {
+            dunce::canonicalize(val).unwrap_or_else(|_| std::path::PathBuf::from(&p))
+        } else {
+            let mut resolved = p.clone();
+            if resolved.starts_with('~') {
+                if let Some(h) = dirs::home_dir() {
+                    let rest = resolved.trim_start_matches('~').trim_start_matches(|c| c == '/' || c == '\\');
+                    resolved = h.join(rest).to_string_lossy().to_string();
+                }
+            }
+            let clean = resolved.trim_start_matches(r"\\?\").replace('/', "\\");
+            dunce::canonicalize(&clean).unwrap_or_else(|_| std::path::PathBuf::from(&clean))
+        };
+        if path_buf.exists() {
+            resolved_paths.push(path_buf);
+        }
+    }
+
+    if resolved_paths.is_empty() {
+        return Err("No valid files to drag".to_string());
+    }
+
+    let (tx, rx) = std::sync::mpsc::channel();
+    app.run_on_main_thread(move || {
+        #[cfg(target_os = "linux")]
+        let raw_window = window.gtk_window();
+        #[cfg(not(target_os = "linux"))]
+        let raw_window = tauri::Result::Ok(window.clone());
+
+        let icon_bytes = include_bytes!("../icons/icon.png");
+        let icon = drag::Image::Raw(icon_bytes.to_vec());
+
+        let r = match raw_window {
+            Ok(w) => drag::start_drag(
+                &w,
+                drag::DragItem::Files(resolved_paths),
+                icon,
+                |_result, _pos| {},
+                drag::Options::default(),
+            )
+            .map_err(|e| e.to_string()),
+            Err(e) => Err(e.to_string()),
+        };
+        let _ = tx.send(r);
+    })
+    .map_err(|e| format!("Failed to dispatch drag: {}", e))?;
+
+    rx.recv().map_err(|e| e.to_string())?
+}
+#[tauri::command]
+fn sftp_download_sync(
+    manager: State<SessionManager>,
+    session_id: String,
+    remote_path: String,
+    local_path: String,
+) -> Result<(), String> {
+    sftp::download_sftp_file_sync(&manager, &session_id, &remote_path, &local_path)
+}
+
+#[tauri::command]
+fn local_copy(src: String, dest: String) -> Result<(), String> {
+    local_fs::copy_local_item(&src, &dest)
+}
+
+#[tauri::command]
+async fn watch_and_sync_remote_file(
+    app: AppHandle,
+    manager: State<'_, SessionManager>,
+    session_id: String,
+    remote_path: String,
+    local_path: String,
+) -> Result<(), String> {
+    use std::fs;
+    use tauri::Emitter;
+
+    let mgr = manager.inner().clone();
+    tauri::async_runtime::spawn(async move {
+        let mut last_mtime = fs::metadata(&local_path).and_then(|m| m.modified()).ok();
+        loop {
+            tokio::time::sleep(tokio::time::Duration::from_millis(800)).await;
+            if mgr.get_session(&session_id).is_none() {
+                break;
+            }
+            if let Ok(meta) = fs::metadata(&local_path) {
+                if let Ok(mtime) = meta.modified() {
+                    if Some(mtime) != last_mtime {
+                        last_mtime = Some(mtime);
+                        if let Ok(bytes) = fs::read(&local_path) {
+                            if let Ok(text) = String::from_utf8(bytes) {
+                                if sftp::write_sftp_text_file(&mgr, &session_id, &remote_path, &text).is_ok() {
+                                    let _ = app.emit("remote-file-synced", serde_json::json!({
+                                        "sessionId": session_id,
+                                        "remotePath": remote_path,
+                                    }));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+    Ok(())
+}
+
+#[tauri::command]
 async fn biometric_is_available() -> Result<bool, String> {
     tokio::task::spawn_blocking(|| {
         biometrics::check_biometric_available()
@@ -395,6 +533,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_drag::init())
         .setup(move |app| {
             app.manage(session_manager);
             app.manage(vault_state);
@@ -441,6 +580,14 @@ pub fn run() {
             sftp_chmod,
             sftp_read_text_file,
             sftp_write_text_file,
+            local_read_text_file,
+            local_write_text_file,
+            open_in_external_editor,
+            copy_files_to_clipboard,
+            start_native_drag,
+            sftp_download_sync,
+            local_copy,
+            watch_and_sync_remote_file,
             biometric_is_available,
             biometric_authenticate,
         ])

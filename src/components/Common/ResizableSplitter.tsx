@@ -4,6 +4,7 @@ interface ResizableSplitterProps {
   direction?: 'horizontal' | 'vertical';
   onResize: (delta: number) => void;
   onResizeEnd?: () => void;
+  onDoubleClick?: () => void;
   className?: string;
 }
 
@@ -12,6 +13,7 @@ export const ResizableSplitter: React.FC<ResizableSplitterProps> = ({
   onResize,
   onResizeEnd,
   className = '',
+  onDoubleClick,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
 
@@ -46,10 +48,12 @@ export const ResizableSplitter: React.FC<ResizableSplitterProps> = ({
   return (
     <div
       onMouseDown={handleMouseDown}
-      className={`relative z-20 shrink-0 select-none group transition-colors ${
+      onDoubleClick={onDoubleClick}
+      title={onDoubleClick ? 'Drag to resize, double-click to reset (50/50)' : 'Drag to resize'}
+      className={`relative z-20 shrink-0 select-none group flex items-center justify-center transition-colors ${
         direction === 'horizontal'
-          ? 'w-[5px] cursor-col-resize hover:bg-indigo-500/50'
-          : 'h-[5px] cursor-row-resize hover:bg-indigo-500/50'
+          ? 'w-[7px] cursor-col-resize hover:bg-indigo-500/50'
+          : 'h-[7px] cursor-row-resize hover:bg-indigo-500/50'
       } ${isDragging ? 'bg-indigo-500' : 'bg-[#2a2b38]'} ${className}`}
     >
       {/* Invisible expanded hit area for easy grabbing */}
@@ -58,6 +62,20 @@ export const ResizableSplitter: React.FC<ResizableSplitterProps> = ({
           direction === 'horizontal' ? '-left-1 -right-1' : '-top-1 -bottom-1'
         }`}
       />
+      {/* Visual grip handle affordance */}
+      {direction === 'horizontal' ? (
+        <div className="flex flex-col items-center justify-center gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <span className="w-0.5 h-0.5 rounded-full bg-slate-300" />
+          <span className="w-0.5 h-0.5 rounded-full bg-slate-300" />
+          <span className="w-0.5 h-0.5 rounded-full bg-slate-300" />
+        </div>
+      ) : (
+        <div className="flex items-center justify-center gap-0.5 opacity-40 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <span className="w-0.5 h-0.5 rounded-full bg-slate-300" />
+          <span className="w-0.5 h-0.5 rounded-full bg-slate-300" />
+          <span className="w-0.5 h-0.5 rounded-full bg-slate-300" />
+        </div>
+      )}
     </div>
   );
 };

@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Save, Loader2, AlertCircle } from 'lucide-react';
+import { CodeMirrorEditor } from './CodeMirrorEditor';
 import { tauriApi } from '../../services/tauri';
 
 interface FileEditorModalProps {
@@ -24,7 +25,6 @@ export const FileEditorModal: React.FC<FileEditorModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isDirty = content !== originalContent;
   const fileName = filePath.split(/[/\\]/).pop() || 'Untitled';
@@ -46,9 +46,11 @@ export const FileEditorModal: React.FC<FileEditorModalProps> = ({
             setOriginalContent(text);
           }
         } else {
-          // For local files, read via fetch or local read (we can add local file read if needed)
-          setContent('Local file preview');
-          setOriginalContent('Local file preview');
+          const text = await tauriApi.localReadTextFile(filePath);
+          if (isMounted) {
+            setContent(text);
+            setOriginalContent(text);
+          }
         }
       } catch (err: any) {
         if (isMounted) {
@@ -77,6 +79,8 @@ export const FileEditorModal: React.FC<FileEditorModalProps> = ({
       if (isRemote) {
         if (!sessionId) throw new Error('No active SSH session');
         await tauriApi.sftpWriteTextFile(sessionId, filePath, content);
+      } else {
+        await tauriApi.localWriteTextFile(filePath, content);
       }
       setOriginalContent(content);
       if (onSaved) onSaved();
@@ -87,32 +91,6 @@ export const FileEditorModal: React.FC<FileEditorModalProps> = ({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Ctrl+S or Cmd+S to save
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-      e.preventDefault();
-      handleSave();
-      return;
-    }
-
-    // Handle Tab key insertion
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const textarea = textareaRef.current;
-      if (!textarea) return;
-
-      const start = textarea.selectionStart;
-      const end = textarea.selectionEnd;
-      const val = textarea.value;
-
-      const updated = val.substring(0, start) + '  ' + val.substring(end);
-      setContent(updated);
-
-      setTimeout(() => {
-        textarea.selectionStart = textarea.selectionEnd = start + 2;
-      }, 0);
-    }
-  };
 
   if (!isOpen) return null;
 
@@ -181,27 +159,14 @@ export const FileEditorModal: React.FC<FileEditorModalProps> = ({
               <span>Loading file contents...</span>
             </div>
           ) : (
-            <div className="flex w-full h-full">
-              {/* Line numbers column */}
-              <div className="w-12 py-3 bg-[#11111a] border-r border-[#222332] select-none text-right pr-2 text-slate-600 overflow-hidden font-mono shrink-0">
-                {lines.map((_, i) => (
-                  <div key={i}>{i + 1}</div>
-                ))}
-              </div>
-
-              {/* Textarea code editor */}
-              <textarea
-                ref={textareaRef}
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                onKeyDown={handleKeyDown}
-                spellCheck={false}
-                className="flex-1 h-full w-full p-3 bg-[#171724] text-slate-100 resize-none outline-hidden border-none font-mono focus:ring-0 whitespace-pre overflow-auto tab-4"
-              />
-            </div>
+            <CodeMirrorEditor
+              value={content}
+              filePath={filePath}
+              onChange={setContent}
+              onSave={handleSave}
+            />
           )}
         </div>
-
         {/* Editor Status Bar */}
         <div className="flex items-center justify-between h-6 px-3 bg-[#11111a] border-t border-[#222332] text-[10px] text-slate-500 font-mono select-none">
           <div>

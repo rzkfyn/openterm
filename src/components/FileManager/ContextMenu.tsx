@@ -1,9 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useState, useRef } from 'react';
+import { calculateMenuPosition } from '../../utils/menuUtils';
 import {
   FileEdit,
   ArrowDownToLine,
   ArrowUpFromLine,
   Pencil,
+  ExternalLink,
   Shield,
   Trash2,
   FilePlus,
@@ -27,6 +29,8 @@ interface ContextMenuProps {
   onEdit?: (entry: FileEntry) => void;
   onTransfer?: (entry: FileEntry) => void;
   onRename?: (entry: FileEntry) => void;
+  onOpenExternal?: (entry: FileEntry) => void;
+  onCopyFiles?: (entry: FileEntry) => void;
   onChmod?: (entry: FileEntry) => void;
   onDelete?: (entry: FileEntry) => void;
   onBookmarkFolder?: (entry: FileEntry) => void;
@@ -43,6 +47,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   onEdit,
   onTransfer,
   onRename,
+  onOpenExternal,
+  onCopyFiles,
   onChmod,
   onDelete,
   onBookmarkFolder,
@@ -73,10 +79,20 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
     };
   }, [onClose]);
 
-  // Adjust positioning to not overflow viewport
+  const [coords, setCoords] = useState(() =>
+    calculateMenuPosition(position, { width: 180, height: 280 })
+  );
+
+  useLayoutEffect(() => {
+    if (menuRef.current) {
+      const rect = menuRef.current.getBoundingClientRect();
+      setCoords(calculateMenuPosition(position, { width: rect.width, height: rect.height }));
+    }
+  }, [position]);
+
   const style: React.CSSProperties = {
-    top: Math.min(position.y, window.innerHeight - 250),
-    left: Math.min(position.x, window.innerWidth - 180),
+    top: `${coords.y}px`,
+    left: `${coords.x}px`,
   };
 
   const handleCopyPath = () => {
@@ -110,6 +126,20 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             >
               <FileEdit className="h-3.5 w-3.5" />
               <span>Edit File</span>
+            </button>
+          )}
+
+          {!targetEntry.isDir && onOpenExternal && (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenExternal(targetEntry);
+                onClose();
+              }}
+              className="flex w-full items-center gap-2 px-2 py-1.5 rounded hover:bg-indigo-600 hover:text-white transition-colors cursor-pointer text-left"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              <span>Open in External Editor</span>
             </button>
           )}
 
@@ -187,6 +217,21 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             <span>Copy Path</span>
           </button>
 
+          <button
+            type="button"
+            onClick={() => {
+              if (onCopyFiles) {
+                onCopyFiles(targetEntry);
+              } else {
+                navigator.clipboard.writeText(targetEntry.path);
+              }
+              onClose();
+            }}
+            className="flex w-full items-center gap-2 px-2 py-1.5 rounded hover:bg-indigo-600 hover:text-white transition-colors cursor-pointer text-left"
+          >
+            <Copy className="h-3.5 w-3.5 text-slate-400" />
+            <span>Copy File (Ctrl+C)</span>
+          </button>
           <div className="my-1 border-t border-[#252636]" />
 
           {onDelete && (

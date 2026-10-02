@@ -233,6 +233,61 @@ export const tauriApi = {
     return await invoke<void>('sftp_write_text_file', { sessionId, path, content });
   },
 
+  localReadTextFile: async (path: string, maxBytes?: number): Promise<string> => {
+    return await invoke<string>('local_read_text_file', { path, maxBytes });
+  },
+
+  localWriteTextFile: async (path: string, content: string): Promise<void> => {
+    return await invoke<void>('local_write_text_file', { path, content });
+  },
+
+  openInExternalEditor: async (path: string, customCommand?: string): Promise<void> => {
+    return await invoke<void>('open_in_external_editor', { path, customCommand });
+  },
+
+  copyFilesToClipboard: async (paths: string[]): Promise<void> => {
+    return await invoke<void>('copy_files_to_clipboard', { paths });
+  },
+  startNativeDrag: async (paths: string[]): Promise<void> => {
+    return await invoke<void>('start_native_drag', { paths });
+  },
+  sftpDownloadSync: async (
+    sessionId: string,
+    remotePath: string,
+    localPath: string
+  ): Promise<void> => {
+    return await invoke<void>('sftp_download_sync', {
+      sessionId,
+      remotePath,
+      localPath,
+    });
+  },
+
+  localCopy: async (src: string, dest: string): Promise<void> => {
+    return await invoke<void>('local_copy', { src, dest });
+  },
+
+
+  watchAndSyncRemoteFile: async (
+    sessionId: string,
+    remotePath: string,
+    localPath: string
+  ): Promise<void> => {
+    return await invoke<void>('watch_and_sync_remote_file', {
+      sessionId,
+      remotePath,
+      localPath,
+    });
+  },
+
+  onRemoteFileSynced: async (
+    callback: (event: { sessionId: string; remotePath: string }) => void
+  ): Promise<UnlistenFn> => {
+    return await listen<{ sessionId: string; remotePath: string }>('remote-file-synced', (event) => {
+      callback(event.payload);
+    });
+  },
+
   onTransferProgress: async (
     transferId: string,
     callback: (progress: TransferProgress) => void

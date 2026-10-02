@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useColumnConfigStore } from '../../stores/columnConfigStore';
+import { splitFileName } from '../../utils/textUtils';
 import { FileEntry } from '../../types';
 import { Folder, File, FileCode, Archive } from 'lucide-react';
 
@@ -11,6 +13,7 @@ interface FileItemRowProps {
   onDoubleClick: (entry: FileEntry) => void;
   onContextMenu?: (entry: FileEntry, event: React.MouseEvent) => void;
   onDropOnFolder?: (targetFolder: string, source: 'local' | 'remote', paths: string[]) => void;
+  onStartNativeDrag?: (paths: string[], isRemote: boolean) => void;
 }
 
 export const FileItemRow: React.FC<FileItemRowProps> = ({
@@ -22,8 +25,11 @@ export const FileItemRow: React.FC<FileItemRowProps> = ({
   onDoubleClick,
   onContextMenu,
   onDropOnFolder,
+  onStartNativeDrag,
 }) => {
   const [isFolderDragOver, setIsFolderDragOver] = useState(false);
+  const { sizeWidth, modifiedWidth, showSize, showModified } = useColumnConfigStore();
+  const { base: nameBase, ext: nameExt } = splitFileName(entry.name);
 
   const getIcon = () => {
     if (entry.isDir) {
@@ -68,18 +74,17 @@ export const FileItemRow: React.FC<FileItemRowProps> = ({
   };
 
   const handleDragStart = (e: React.DragEvent) => {
+    // Crucial: preventDefault so Chromium/WebView2 cancels its internal modal drag loop.
+    // This allows the Rust main thread to immediately execute native OLE DoDragDrop!
+    e.preventDefault();
+
     const pathsToTransfer = isSelected && selectedPaths.includes(entry.path)
       ? selectedPaths
       : [entry.path];
 
-    const payload = JSON.stringify({
-      source: isRemote ? 'remote' : 'local',
-      paths: pathsToTransfer,
-    });
-
-    e.dataTransfer.setData('application/x-openterm-transfer', payload);
-    e.dataTransfer.setData('text/plain', pathsToTransfer.join('\n'));
-    e.dataTransfer.effectAllowed = 'copy';
+    if (onStartNativeDrag) {
+      onStartNativeDrag(pathsToTransfer, isRemote);
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -162,16 +167,32 @@ export const FileItemRow: React.FC<FileItemRowProps> = ({
           : 'text-slate-300 hover:bg-[#232336] hover:text-white'
       }`}
     >
-      <div className="flex flex-1 items-center gap-2 truncate pr-2">
+      <div
+        className="flex flex-1 items-center gap-2 pr-2 min-w-0 overflow-hidden"
+        title={entry.name}
+      >
         {getIcon()}
-        <span className="truncate font-sans text-xs">{entry.name}</span>
+        <div className="flex min-w-0 items-center font-sans text-xs overflow-hidden">
+          <span className="truncate">{nameBase}</span>
+          {nameExt && <span className="shrink-0">{nameExt}</span>}
+        </div>
       </div>
-      <div className="w-16 text-right text-slate-500 font-mono text-[10px] shrink-0">
-        {formatSize(entry.size)}
-      </div>
-      <div className="w-24 text-right text-slate-500 font-mono text-[10px] shrink-0 pr-1">
-        {formatDate(entry.modified)}
-      </div>
+      {showSize && (
+        <div
+          style={{ width: `${sizeWidth}px` }}
+          className="text-right text-slate-500 font-mono text-[10px] shrink-0 truncate overflow-hidden"
+        >
+          {formatSize(entry.size)}
+        </div>
+      )}
+      {showModified && (
+        <div
+          style={{ width: `${modifiedWidth}px` }}
+          className="text-right text-slate-500 font-mono text-[10px] shrink-0 pr-1 truncate overflow-hidden"
+        >
+          {formatDate(entry.modified)}
+        </div>
+      )}
     </div>
   );
 };
