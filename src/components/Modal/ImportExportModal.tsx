@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { SavedConnection } from '../../types';
 import { parseFileZillaXml } from '../../services/filezillaParser';
-import { exportToOpenTermJson, exportToFileZillaXml } from '../../services/connectionExporter';
+import { exportToShellFerryJson, exportToFileZillaXml } from '../../services/connectionExporter';
 
 interface ImportItem extends Omit<SavedConnection, 'id' | 'createdAt' | 'updatedAt'> {
   tempId: string;
@@ -175,12 +175,12 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
     let mime = '';
 
     if (exportFormat === 'json') {
-      content = exportToOpenTermJson(existingConnections);
-      filename = `openterm-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      content = exportToShellFerryJson(existingConnections);
+      filename = `shellferry-backup-${new Date().toISOString().slice(0, 10)}.json`;
       mime = 'application/json';
     } else {
       content = exportToFileZillaXml(existingConnections);
-      filename = `openterm-filezilla-${new Date().toISOString().slice(0, 10)}.xml`;
+      filename = `shellferry-filezilla-${new Date().toISOString().slice(0, 10)}.xml`;
       mime = 'application/xml';
     }
 
@@ -260,10 +260,10 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
                 >
                   <Upload className="h-10 w-10 text-indigo-400 mb-3" />
                   <p className="text-sm font-medium text-white mb-1">
-                    Drag and drop FileZilla XML or OpenTerm JSON file
+                    Drag and drop FileZilla XML or ShellFerry JSON file
                   </p>
                   <p className="text-xs text-slate-400 mb-4">
-                    Supports FileZilla Site Manager export (<code className="text-slate-300">.xml</code>) and OpenTerm backups (<code className="text-slate-300">.json</code>)
+                    Supports FileZilla Site Manager export (<code className="text-slate-300">.xml</code>) and ShellFerry / OpenTerm backups (<code className="text-slate-300">.json</code>)
                   </p>
                   <button
                     type="button"
@@ -438,7 +438,7 @@ export const ImportExportModal: React.FC<ImportExportModalProps> = ({
                 >
                   <div>
                     <FileCode className="h-5 w-5 text-indigo-400 mb-2" />
-                    <h3 className="text-xs font-semibold text-white">OpenTerm Backup (.json)</h3>
+                    <h3 className="text-xs font-semibold text-white">ShellFerry Backup (.json)</h3>
                     <p className="text-[11px] text-slate-400 mt-1">
                       Complete backup including folders, SFTP directory bookmarks, and connection parameters.
                     </p>

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseFileZillaXml, decodeFileZillaRemoteDir } from '../filezillaParser';
-import { exportToOpenTermJson, exportToFileZillaXml } from '../connectionExporter';
+import { exportToShellFerryJson, exportToFileZillaXml } from '../connectionExporter';
 import { SavedConnection } from '../../types';
 
 describe('filezillaParser', () => {
@@ -90,7 +90,7 @@ describe('connectionExporter', () => {
   ];
 
   it('exports to formatted JSON', () => {
-    const json = exportToOpenTermJson(sampleConnections);
+    const json = exportToShellFerryJson(sampleConnections);
     const parsed = JSON.parse(json);
     expect(parsed.length).toBe(1);
     expect(parsed[0].name).toBe('Test Server');

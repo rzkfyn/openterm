@@ -81,7 +81,7 @@ describe('Osc7SetupModal', () => {
 
     // Description text explaining OSC 7 directory sync requirement
     expect(html).toContain('OSC 7 escape sequences');
-    expect(html).toContain('OpenTerm');
+    expect(html).toContain('ShellFerry');
 
     // Tab buttons
     expect(html).toContain('Bash');

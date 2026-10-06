@@ -31,7 +31,7 @@ export const AppLockOverlay: React.FC<AppLockOverlayProps> = ({ isOpen, onUnlock
     setError(null);
     try {
       const bioName = getBiometricName();
-      const verified = await authenticate('Unlock OpenTerm');
+      const verified = await authenticate('Unlock ShellFerry');
       if (verified) {
         setCode('');
         setError(null);
@@ -101,7 +101,7 @@ export const AppLockOverlay: React.FC<AppLockOverlayProps> = ({ isOpen, onUnlock
         </div>
 
         <div>
-          <h2 className="text-base font-semibold text-white">OpenTerm Locked</h2>
+          <h2 className="text-base font-semibold text-white">ShellFerry Locked</h2>
           <p className="text-xs text-slate-400 mt-1">
             {isAvailable && isEnabled
               ? `Unlock with ${getBiometricName()} / Passkey or enter your 6-digit authenticator code.`

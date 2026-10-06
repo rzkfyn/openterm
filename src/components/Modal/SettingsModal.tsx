@@ -318,7 +318,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       lineHeight: settings.lineHeight,
                     }}
                   >
-                    <div className="text-emerald-400">user@openterm:~$ git status</div>
+                    <div className="text-emerald-400">user@shellferry:~$ git status</div>
                     <div className="text-slate-300 mt-1">On branch main (up to date with origin/main)</div>
                     <div className="text-slate-400">SSH2 / AES-256 / Dual SFTP ready.</div>
                   </div>
@@ -756,11 +756,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="space-y-4">
                 <div className="flex items-center gap-3.5 p-4 rounded-lg bg-[#11111a] border border-[#2a2b38]">
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#1e1e2d] border border-[#2a2b38] p-2 shrink-0">
-                    <img src="/app-icon.png" alt="OpenTerm" className="h-full w-full object-contain" />
+                    <img src="/app-icon.png" alt="ShellFerry" className="h-full w-full object-contain" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h3 className="text-base font-semibold text-white">OpenTerm</h3>
+                      <h3 className="text-base font-semibold text-white">ShellFerry</h3>
                       <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#1e1e2d] text-slate-400 border border-[#2a2b38]">
                         v{currentVersion || APP_VERSION}
                       </span>

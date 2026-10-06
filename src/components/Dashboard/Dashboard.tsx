@@ -80,7 +80,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     }
     try {
       if (!isBiometricEnabled) {
-        const verified = await authenticateBiometric(`Enable ${bioName} / Passkey for OpenTerm`);
+        const verified = await authenticateBiometric(`Enable ${bioName} / Passkey for ShellFerry`);
         if (verified) {
           setBiometricEnabled(true);
         }
@@ -178,10 +178,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-6 mb-8 border-b border-[#2a2b38]">
           <div className="flex items-center gap-3.5">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#1e1e2d] border border-[#2a2b38] p-1.5 shrink-0">
-              <img src="/app-icon.png" alt="OpenTerm" className="h-full w-full object-contain" />
+              <img src="/app-icon.png" alt="ShellFerry" className="h-full w-full object-contain" />
             </div>
             <div>
-              <h1 className="text-base font-semibold text-white tracking-tight">OpenTerm</h1>
+              <h1 className="text-base font-semibold text-white tracking-tight">ShellFerry</h1>
               <p className="text-xs text-slate-400">
                 SSH Terminal & Dual SFTP Explorer
               </p>

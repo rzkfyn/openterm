@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "openterm",
-  "version": "0.7.3",
-  "identifier": "com.openterm.app",
+  "productName": "ShellFerry",
+  "version": "0.8.0",
+  "identifier": "io.github.rzkfyn.shellferry",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,12 +13,13 @@
     "windows": [
       {
         "label": "main",
-        "title": "OpenTerm",
+        "title": "ShellFerry",
         "width": 1200,
         "height": 800,
         "minWidth": 800,
         "minHeight": 550,
-        "decorations": true
+        "decorations": true,
+        "create": false
       }
     ],
     "security": {

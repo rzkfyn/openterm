@@ -36,7 +36,7 @@ export const useBiometricStore = create<BiometricState>((set) => ({
     set({ isEnabled: enabled });
   },
 
-  authenticate: async (reason = 'Verify identity to unlock OpenTerm') => {
+  authenticate: async (reason = 'Verify identity to unlock ShellFerry') => {
     return await tauriApi.biometricAuthenticate(reason);
   },
 }));

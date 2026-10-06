@@ -1,4 +1,4 @@
-# OpenTerm Domain Glossary
+# ShellFerry Domain Glossary
 
 ### Active Session
 An ongoing SSH connection instance identified by a unique `sessionId`, having terminal output, PTY dimensions, and an associated SFTP channel.
@@ -38,7 +38,7 @@ An interaction triggered by double-clicking a resizable separator that instantly
 An embedded virtualized text editor powered by CodeMirror 6 with format-aware syntax coloring, bracket matching, line numbering, and dirty-state tracking.
 
 ### External File Editor
-An external operating system application (such as VS Code, Sublime Text, or Notepad++) launched to view and edit files outside OpenTerm.
+An external operating system application (such as VS Code, Sublime Text, or Notepad++) launched to view and edit files outside ShellFerry.
 
 ### Remote Temp Cache
 A secure temporary storage directory on the local machine used when opening remote SFTP files in an external editor.

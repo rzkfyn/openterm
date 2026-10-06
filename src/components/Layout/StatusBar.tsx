@@ -78,7 +78,7 @@ export const StatusBar: React.FC = () => {
               isChecking
                 ? 'Checking for updates...'
                 : checkStatus === 'up-to-date'
-                ? 'OpenTerm is up to date!'
+                ? 'ShellFerry is up to date!'
                 : checkStatus === 'error'
                 ? 'Failed to check updates'
                 : `v${currentVersion} (Click to view changelog)`

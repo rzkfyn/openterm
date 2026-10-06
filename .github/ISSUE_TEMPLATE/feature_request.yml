@@ -1,12 +1,12 @@
 name: "💡 Feature Request"
-description: "Suggest an idea or enhancement for OpenTerm"
+description: "Suggest an idea or enhancement for ShellFerry"
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thank you for suggesting an improvement for OpenTerm!
+        Thank you for suggesting an improvement for ShellFerry!
   - type: textarea
     id: problem
     attributes:

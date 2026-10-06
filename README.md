@@ -1,7 +1,9 @@
-# OpenTerm (Unified SSH Terminal & Dual-Pane SFTP Client)
+# ShellFerry (Unified SSH Terminal & Dual-Pane SFTP Client)
+
+> **Formerly OpenTerm.** Renamed in v0.8.0 to stop clashing with an unrelated Windows app of the same name. Existing data migrates automatically.
 
 <p align="center">
-  <img src="app-icon.svg" width="128" height="128" alt="OpenTerm Logo" />
+  <img src="app-icon.svg" width="128" height="128" alt="ShellFerry Logo" />
 </p>
 
 <p align="center">
@@ -136,7 +138,7 @@ bun run tauri build
 
 ### Reporting Issues & Feedback
 
-Encountered a bug or have an idea to make OpenTerm better? We welcome issues and contributions!
+Encountered a bug or have an idea to make ShellFerry better? We welcome issues and contributions!
 
 - **[Report a Bug](https://github.com/rzkfyn/openterm/issues/new?template=bug_report.yml)**: Use this form if something is broken, crashing, or misbehaving.
 - **[Request a Feature](https://github.com/rzkfyn/openterm/issues/new?template=feature_request.yml)**: Suggest improvements, new tools, or UX enhancements.

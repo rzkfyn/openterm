@@ -148,7 +148,7 @@ export const Osc7SetupModal: React.FC<Osc7SetupModalProps> = ({
         <div className="p-5 space-y-4">
           {/* Description */}
           <p className="text-xs text-slate-300 leading-relaxed">
-            SSH connections require remote shells to emit OSC 7 escape sequences to notify OpenTerm of directory changes. Add the configuration snippet below to your remote shell profile.
+            SSH connections require remote shells to emit OSC 7 escape sequences to notify ShellFerry of directory changes. Add the configuration snippet below to your remote shell profile.
           </p>
 
           {/* Shell Selector Tabs */}

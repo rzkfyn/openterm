@@ -1,6 +1,8 @@
 pub mod biometrics;
 pub mod local_fs;
+pub mod migrate;
 pub mod models;
+pub mod paths;
 pub mod session;
 pub mod sftp;
 pub mod ssh;
@@ -537,6 +539,18 @@ pub fn run() {
         .setup(move |app| {
             app.manage(session_manager);
             app.manage(vault_state);
+
+            // Migrate legacy data before the main window (and its WebView2 profile) exists.
+            // The window is declared with `create: false` in tauri.conf.json for this reason.
+            migrate::run();
+            let config = app
+                .config()
+                .app
+                .windows
+                .iter()
+                .find(|w| w.label == "main")
+                .ok_or("main window config missing")?;
+            tauri::WebviewWindowBuilder::from_config(app.handle(), config)?.build()?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

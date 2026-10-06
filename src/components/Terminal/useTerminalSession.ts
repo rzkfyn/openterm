@@ -231,7 +231,7 @@ export function useTerminalSession(sessionId: string | null, onTriggerSearch?: (
     const el = containerRef.current;
     el.addEventListener('auxclick', handleAuxClick);
 
-    term.writeln(`\x1b[38;5;105m[OpenTerm]\x1b[0m Connected to session \x1b[38;5;222m${sessionId}\x1b[0m\r\n`);
+    term.writeln(`\x1b[38;5;105m[ShellFerry]\x1b[0m Connected to session \x1b[38;5;222m${sessionId}\x1b[0m\r\n`);
 
     // 2. Stream user keystrokes to Rust backend with async coalescing
     let pendingWrite = '';
