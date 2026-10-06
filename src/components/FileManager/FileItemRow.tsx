@@ -121,21 +121,9 @@ export const FileItemRow: React.FC<FileItemRowProps> = ({
       } catch (err) {
         console.error('Failed to parse drag drop data:', err);
       }
-
-      // 2. External OS drop (e.g. Windows Explorer)
-      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        const paths: string[] = [];
-        for (let i = 0; i < e.dataTransfer.files.length; i++) {
-          const f = e.dataTransfer.files[i];
-          const localPath = (f as any).path;
-          if (localPath) {
-            paths.push(localPath);
-          }
-        }
-        if (paths.length > 0) {
-          onDropOnFolder(entry.path, 'local', paths);
-        }
-      }
+      // External OS drops (Finder/Explorer) are handled by Tauri's native
+      // onDragDropEvent in DualPaneExplorer — HTML5 dataTransfer.files
+      // does not carry file paths in Tauri's webview.
     }
   };
 

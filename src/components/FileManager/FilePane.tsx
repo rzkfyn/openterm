@@ -39,6 +39,7 @@ interface FilePaneProps {
   onNewFile?: () => void;
   onNewFolder?: () => void;
   onStartNativeDrag?: (paths: string[], isRemote: boolean) => void;
+  nativeDragOver?: boolean;
 }
 
 export const FilePane: React.FC<FilePaneProps> = ({
@@ -70,6 +71,7 @@ export const FilePane: React.FC<FilePaneProps> = ({
   onNewFile,
   onNewFolder,
   onStartNativeDrag,
+  nativeDragOver = false,
 }) => {
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -389,21 +391,9 @@ export const FilePane: React.FC<FilePaneProps> = ({
     } catch (err) {
       console.error('Failed to parse drag-and-drop payload:', err);
     }
-
-    // 2. External OS drop (e.g. Windows Explorer)
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const paths: string[] = [];
-      for (let i = 0; i < e.dataTransfer.files.length; i++) {
-        const f = e.dataTransfer.files[i];
-        const localPath = (f as any).path;
-        if (localPath) {
-          paths.push(localPath);
-        }
-      }
-      if (paths.length > 0) {
-        onDropTransfer('local', paths, currentPath);
-      }
-    }
+      // External OS drops (Finder/Explorer) are handled by Tauri's native
+      // onDragDropEvent in DualPaneExplorer — HTML5 dataTransfer.files
+      // does not carry file paths in Tauri's webview.
   };
 
   const handlePaneMouseDown = (e: React.MouseEvent) => {
@@ -428,14 +418,14 @@ export const FilePane: React.FC<FilePaneProps> = ({
       onKeyDown={handleKeyDown}
       onMouseDown={handlePaneMouseDown}
       className={`relative flex flex-1 flex-col h-full bg-[#1e1e2d] overflow-hidden select-none outline-none transition-colors ${
-        isPaneDragOver ? 'ring-2 ring-indigo-500/80 bg-[#252538]' : ''
+        isPaneDragOver || nativeDragOver ? 'ring-2 ring-indigo-500/80 bg-[#252538]' : ''
       }`}
       onDragOver={handlePaneDragOver}
       onDragLeave={handlePaneDragLeave}
       onDrop={handlePaneDrop}
     >
       {/* Visual Dropzone Overlay Banner when dragging */}
-      {isPaneDragOver && (
+      {(isPaneDragOver || nativeDragOver) && (
         <div className="absolute inset-0 z-30 pointer-events-none flex flex-col items-center justify-center bg-indigo-950/40 backdrop-blur-xs border-2 border-dashed border-indigo-400">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-[#11111a] border border-indigo-500 text-indigo-300 text-xs font-medium shadow-lg">
             <ArrowDownToLine className="h-4 w-4 animate-bounce" />
