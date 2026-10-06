@@ -150,4 +150,6 @@ Encountered a bug or have an idea to make ShellFerry better? We welcome issues a
 
 ## License
 
-MIT License. Designed and engineered for high-efficiency remote server administration.
+Licensed under the [Apache License 2.0](LICENSE). Copyright 2026 the ShellFerry contributors.
+
+"ShellFerry" and the ShellFerry logo identify this project; the license does not grant permission to use them for forks or derived products (Apache-2.0 §6).
