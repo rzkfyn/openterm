@@ -71,7 +71,7 @@ describe('AppLockOverlay Auto-Lock Behavior', () => {
 
     await button.props.onClick();
 
-    expect(mockAuthenticate).toHaveBeenCalledWith('Unlock OpenTerm');
+    expect(mockAuthenticate).toHaveBeenCalledWith('Unlock ShellFerry');
     expect(onUnlock).toHaveBeenCalled();
   });
 });

@@ -49,7 +49,7 @@ export const SecurityOnboardingModal: React.FC<SecurityOnboardingModalProps> = (
     setIsLoading(true);
     setError(null);
     try {
-      const verified = await authenticate(`Enable ${bioName} / Passkey for OpenTerm`);
+      const verified = await authenticate(`Enable ${bioName} / Passkey for ShellFerry`);
       if (verified) {
         setEnabled(true);
         // Generate emergency recovery codes for TPM / BIOS reset safety
@@ -155,7 +155,7 @@ export const SecurityOnboardingModal: React.FC<SecurityOnboardingModalProps> = (
             </div>
 
             <p className="text-xs text-slate-300 leading-relaxed">
-              OpenTerm requires at least one protection method enabled to securely store passwords and keys on your computer. Choose how you want to unlock:
+              ShellFerry requires at least one protection method enabled to securely store passwords and keys on your computer. Choose how you want to unlock:
             </p>
 
             {error && (

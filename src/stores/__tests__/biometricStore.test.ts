@@ -47,8 +47,8 @@ describe('useBiometricStore', () => {
   it('calls tauriApi.biometricAuthenticate', async () => {
     vi.mocked(tauriApi.biometricAuthenticate).mockResolvedValueOnce(true);
 
-    const verified = await useBiometricStore.getState().authenticate('Unlock OpenTerm');
-    expect(tauriApi.biometricAuthenticate).toHaveBeenCalledWith('Unlock OpenTerm');
+    const verified = await useBiometricStore.getState().authenticate('Unlock ShellFerry');
+    expect(tauriApi.biometricAuthenticate).toHaveBeenCalledWith('Unlock ShellFerry');
     expect(verified).toBe(true);
   });
 });

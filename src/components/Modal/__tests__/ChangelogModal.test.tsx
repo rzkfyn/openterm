@@ -43,8 +43,12 @@ vi.mock('../../../stores/updateStore', async () => {
   };
 });
 
+vi.mock('@tauri-apps/plugin-updater', () => ({ check: vi.fn() }));
+vi.mock('@tauri-apps/plugin-process', () => ({ relaunch: vi.fn() }));
+
 import { useUpdateStore } from '../../../stores/updateStore';
 import { ChangelogModal } from '../ChangelogModal';
+import { UpdateInstallButton } from '../../Common/UpdateInstallButton';
 
 function findElement(node: any, predicate: (n: any) => boolean): any {
   if (!node || typeof node !== 'object') return null;
@@ -324,7 +328,7 @@ describe('ChangelogModal', () => {
 
       // Selected release header
       expect(html).toContain('v0.7.2 - Terminal Sync &amp; UI');
-      expect(html).toContain('Download Update');
+      expect(html).toContain('Install Update');
       expect(html).toContain('View on GitHub');
 
       // Release body parsed via MarkdownRenderer
@@ -362,7 +366,24 @@ describe('ChangelogModal', () => {
       expect(html).toContain('Select a release to view notes.');
     });
 
-    it('calls tauriApi.openUrl when clicking Download Update', async () => {
+    it('hides Install Update for older releases and when already on latest', () => {
+      useUpdateStore.setState({
+        isChangelogOpen: true,
+        currentVersion: '0.7.1',
+        releases: mockReleases,
+        selectedReleaseTag: 'v0.7.1',
+      });
+      expect(renderToStaticMarkup(ChangelogModal({}) as React.ReactElement<any>)).not.toContain(
+        'Install Update'
+      );
+
+      useUpdateStore.setState({ currentVersion: '0.7.2', selectedReleaseTag: 'v0.7.2' });
+      expect(renderToStaticMarkup(ChangelogModal({}) as React.ReactElement<any>)).not.toContain(
+        'Install Update'
+      );
+    });
+
+    it('falls back to opening the release page when in-app install fails', () => {
       useUpdateStore.setState({
         isChangelogOpen: true,
         currentVersion: '0.7.1',
@@ -371,14 +392,10 @@ describe('ChangelogModal', () => {
       });
 
       const element = ChangelogModal({}) as React.ReactElement<any>;
-      const downloadBtn = findElement(
-        element,
-        (n) => n.type === 'button' && n.props && n.props['data-action'] === 'download'
-      );
+      const installBtn = findElement(element, (n) => n.type === UpdateInstallButton);
 
-      expect(downloadBtn).toBeDefined();
-      await downloadBtn.props.onClick();
-
+      expect(installBtn).toBeTruthy();
+      installBtn.props.onOpenRelease();
       expect(mockOpenUrl).toHaveBeenCalledWith(mockReleases[0].htmlUrl);
     });
 
@@ -523,7 +540,7 @@ describe('ChangelogModal', () => {
       const element = ChangelogModal({}) as React.ReactElement<any>;
       const downloadBtn = findElement(
         element,
-        (n) => n.type === 'button' && n.props && n.props['data-action'] === 'download'
+        (n) => n.type === 'button' && n.props && n.props['data-action'] === 'github'
       );
 
       await downloadBtn.props.onClick();

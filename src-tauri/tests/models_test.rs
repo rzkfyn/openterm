@@ -1,4 +1,4 @@
-use openterm_lib::models::*;
+use shellferry_lib::models::*;
 
 #[test]
 fn test_models_serialization() {
@@ -37,19 +37,19 @@ fn test_paginated_entries() {
 
 #[test]
 fn test_saved_connection_with_folder_and_bookmarks() {
-    let conn = openterm_lib::storage::SavedConnection {
+    let conn = shellferry_lib::storage::SavedConnection {
         id: "test-id".into(),
         name: "Web Server".into(),
         host: "10.0.0.1".into(),
         port: 22,
         username: "admin".into(),
-        auth_type: openterm_lib::models::AuthType::Password,
+        auth_type: shellferry_lib::models::AuthType::Password,
         private_key_path: None,
         password: Some("secret".into()),
         passphrase: None,
         folder: Some("Production/Web".into()),
         bookmarks: vec![
-            openterm_lib::storage::ConnectionBookmark {
+            shellferry_lib::storage::ConnectionBookmark {
                 id: "bm-1".into(),
                 name: "Nginx logs".into(),
                 local_path: Some("C:\\logs".into()),
@@ -65,7 +65,7 @@ fn test_saved_connection_with_folder_and_bookmarks() {
     assert!(json.contains("\"folder\":\"Production/Web\""));
     assert!(json.contains("\"bookmarks\":["));
 
-    let deserialized: openterm_lib::storage::SavedConnection = serde_json::from_str(&json).expect("deserialize");
+    let deserialized: shellferry_lib::storage::SavedConnection = serde_json::from_str(&json).expect("deserialize");
     assert_eq!(deserialized.folder, Some("Production/Web".into()));
     assert_eq!(deserialized.bookmarks.len(), 1);
     assert_eq!(deserialized.bookmarks[0].name, "Nginx logs");
@@ -82,7 +82,7 @@ fn test_saved_connection_serde_defaults() {
         "authType": "password"
     }"#;
 
-    let parsed: openterm_lib::storage::SavedConnection = serde_json::from_str(minimal_json).expect("should deserialize with defaults");
+    let parsed: shellferry_lib::storage::SavedConnection = serde_json::from_str(minimal_json).expect("should deserialize with defaults");
     assert!(!parsed.id.is_empty());
     assert_eq!(parsed.name, "Imported Server");
     assert_eq!(parsed.host, "192.168.1.50");

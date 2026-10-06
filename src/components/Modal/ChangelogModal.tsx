@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Sparkles, RefreshCw, X, ExternalLink, Download } from 'lucide-react';
+import { Sparkles, RefreshCw, X, ExternalLink } from 'lucide-react';
 import { useUpdateStore } from '../../stores/updateStore';
 import {
   calculateVersionDistance,
@@ -8,6 +8,7 @@ import {
 } from '../../services/updateChecker';
 import { MarkdownRenderer } from '../Common/MarkdownRenderer';
 import { tauriApi } from '../../services/tauri';
+import { UpdateInstallButton } from '../Common/UpdateInstallButton';
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return '';
@@ -267,15 +268,12 @@ export const ChangelogModal: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      data-action="download"
-                      onClick={() => handleOpenReleaseUrl(selectedRelease.htmlUrl)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg transition-colors cursor-pointer shadow-sm shadow-indigo-500/20"
-                    >
-                      <Download size={13} />
-                      <span>Download Update</span>
-                    </button>
+                    {selectedRelease === releases[0] &&
+                      isNewerVersion(selectedRelease.tagName, currentVersion) && (
+                        <UpdateInstallButton
+                          onOpenRelease={() => handleOpenReleaseUrl(selectedRelease.htmlUrl)}
+                        />
+                      )}
                     <button
                       type="button"
                       data-action="github"

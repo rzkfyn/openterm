@@ -75,11 +75,7 @@ impl VaultState {
 }
 
 fn vault_dir() -> Result<PathBuf, String> {
-    let dir = dirs::config_dir()
-        .ok_or("Cannot resolve config directory")?
-        .join("com.openterm.app");
-    fs::create_dir_all(&dir).map_err(|e| format!("Failed to create config dir: {e}"))?;
-    Ok(dir)
+    crate::paths::config_dir()
 }
 
 fn vault_enc_path() -> Result<PathBuf, String> {

@@ -55,8 +55,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ onOpenNewConnection }) => 
           }`}
           title="Go to Dashboard"
         >
-          <img src="/app-icon.png" alt="OpenTerm" className="h-4 w-4 rounded-xs shrink-0" />
-          <span className="text-xs font-semibold tracking-tight">OpenTerm</span>
+          <img src="/app-icon.png" alt="ShellFerry" className="h-4 w-4 rounded-xs shrink-0" />
+          <span className="text-xs font-semibold tracking-tight">ShellFerry</span>
         </button>
 
         <div className="h-3.5 w-px bg-[#2a2b38] mx-0.5" />

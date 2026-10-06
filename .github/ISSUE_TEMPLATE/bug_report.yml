@@ -1,17 +1,17 @@
 name: "🐛 Bug Report"
-description: "File a bug report to help us improve OpenTerm"
+description: "File a bug report to help us improve ShellFerry"
 title: "[Bug]: "
 labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to report an issue! Please ensure you are running the latest version of OpenTerm.
+        Thanks for taking the time to report an issue! Please ensure you are running the latest version of ShellFerry.
   - type: input
     id: version
     attributes:
-      label: OpenTerm Version
-      description: What version of OpenTerm are you running? (e.g. v0.4.0)
+      label: ShellFerry Version
+      description: What version of ShellFerry are you running? (e.g. v0.4.0)
       placeholder: v0.4.0
     validations:
       required: true

@@ -21,6 +21,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Releases without updater signing would ship installs that can never auto-update.
+      - name: Verify updater signing is configured
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if grep -q 'REPLACE_WITH_SHELLFERRY_UPDATER_PUBLIC_KEY' src-tauri/tauri.conf.json; then
+            echo "::error::Updater pubkey placeholder still in src-tauri/tauri.conf.json"; exit 1
+          fi
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::Secret TAURI_SIGNING_PRIVATE_KEY is not set"; exit 1
+          fi
+
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
@@ -81,8 +94,14 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'OpenTerm ${{ github.ref_name }}'
+          releaseName: 'ShellFerry ${{ github.ref_name }}'
           releaseDraft: true
           prerelease: false
+          # Publishes latest.json (signatures + URLs) consumed by the in-app updater.
+          uploadUpdaterJson: true
+          # Update via the per-user NSIS installer (no admin prompt), not the MSI.
+          updaterJsonPreferNsis: true

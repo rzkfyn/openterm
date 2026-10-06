@@ -9,7 +9,11 @@
     "core:event:allow-emit",
     "core:event:allow-unlisten",
     "dialog:default",
-    "drag:default"
+    "drag:default",
+    "updater:default",
+    "process:allow-restart"
   ],
-  "windows": ["main"]
+  "windows": [
+    "main"
+  ]
 }

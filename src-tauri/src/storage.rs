@@ -56,11 +56,7 @@ pub struct SavedConnection {
 }
 
 fn connections_path() -> Result<PathBuf, String> {
-    let dir = dirs::config_dir()
-        .ok_or("Cannot resolve config directory")?
-        .join("com.openterm.app");
-    fs::create_dir_all(&dir).map_err(|e| format!("Failed to create config dir: {e}"))?;
-    Ok(dir.join("connections.json"))
+    Ok(crate::paths::config_dir()?.join("connections.json"))
 }
 
 fn read_all() -> Result<Vec<SavedConnection>, String> {

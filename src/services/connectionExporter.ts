@@ -1,6 +1,6 @@
 import { SavedConnection } from '../types';
 
-export function exportToOpenTermJson(connections: SavedConnection[]): string {
+export function exportToShellFerryJson(connections: SavedConnection[]): string {
   return JSON.stringify(connections, null, 2);
 }
 

@@ -4,6 +4,7 @@ import { useUpdateStore } from '../../stores/updateStore';
 import { tauriApi } from '../../services/tauri';
 import { Terminal, Columns, FolderTree, Wifi, WifiOff, ArrowUpCircle, X, Palette } from 'lucide-react';
 import { useThemeStore, THEME_PRESETS } from '../../stores/themeStore';
+import { UpdateInstallButton } from '../Common/UpdateInstallButton';
 
 const REPO_URL = 'https://github.com/rzkfyn/openterm';
 
@@ -34,6 +35,7 @@ export const StatusBar: React.FC = () => {
     checkStatus,
     dismissUpdate,
     openChangelog,
+    releaseUrl,
   } = useUpdateStore();
   const currentSession = activeSessions.find((s) => s.id === currentSessionId);
   const isConnected = currentSession && currentSession.status !== 'disconnected';
@@ -78,7 +80,7 @@ export const StatusBar: React.FC = () => {
               isChecking
                 ? 'Checking for updates...'
                 : checkStatus === 'up-to-date'
-                ? 'OpenTerm is up to date!'
+                ? 'ShellFerry is up to date!'
                 : checkStatus === 'error'
                 ? 'Failed to check updates'
                 : `v${currentVersion} (Click to view changelog)`
@@ -102,6 +104,10 @@ export const StatusBar: React.FC = () => {
               <span className="text-slate-400">Update</span>
               <span className="font-mono text-indigo-300 font-medium">v{latestVersion}</span>
             </button>
+            <UpdateInstallButton
+              compact
+              onOpenRelease={() => tauriApi.openUrl(releaseUrl || `${REPO_URL}/releases`).catch(() => {})}
+            />
             <button
               type="button"
               onClick={dismissUpdate}

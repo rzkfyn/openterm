@@ -53,7 +53,7 @@ export const TotpModal: React.FC<TotpModalProps> = ({
       setBiometricLoading(true);
       setError(null);
       try {
-        const verified = await authenticateBiometric(`Enable ${bioName} / Passkey for OpenTerm`);
+        const verified = await authenticateBiometric(`Enable ${bioName} / Passkey for ShellFerry`);
         if (verified) {
           setBiometricEnabled(true);
         } else {
@@ -190,7 +190,7 @@ export const TotpModal: React.FC<TotpModalProps> = ({
           <div>
             <h3 className="text-sm font-semibold text-white">App Security & 2FA</h3>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              {config.enabled ? 'Two-factor authentication is active' : 'Secure OpenTerm with an Authenticator App'}
+              {config.enabled ? 'Two-factor authentication is active' : 'Secure ShellFerry with an Authenticator App'}
             </p>
           </div>
           <button
@@ -357,7 +357,7 @@ export const TotpModal: React.FC<TotpModalProps> = ({
               <span>2FA Activated Successfully!</span>
             </div>
             <p className="text-xs text-slate-300">
-              Save these one-time recovery backup codes in a safe place. You can use them to unlock OpenTerm if you lose your phone:
+              Save these one-time recovery backup codes in a safe place. You can use them to unlock ShellFerry if you lose your phone:
             </p>
 
             <div className="grid grid-cols-2 gap-2 p-3 rounded bg-[#11111a] border border-[#262738] font-mono text-xs text-slate-200">

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sha1::Sha1;
 use sha2::{Digest, Sha256};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 type HmacSha1 = Hmac<Sha1>;
@@ -33,7 +33,11 @@ fn default_idle_timeout() -> u32 {
 #[derive(Serialize, Deserialize)]
 struct SavedTotpData {
     enabled: bool,
+    /// Legacy plaintext secret. Only non-empty while migration to the OS keychain is pending;
+    /// once migrated it is cleared and therefore no longer serialized.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     secret: String,
+    #[serde(default)]
     backup_code_hashes: Vec<String>,
     #[serde(default = "default_idle_timeout")]
     idle_timeout_mins: u32,
@@ -45,43 +49,95 @@ impl Default for SavedTotpData {
             enabled: false,
             secret: String::new(),
             backup_code_hashes: vec![],
-            idle_timeout_mins: 15,
+            idle_timeout_mins: default_idle_timeout(),
+        }
+    }
+}
+
+/// Where the TOTP shared secret lives. Abstracted so tests don't touch the real keychain.
+trait SecretStore {
+    fn get(&self) -> Result<Option<String>, String>;
+    fn set(&self, secret: &str) -> Result<(), String>;
+    fn delete(&self) -> Result<(), String>;
+}
+
+/// OS keychain: Windows Credential Manager / macOS Keychain / Linux Secret Service.
+struct KeyringStore;
+
+impl KeyringStore {
+    fn entry() -> Result<keyring::Entry, String> {
+        keyring::Entry::new(crate::paths::IDENTIFIER, "totp-secret")
+            .map_err(|e| format!("OS keychain unavailable: {e}"))
+    }
+}
+
+impl SecretStore for KeyringStore {
+    fn get(&self) -> Result<Option<String>, String> {
+        match Self::entry()?.get_password() {
+            Ok(s) => Ok(Some(s)),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(e) => Err(format!("OS keychain read failed: {e}")),
+        }
+    }
+
+    fn set(&self, secret: &str) -> Result<(), String> {
+        Self::entry()?
+            .set_password(secret)
+            .map_err(|e| format!("OS keychain write failed: {e}"))
+    }
+
+    fn delete(&self) -> Result<(), String> {
+        match Self::entry()?.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(e) => Err(format!("OS keychain delete failed: {e}")),
         }
     }
 }
 
 fn totp_file_path() -> Result<PathBuf, String> {
-    let dir = dirs::config_dir()
-        .ok_or("Cannot resolve config directory")?
-        .join("com.openterm.app");
-    fs::create_dir_all(&dir).map_err(|e| format!("Failed to create config dir: {e}"))?;
-    Ok(dir.join("totp.json"))
+    Ok(crate::paths::config_dir()?.join("totp.json"))
 }
 
-fn read_totp_data() -> SavedTotpData {
-    if let Ok(path) = totp_file_path() {
-        if path.exists() {
-            if let Ok(content) = fs::read_to_string(&path) {
-                if let Ok(data) = serde_json::from_str::<SavedTotpData>(&content) {
-                    return data;
+/// Read totp.json, migrating a legacy plaintext secret into `store`. If the keychain write fails
+/// the secret stays in memory (and thus in the file on the next write) and migration is retried.
+fn load(path: &Path, store: &dyn SecretStore) -> SavedTotpData {
+    let mut data: SavedTotpData = fs::read_to_string(path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+
+    if !data.secret.is_empty() {
+        match store.set(&data.secret) {
+            Ok(()) => {
+                data.secret.clear();
+                if let Err(e) = save(path, &data) {
+                    eprintln!("[ShellFerry] failed to scrub legacy TOTP secret from disk: {e}");
                 }
             }
+            Err(e) => eprintln!("[ShellFerry] TOTP secret migration deferred: {e}"),
         }
     }
-    SavedTotpData {
-        enabled: false,
-        secret: String::new(),
-        backup_code_hashes: vec![],
-        idle_timeout_mins: 15,
-    }
+    data
 }
 
-fn write_totp_data(data: &SavedTotpData) -> Result<(), String> {
-    let path = totp_file_path()?;
+fn save(path: &Path, data: &SavedTotpData) -> Result<(), String> {
     let json = serde_json::to_string_pretty(data)
         .map_err(|e| format!("Failed to serialize TOTP data: {e}"))?;
-    fs::write(path, json).map_err(|e| format!("Failed to write TOTP file: {e}"))?;
-    Ok(())
+    fs::write(path, json).map_err(|e| format!("Failed to write TOTP file: {e}"))
+}
+
+/// The active secret: legacy in-file value if migration is pending, else the keychain.
+fn active_secret(data: &SavedTotpData, store: &dyn SecretStore) -> Option<String> {
+    if !data.secret.is_empty() {
+        return Some(data.secret.clone());
+    }
+    match store.get() {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("[ShellFerry] {e}");
+            None
+        }
+    }
 }
 
 /// Base32 encode raw bytes without padding
@@ -188,15 +244,69 @@ pub fn generate_new_totp_secret() -> TotpSetupInfo {
 
     let secret = base32_encode(&secret_bytes);
     let uri = format!(
-        "otpauth://totp/OpenTerm:client?secret={}&issuer=OpenTerm&algorithm=SHA1&digits=6&period=30",
+        "otpauth://totp/ShellFerry:client?secret={}&issuer=ShellFerry&algorithm=SHA1&digits=6&period=30",
         secret
     );
 
     TotpSetupInfo { secret, uri }
 }
 
+fn now_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+/// 8 emergency backup codes: (plaintext for the user, hashes for disk).
+fn new_backup_codes() -> (Vec<String>, Vec<String>) {
+    let mut rng = rand::thread_rng();
+    (0..8)
+        .map(|_| {
+            let mut bytes = [0u8; 5];
+            rng.fill_bytes(&mut bytes);
+            let code = base32_encode(&bytes);
+            let formatted = format!("{}-{}", &code[0..4], &code[4..8]);
+            (formatted.clone(), hash_code(&formatted))
+        })
+        .unzip()
+}
+
+// Public API: real file + OS keychain.
+
 pub fn get_config() -> TotpConfig {
-    let data = read_totp_data();
+    get_config_in(&totp_file_path().unwrap_or_default(), &KeyringStore)
+}
+
+pub fn update_idle_timeout(mins: u32) -> Result<(), String> {
+    update_idle_timeout_in(&totp_file_path()?, &KeyringStore, mins)
+}
+
+pub fn enable_totp(secret: &str, initial_code: &str) -> Result<Vec<String>, String> {
+    enable_totp_in(&totp_file_path()?, &KeyringStore, secret, initial_code, now_secs())
+}
+
+pub fn generate_emergency_recovery_codes() -> Result<Vec<String>, String> {
+    let path = totp_file_path()?;
+    let mut data = load(&path, &KeyringStore);
+    let (codes, hashes) = new_backup_codes();
+    data.backup_code_hashes = hashes;
+    save(&path, &data)?;
+    Ok(codes)
+}
+
+pub fn disable_totp(code_or_backup: &str) -> Result<(), String> {
+    disable_totp_in(&totp_file_path()?, &KeyringStore, code_or_backup, now_secs())
+}
+
+pub fn validate_login_code(code_or_backup: &str) -> Result<bool, String> {
+    validate_login_code_in(&totp_file_path()?, &KeyringStore, code_or_backup, now_secs())
+}
+
+// Testable cores.
+
+fn get_config_in(path: &Path, store: &dyn SecretStore) -> TotpConfig {
+    let data = load(path, store);
     TotpConfig {
         enabled: data.enabled,
         idle_timeout_mins: data.idle_timeout_mins,
@@ -204,112 +314,86 @@ pub fn get_config() -> TotpConfig {
     }
 }
 
-pub fn update_idle_timeout(mins: u32) -> Result<(), String> {
-    let mut data = read_totp_data();
+fn update_idle_timeout_in(path: &Path, store: &dyn SecretStore, mins: u32) -> Result<(), String> {
+    let mut data = load(path, store);
     data.idle_timeout_mins = mins;
-    write_totp_data(&data)
+    save(path, &data)
 }
 
-pub fn enable_totp(secret: &str, initial_code: &str) -> Result<Vec<String>, String> {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-
+fn enable_totp_in(
+    path: &Path,
+    store: &dyn SecretStore,
+    secret: &str,
+    initial_code: &str,
+    now: u64,
+) -> Result<Vec<String>, String> {
     if !verify_totp_code(secret, initial_code, now) {
         return Err("Invalid TOTP verification code. Ensure your device clock is accurate.".to_string());
     }
 
-    // Generate 8 emergency backup recovery codes
-    let mut backup_codes = Vec::new();
-    let mut backup_hashes = Vec::new();
-    let mut rng = rand::thread_rng();
+    // Keychain first: if it is unavailable, 2FA stays off rather than falling back to plaintext.
+    store.set(secret)?;
 
-    for _ in 0..8 {
-        let mut bytes = [0u8; 5];
-        rng.fill_bytes(&mut bytes);
-        let code = base32_encode(&bytes);
-        let formatted = format!("{}-{}", &code[0..4], &code[4..8]);
-        backup_hashes.push(hash_code(&formatted));
-        backup_codes.push(formatted);
-    }
-
-    let mut data = read_totp_data();
+    let (codes, hashes) = new_backup_codes();
+    let mut data = load(path, store);
     data.enabled = true;
-    data.secret = secret.to_string();
-    data.backup_code_hashes = backup_hashes;
-
-    write_totp_data(&data)?;
-    Ok(backup_codes)
+    data.secret.clear();
+    data.backup_code_hashes = hashes;
+    save(path, &data)?;
+    Ok(codes)
 }
 
-pub fn generate_emergency_recovery_codes() -> Result<Vec<String>, String> {
-    let mut rng = rand::thread_rng();
-    let mut backup_codes = Vec::new();
-    let mut backup_hashes = Vec::new();
-
-    for _ in 0..8 {
-        let mut bytes = [0u8; 5];
-        rng.fill_bytes(&mut bytes);
-        let code = base32_encode(&bytes);
-        let formatted = format!("{}-{}", &code[0..4], &code[4..8]);
-        backup_hashes.push(hash_code(&formatted));
-        backup_codes.push(formatted);
-    }
-
-    let mut data = read_totp_data();
-    data.backup_code_hashes = backup_hashes;
-    write_totp_data(&data)?;
-    Ok(backup_codes)
-}
-
-pub fn disable_totp(code_or_backup: &str) -> Result<(), String> {
-    let mut data = read_totp_data();
+fn disable_totp_in(
+    path: &Path,
+    store: &dyn SecretStore,
+    code_or_backup: &str,
+    now: u64,
+) -> Result<(), String> {
+    let mut data = load(path, store);
     if !data.enabled {
         return Ok(());
     }
 
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-
-    let is_totp_valid = verify_totp_code(&data.secret, code_or_backup, now);
-    let hashed = hash_code(code_or_backup);
-    let is_backup_valid = data.backup_code_hashes.contains(&hashed);
+    let is_totp_valid = active_secret(&data, store)
+        .is_some_and(|s| verify_totp_code(&s, code_or_backup, now));
+    let is_backup_valid = data.backup_code_hashes.contains(&hash_code(code_or_backup));
 
     if !is_totp_valid && !is_backup_valid {
         return Err("Invalid TOTP code or backup code. Cannot disable 2FA.".to_string());
     }
 
     data.enabled = false;
-    data.secret = String::new();
+    data.secret.clear();
     data.backup_code_hashes = vec![];
-    write_totp_data(&data)?;
+    save(path, &data)?;
+    if let Err(e) = store.delete() {
+        eprintln!("[ShellFerry] {e}");
+    }
     Ok(())
 }
 
-pub fn validate_login_code(code_or_backup: &str) -> Result<bool, String> {
-    let mut data = read_totp_data();
+fn validate_login_code_in(
+    path: &Path,
+    store: &dyn SecretStore,
+    code_or_backup: &str,
+    now: u64,
+) -> Result<bool, String> {
+    let mut data = load(path, store);
     if !data.enabled && data.backup_code_hashes.is_empty() {
         return Ok(true);
     }
 
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-
-    if data.enabled && verify_totp_code(&data.secret, code_or_backup, now) {
+    if data.enabled
+        && active_secret(&data, store).is_some_and(|s| verify_totp_code(&s, code_or_backup, now))
+    {
         return Ok(true);
     }
 
-    // Check backup codes
+    // Backup codes are single-use.
     let hashed = hash_code(code_or_backup);
     if let Some(pos) = data.backup_code_hashes.iter().position(|h| h == &hashed) {
-        // Invalidate used backup code
         data.backup_code_hashes.remove(pos);
-        let _ = write_totp_data(&data);
+        let _ = save(path, &data);
         return Ok(true);
     }
 
@@ -339,6 +423,120 @@ mod tests {
         // Unix time: 1111111109s -> step = 37037036 -> RFC code is 081804
         let code2 = compute_totp(secret, 1111111109 / 30).unwrap();
         assert_eq!(code2, "081804");
+    }
+
+    use std::cell::RefCell;
+
+    #[derive(Default)]
+    struct MemStore {
+        secret: RefCell<Option<String>>,
+        fail: bool,
+    }
+
+    impl SecretStore for MemStore {
+        fn get(&self) -> Result<Option<String>, String> {
+            Ok(self.secret.borrow().clone())
+        }
+        fn set(&self, s: &str) -> Result<(), String> {
+            if self.fail {
+                return Err("keychain down".into());
+            }
+            *self.secret.borrow_mut() = Some(s.to_string());
+            Ok(())
+        }
+        fn delete(&self) -> Result<(), String> {
+            *self.secret.borrow_mut() = None;
+            Ok(())
+        }
+    }
+
+    const SECRET: &str = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+    const NOW: u64 = 1111111109; // code 081804
+    const CODE: &str = "081804";
+
+    fn tmp_file(name: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("shellferry-totp-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&d);
+        fs::create_dir_all(&d).unwrap();
+        d.join("totp.json")
+    }
+
+    fn legacy_file(path: &Path) {
+        fs::write(
+            path,
+            format!(r#"{{"enabled":true,"secret":"{SECRET}","backup_code_hashes":[],"idle_timeout_mins":15}}"#),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn enable_stores_secret_in_keychain_not_on_disk() {
+        let path = tmp_file("enable");
+        let store = MemStore::default();
+        let codes = enable_totp_in(&path, &store, SECRET, CODE, NOW).unwrap();
+
+        assert_eq!(codes.len(), 8);
+        assert_eq!(store.get().unwrap().as_deref(), Some(SECRET));
+        let disk = fs::read_to_string(&path).unwrap();
+        assert!(!disk.contains(SECRET));
+        assert!(!disk.contains("\"secret\""));
+        assert!(validate_login_code_in(&path, &store, CODE, NOW).unwrap());
+        assert!(!validate_login_code_in(&path, &store, "000000", NOW).unwrap());
+    }
+
+    #[test]
+    fn enable_fails_without_keychain_and_writes_nothing() {
+        let path = tmp_file("nokeychain");
+        let store = MemStore { fail: true, ..Default::default() };
+        assert!(enable_totp_in(&path, &store, SECRET, CODE, NOW).is_err());
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn legacy_secret_migrates_to_keychain() {
+        let path = tmp_file("migrate");
+        legacy_file(&path);
+        let store = MemStore::default();
+
+        assert!(get_config_in(&path, &store).enabled);
+        assert_eq!(store.get().unwrap().as_deref(), Some(SECRET));
+        assert!(!fs::read_to_string(&path).unwrap().contains(SECRET));
+        assert!(validate_login_code_in(&path, &store, CODE, NOW).unwrap());
+    }
+
+    #[test]
+    fn legacy_secret_kept_when_keychain_fails() {
+        let path = tmp_file("migrate-fail");
+        legacy_file(&path);
+        let store = MemStore { fail: true, ..Default::default() };
+
+        // Login still works from the in-file secret; nothing is lost.
+        assert!(validate_login_code_in(&path, &store, CODE, NOW).unwrap());
+        assert!(fs::read_to_string(&path).unwrap().contains(SECRET));
+    }
+
+    #[test]
+    fn disable_removes_keychain_entry() {
+        let path = tmp_file("disable");
+        let store = MemStore::default();
+        enable_totp_in(&path, &store, SECRET, CODE, NOW).unwrap();
+
+        assert!(disable_totp_in(&path, &store, "000000", NOW).is_err());
+        disable_totp_in(&path, &store, CODE, NOW).unwrap();
+        assert!(store.get().unwrap().is_none());
+        assert!(!get_config_in(&path, &store).enabled);
+    }
+
+    #[test]
+    fn backup_code_works_when_keychain_secret_missing() {
+        let path = tmp_file("backup");
+        let store = MemStore::default();
+        let codes = enable_totp_in(&path, &store, SECRET, CODE, NOW).unwrap();
+        store.delete().unwrap();
+
+        assert!(!validate_login_code_in(&path, &store, CODE, NOW).unwrap());
+        assert!(validate_login_code_in(&path, &store, &codes[0], NOW).unwrap());
+        assert!(!validate_login_code_in(&path, &store, &codes[0], NOW).unwrap(), "single use");
     }
 
     #[test]

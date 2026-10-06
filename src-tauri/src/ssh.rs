@@ -155,7 +155,7 @@ fn verify_host_key(sess: &Session, host: &str, port: u16) -> Result<(), String> 
             let _ = known_hosts.add(
                 &host_entry,
                 key,
-                &format!("OpenTerm host key for {}:{}", host, port),
+                &format!("ShellFerry host key for {}:{}", host, port),
                 key_type.into(),
             );
             if let Some(ref path) = known_hosts_path {
@@ -300,7 +300,7 @@ pub fn connect_ssh(
                         ch.eof()
                     };
                     if is_eof {
-                        eprintln!("[OpenTerm] Remote channel reported EOF");
+                        eprintln!("[ShellFerry] Remote channel reported EOF");
                         break;
                     }
                     thread::sleep(Duration::from_millis(15));
@@ -316,7 +316,7 @@ pub fn connect_ssh(
                     {
                         thread::sleep(Duration::from_millis(15));
                     } else {
-                        eprintln!("[OpenTerm] SSH read error: {}", e);
+                        eprintln!("[ShellFerry] SSH read error: {}", e);
                         break;
                     }
                 }
@@ -430,7 +430,7 @@ pub fn connect_ssh(
     })() {
         Ok((s, sftp)) => (Some((Arc::new(Mutex::new(s)), Arc::new(Mutex::new(sftp)))), None),
         Err(e) => {
-            eprintln!("[OpenTerm] SFTP initialization skipped/failed: {}", e);
+            eprintln!("[ShellFerry] SFTP initialization skipped/failed: {}", e);
             (None, Some(e))
         }
     };

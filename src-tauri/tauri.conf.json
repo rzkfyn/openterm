@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "openterm",
-  "version": "0.7.3",
-  "identifier": "com.openterm.app",
+  "productName": "ShellFerry",
+  "version": "0.8.0",
+  "identifier": "io.github.rzkfyn.shellferry",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,12 +13,13 @@
     "windows": [
       {
         "label": "main",
-        "title": "OpenTerm",
+        "title": "ShellFerry",
         "width": 1200,
         "height": 800,
         "minWidth": 800,
         "minHeight": 550,
-        "decorations": true
+        "decorations": true,
+        "create": false
       }
     ],
     "security": {
@@ -37,6 +38,18 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc4RUNENjlGQ0Q2NjIzRTEKUldUaEkyYk5uOWJzZURpRkZsL2RLVjQ4U3lrZ1ZML2cwVjMwZjFKUlR1K0xobllMLzNWWDRMUksK",
+      "endpoints": [
+        "https://github.com/rzkfyn/openterm/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

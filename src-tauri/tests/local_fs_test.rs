@@ -1,4 +1,4 @@
-use openterm_lib::local_fs::read_local_dir;
+use shellferry_lib::local_fs::read_local_dir;
 
 #[test]
 fn test_read_local_dir() {

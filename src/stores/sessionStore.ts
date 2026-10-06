@@ -40,7 +40,7 @@ async function attemptAutoReconnect(sessionId: string) {
     useSessionStore.getState().markSessionClosed(sessionId);
     emitTerminalNotice(
       sessionId,
-      `\r\n\x1b[31m[OpenTerm: Auto-reconnect failed after ${maxAttempts} attempts. Click Reconnect to retry.]\x1b[0m\r\n`
+      `\r\n\x1b[31m[ShellFerry: Auto-reconnect failed after ${maxAttempts} attempts. Click Reconnect to retry.]\x1b[0m\r\n`
     );
     return;
   }
@@ -56,7 +56,7 @@ async function attemptAutoReconnect(sessionId: string) {
 
   emitTerminalNotice(
     sessionId,
-    `\r\n\x1b[33m[OpenTerm: Connection dropped. Auto-reconnecting (attempt ${currentAttempt}/${maxAttempts}) in ${delayMs / 1000}s...]\x1b[0m\r\n`
+    `\r\n\x1b[33m[ShellFerry: Connection dropped. Auto-reconnecting (attempt ${currentAttempt}/${maxAttempts}) in ${delayMs / 1000}s...]\x1b[0m\r\n`
   );
 
   const timer = setTimeout(async () => {
@@ -252,7 +252,7 @@ export const useSessionStore = create<SessionState>((set) => ({
     await tauriApi.sshConnect({ ...session, id });
 
     reconnectAttemptsMap.delete(id);
-    emitTerminalNotice(id, '\r\n\x1b[32m[OpenTerm: Connection restored successfully!]\x1b[0m\r\n');
+    emitTerminalNotice(id, '\r\n\x1b[32m[ShellFerry: Connection restored successfully!]\x1b[0m\r\n');
 
     // Restore remote SFTP directory if active
     try {
