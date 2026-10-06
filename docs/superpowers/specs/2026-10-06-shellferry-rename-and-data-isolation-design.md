@@ -72,3 +72,30 @@ not protect against malware running as the same OS user.
 - Manual (Windows): the installer creates a separate Start Menu entry and uninstall key; vault
   unlock and TOTP login work after migration; `totp.json` no longer contains `secret`;
   uninstalling the other OpenTerm with "delete data" leaves ShellFerry's data intact.
+
+## Addendum: In-app updater (v0.8.0)
+
+### Design
+- `tauri-plugin-updater` + `tauri-plugin-process`. Endpoint:
+  `https://github.com/rzkfyn/openterm/releases/latest/download/latest.json`. `tauri-action` generates
+  it with `uploadUpdaterJson: true` and `updaterJsonPreferNsis: true`, so updates use the per-user NSIS installer.
+- Every update is verified with minisign against the `pubkey` in `tauri.conf.json`; unsigned or
+  tampered updates are rejected.
+- Discovery and release notes still come from the GitHub API (`updateStore`). Install goes
+  through `appUpdateStore`: check, download with progress, install, then "Restart to update".
+- Nothing installs without the user clicking. A confirmation appears if SSH sessions are open, because
+  Windows quits the app during install. If the in-app install fails, the button opens the release page instead.
+- Releases are drafts, so an update reaches users only when the draft is published.
+- CI fails the release if the pubkey is still the placeholder or `TAURI_SIGNING_PRIVATE_KEY` is unset.
+
+### One-time key setup (maintainer)
+1. `npx tauri signer generate -w ~/.tauri/shellferry.key` (set a password).
+2. GitHub repo secrets: `TAURI_SIGNING_PRIVATE_KEY` (contents of `shellferry.key`) and
+   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+3. Paste the contents of `shellferry.key.pub` into `plugins.updater.pubkey` in `tauri.conf.json`.
+4. Back up the private key and password offline. **If the key is lost, existing installs can never
+   auto-update again. If it leaks, an attacker can push updates.**
+
+### Verified locally
+Signed NSIS build with a throwaway key; the `.sig` verifies against the pubkey using the updater's
+minisign scheme, and a 1-bit tampered installer is rejected.

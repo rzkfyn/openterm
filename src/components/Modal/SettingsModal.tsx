@@ -775,7 +775,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <div className="flex items-center justify-between p-3.5">
                     <div>
                       <span className="font-medium text-slate-200">Software Updates</span>
-                      <p className="text-[11px] text-slate-400 mt-0.5">Check for newer GitHub releases</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Check for new releases. Updates install from the status bar.</p>
                     </div>
                     <button
                       type="button"

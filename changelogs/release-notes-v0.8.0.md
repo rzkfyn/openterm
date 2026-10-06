@@ -24,3 +24,8 @@ app-data folder. ShellFerry now has its own identity and installs fully separate
 ## Upgrading
 1. Install ShellFerry v0.8.0 and launch it once so the migration runs.
 2. Uninstall the old "openterm" entry from Windows Settings > Apps. Leave "Delete the application data" **unchecked**, because that folder may be shared with the unrelated OpenTerm app.
+
+### 4. Built-in updater
+- Updates now install from inside the app. When a new version is available, click **Install** in the status bar (or **Install Update** in the changelog), watch the progress, then **Restart to update**.
+- Every update is cryptographically signed and verified before installing. Tampered downloads are rejected.
+- This is the last version you'll need to download manually.

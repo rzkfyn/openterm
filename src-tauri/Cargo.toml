@@ -54,4 +54,8 @@ objc2-foundation = { version = "0.3", features = ["NSString", "NSError"] }
 objc2-local-authentication = "0.3"
 block2 = "0.6"
 
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-process = "2"
+tauri-plugin-updater = "2"
+
 
