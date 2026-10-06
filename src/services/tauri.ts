@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
+import type { DragDropEvent } from '@tauri-apps/api/webview';
 import {
   SessionConfig,
   PaginatedEntries,
@@ -248,8 +250,8 @@ export const tauriApi = {
   copyFilesToClipboard: async (paths: string[]): Promise<void> => {
     return await invoke<void>('copy_files_to_clipboard', { paths });
   },
-  startNativeDrag: async (paths: string[]): Promise<void> => {
-    return await invoke<void>('start_native_drag', { paths });
+  startNativeDrag: async (paths: string[], icon?: number[]): Promise<void> => {
+    return await invoke<void>('start_native_drag', { paths, icon: icon ?? null });
   },
   sftpDownloadSync: async (
     sessionId: string,
@@ -297,15 +299,12 @@ export const tauriApi = {
     });
   },
 
-  onWindowDragDrop: async (
-    callback: (event: { paths: string[]; position: { x: number; y: number } }) => void
+  onDragDropEvent: async (
+    callback: (event: DragDropEvent) => void
   ): Promise<UnlistenFn> => {
-    return await listen<{ paths: string[]; position: { x: number; y: number } }>(
-      'tauri://drag-drop',
-      (event) => {
-        callback(event.payload);
-      }
-    );
+    return await getCurrentWebview().onDragDropEvent((event) => {
+      callback(event.payload);
+    });
   },
 
   biometricIsAvailable: async (): Promise<boolean> => {

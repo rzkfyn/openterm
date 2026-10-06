@@ -2,7 +2,9 @@ import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { useFileManagerStore } from '../../stores/fileManagerStore';
 import { useTransferStore } from '../../stores/transferStore';
 import { tauriApi } from '../../services/tauri';
+import type { DragDropEvent } from '@tauri-apps/api/webview';
 import { getBasename, joinLocalPath, joinRemotePath } from '../../utils/pathUtils';
+import { renderDragLabel } from '../../utils/dragLabel';
 import { FilePane } from './FilePane';
 import { ResizableSplitter } from '../Common/ResizableSplitter';
 import { PromptModal } from '../Modal/PromptModal';
@@ -122,6 +124,9 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
       if (unlisten) unlisten();
     };
   }, [sessionId, remote.currentPath, loadRemoteDir]);
+
+  // Track which pane the native OS drag is hovering over
+  const [nativeDragOverPane, setNativeDragOverPane] = useState<'local' | 'remote' | null>(null);
 
   // Prompt Modal state
   const [promptState, setPromptState] = useState<{
@@ -405,92 +410,128 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
     [sessionId, executeTransferWithConflict]
   );
 
-  // Listen for native OS drag and drop from Windows Explorer / Desktop
+  // Ref-stable callback avoids re-registering the Tauri native listener on
+  // every render (which stacks listeners and causes duplicate transfers).
+  const dropHandlerRef = useRef((_event: DragDropEvent) => {});
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
-
-    tauriApi
-      .onWindowDragDrop((payload) => {
-        const { paths, position } = payload;
-        if (!paths || paths.length === 0) return;
-
+    dropHandlerRef.current = (event: DragDropEvent) => {
+      // Visual feedback for native drag hover
+      if (event.type === 'enter' || event.type === 'over') {
         const dpr = window.devicePixelRatio || 1;
-        const targetEl =
-          document.elementFromPoint(position.x / dpr, position.y / dpr) ||
-          document.elementFromPoint(position.x, position.y);
+        const el =
+          document.elementFromPoint(event.position.x / dpr, event.position.y / dpr) ||
+          document.elementFromPoint(event.position.x, event.position.y);
+        const paneEl = el?.closest('[data-file-pane]');
+        if (paneEl) {
+          setNativeDragOverPane(paneEl.getAttribute('data-pane-is-remote') === 'true' ? 'remote' : 'local');
+        } else {
+          setNativeDragOverPane(sessionId && (event.position.x / dpr) > window.innerWidth / 2 ? 'remote' : 'local');
+        }
+        return;
+      }
+      if (event.type === 'leave') {
+        setNativeDragOverPane(null);
+        return;
+      }
 
-        const folderRow = targetEl?.closest('[data-file-row][data-is-dir="true"]');
-        const paneEl = targetEl?.closest('[data-file-pane]');
+      // Drop
+      setNativeDragOverPane(null);
+      const { paths, position } = event;
+      if (!paths || paths.length === 0) return;
 
-        if (folderRow) {
-          const targetFolder = folderRow.getAttribute('data-entry-path');
-          const isRemoteFolder = folderRow.getAttribute('data-is-remote') === 'true';
-          if (targetFolder) {
-            if (isRemoteFolder && sessionId) {
-              handleDropTransfer(true, 'local', paths, targetFolder);
-            } else if (!isRemoteFolder) {
-              if (paths.length === 1 && paths[0]) {
-                loadLocalDir(targetFolder);
+      const dpr = window.devicePixelRatio || 1;
+      const targetEl =
+        document.elementFromPoint(position.x / dpr, position.y / dpr) ||
+        document.elementFromPoint(position.x, position.y);
+
+      const folderRow = targetEl?.closest('[data-file-row][data-is-dir="true"]');
+      const paneEl = targetEl?.closest('[data-file-pane]');
+
+      if (folderRow) {
+        const targetFolder = folderRow.getAttribute('data-entry-path');
+        const isRemoteFolder = folderRow.getAttribute('data-is-remote') === 'true';
+        if (targetFolder) {
+          if (isRemoteFolder && sessionId) {
+            handleDropTransfer(true, 'local', paths, targetFolder);
+          } else if (!isRemoteFolder) {
+            if (paths.length === 1 && paths[0]) {
+              loadLocalDir(targetFolder);
+            }
+          }
+          return;
+        }
+      }
+
+      const isRemotePane = paneEl
+        ? paneEl.getAttribute('data-pane-is-remote') === 'true'
+        : (sessionId ? (position.x / dpr) > window.innerWidth / 2 : false);
+
+      const currentRemote = useFileManagerStore.getState().remote.currentPath;
+
+      if (isRemotePane && sessionId) {
+        const targetDir = paneEl?.getAttribute('data-pane-current-path') || currentRemote;
+        handleDropTransfer(true, 'local', paths, targetDir);
+      } else {
+        const currentLocal = useFileManagerStore.getState().local.currentPath;
+        const targetDir = paneEl?.getAttribute('data-pane-current-path') || currentLocal;
+        if (paths.length === 1 && paths[0]) {
+          tauriApi.localStat(paths[0]).then((stat) => {
+            if (stat.isDir && paths[0] !== targetDir) {
+              const name = paths[0].split(/[/\\]/).pop() || '';
+              const dest = joinLocalPath(targetDir, name);
+              if (dest !== paths[0]) {
+                tauriApi.localCopy(paths[0], dest).then(() => loadLocalDir(targetDir)).catch(() => {});
+              } else {
+                loadLocalDir(paths[0]);
+              }
+            } else if (!stat.isDir) {
+              const name = paths[0].split(/[/\\]/).pop() || '';
+              const dest = joinLocalPath(targetDir, name);
+              if (dest !== paths[0]) {
+                tauriApi.localCopy(paths[0], dest).then(() => loadLocalDir(targetDir)).catch(() => {});
               }
             }
-            return;
-          }
+          }).catch(() => {
+            loadLocalDir(targetDir);
+          });
+        } else if (paths.length > 1) {
+          Promise.all(
+            paths.map((p) => {
+              const name = p.split(/[/\\]/).pop() || '';
+              const dest = joinLocalPath(targetDir, name);
+              return dest !== p ? tauriApi.localCopy(p, dest) : Promise.resolve();
+            })
+          ).then(() => loadLocalDir(targetDir)).catch(() => {});
         }
+      }
+    };
+  }, [sessionId, handleDropTransfer, loadLocalDir]);
 
-        const isRemotePane = paneEl
-          ? paneEl.getAttribute('data-pane-is-remote') === 'true'
-          : (sessionId ? (position.x / dpr) > window.innerWidth / 2 : false);
+  // Register the Tauri native drag-drop listener exactly once.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
 
-        const currentRemote = useFileManagerStore.getState().remote.currentPath;
-
-        if (isRemotePane && sessionId) {
-          const targetDir = paneEl?.getAttribute('data-pane-current-path') || currentRemote;
-          handleDropTransfer(true, 'local', paths, targetDir);
-        } else {
-          const currentLocal = useFileManagerStore.getState().local.currentPath;
-          const targetDir = paneEl?.getAttribute('data-pane-current-path') || currentLocal;
-          if (paths.length === 1 && paths[0]) {
-            tauriApi.localStat(paths[0]).then((stat) => {
-              if (stat.isDir && paths[0] !== targetDir) {
-                const name = paths[0].split(/[/\\]/).pop() || '';
-                const dest = joinLocalPath(targetDir, name);
-                if (dest !== paths[0]) {
-                  tauriApi.localCopy(paths[0], dest).then(() => loadLocalDir(targetDir)).catch(() => {});
-                } else {
-                  loadLocalDir(paths[0]);
-                }
-              } else if (!stat.isDir) {
-                const name = paths[0].split(/[/\\]/).pop() || '';
-                const dest = joinLocalPath(targetDir, name);
-                if (dest !== paths[0]) {
-                  tauriApi.localCopy(paths[0], dest).then(() => loadLocalDir(targetDir)).catch(() => {});
-                }
-              }
-            }).catch(() => {
-              loadLocalDir(targetDir);
-            });
-          } else if (paths.length > 1) {
-            Promise.all(
-              paths.map((p) => {
-                const name = p.split(/[/\\]/).pop() || '';
-                const dest = joinLocalPath(targetDir, name);
-                return dest !== p ? tauriApi.localCopy(p, dest) : Promise.resolve();
-              })
-            ).then(() => loadLocalDir(targetDir)).catch(() => {});
-          }
-        }
+    tauriApi
+      .onDragDropEvent((event) => {
+        dropHandlerRef.current(event);
       })
       .then((fn) => {
-        unlisten = fn;
+        if (cancelled) {
+          fn();
+        } else {
+          unlisten = fn;
+        }
       })
       .catch((err) => {
         console.warn('Native drag-drop listener not registered:', err);
       });
 
     return () => {
+      cancelled = true;
       if (unlisten) unlisten();
     };
-  }, [sessionId, handleDropTransfer, loadLocalDir]);
+  }, []);
 
   // Context Menu CRUD Operations
   const handleRename = (entry: FileEntry, isRemote: boolean) => {
@@ -684,8 +725,11 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
   const handleStartNativeDrag = useCallback(
     async (paths: string[], isRemote: boolean) => {
       try {
+        const filenames = paths.map((p) => p.split(/[/\\]/).pop() || 'file');
+        const icon = renderDragLabel(filenames);
+
         if (!isRemote) {
-          await tauriApi.startNativeDrag(paths);
+          await tauriApi.startNativeDrag(paths, icon);
         } else if (sessionId) {
           const tempBase = 'openterm-remote-cache';
           await tauriApi.localMkdir(joinLocalPath('~', '.openterm', tempBase));
@@ -696,7 +740,7 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
             await tauriApi.sftpDownloadSync(sessionId, remotePath, localTarget);
             localCachedPaths.push(localTarget);
           }
-          await tauriApi.startNativeDrag(localCachedPaths);
+          await tauriApi.startNativeDrag(localCachedPaths, icon);
         }
       } catch (err) {
         console.debug('Native drag finished or cancelled:', err);
@@ -765,6 +809,7 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
               onNewFile={() => handleNewFile(false)}
               onNewFolder={() => handleNewFolder(false)}
               onStartNativeDrag={handleStartNativeDrag}
+              nativeDragOver={nativeDragOverPane === 'local'}
             />
           </div>
         </div>
@@ -959,6 +1004,7 @@ export const DualPaneExplorer: React.FC<DualPaneExplorerProps> = ({ sessionId })
                   onNewFile={() => handleNewFile(true)}
                   onNewFolder={() => handleNewFolder(true)}
                   onStartNativeDrag={handleStartNativeDrag}
+                  nativeDragOver={nativeDragOverPane === 'remote'}
                 />
               </div>
             </>

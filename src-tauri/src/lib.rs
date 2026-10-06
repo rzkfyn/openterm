@@ -398,6 +398,7 @@ async fn start_native_drag<R: tauri::Runtime>(
     app: AppHandle<R>,
     window: tauri::Window<R>,
     paths: Vec<String>,
+    icon: Option<Vec<u8>>,
 ) -> Result<(), String> {
     if paths.is_empty() {
         return Ok(());
@@ -434,14 +435,16 @@ async fn start_native_drag<R: tauri::Runtime>(
         #[cfg(not(target_os = "linux"))]
         let raw_window = tauri::Result::Ok(window.clone());
 
-        let icon_bytes = include_bytes!("../icons/icon.png");
-        let icon = drag::Image::Raw(icon_bytes.to_vec());
+        let icon_data = match &icon {
+            Some(bytes) => drag::Image::Raw(bytes.clone()),
+            None => drag::Image::Raw(include_bytes!("../icons/drag-icon.png").to_vec()),
+        };
 
         let r = match raw_window {
             Ok(w) => drag::start_drag(
                 &w,
                 drag::DragItem::Files(resolved_paths),
-                icon,
+                icon_data,
                 |_result, _pos| {},
                 drag::Options::default(),
             )
